@@ -84,22 +84,24 @@ a { color: inherit; }
 .brand strong { font-size: .92rem; font-weight: 600; }
 .brand small { margin-top: .15rem; color: var(--muted); font-size: .69rem; }
 
-.source-link,
+.github-link {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.github-link svg { height: 1.15rem; width: 1.15rem; }
+.github-link:hover { color: var(--terracotta); }
+.github-link:focus-visible { outline: 2px solid var(--pine); outline-offset: 3px; }
+
 .text-link {
   text-underline-offset: .25em;
   text-decoration-thickness: 1px;
 }
 
-.source-link {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  color: var(--muted);
-  font-size: .78rem;
-  font-weight: 600;
-}
-
-.source-link:hover,
 .text-link:hover { color: var(--terracotta); }
 
 .intro {

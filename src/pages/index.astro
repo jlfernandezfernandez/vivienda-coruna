@@ -15,13 +15,13 @@ const checkedLabel = checkedAt
 
 <Layout
   title="VPA Coruña — Vivienda protegida en A Coruña y alrededores"
-  description="Monitor independiente de vivienda protegida, cooperativas y suelo residencial en A Coruña, Arteixo, Culleredo, Oleiros y alrededores."
+  description="Monitor de publicaciones oficiales sobre vivienda protegida, adjudicaciones y suelo público en A Coruña y alrededores."
 >
   <section class="intro shell" aria-labelledby="page-title">
     <div class="intro__copy">
       <p class="eyebrow">Radar de vivienda pública</p>
       <h1 id="page-title">Lo nuevo, cerca de casa.</h1>
-      <p class="lede">Seguimos publicaciones oficiales sobre vivienda protegida, cooperativas y suelo residencial en A Coruña y su entorno inmediato.</p>
+      <p class="lede">Seguimos publicaciones oficiales sobre vivienda protegida, adjudicaciones y suelo público en A Coruña y su entorno inmediato.</p>
     </div>
 
     <aside class="scan-status" aria-label="Estado de la última comprobación">
@@ -37,8 +37,8 @@ const checkedLabel = checkedAt
   <section class="results shell" aria-labelledby="results-title">
     <div class="section-heading">
       <div>
-        <p class="eyebrow">Publicaciones localizadas</p>
-        <h2 id="results-title">{items.length === 0 ? 'Sin novedades activas' : `${items.length} ${items.length === 1 ? 'oportunidad' : 'oportunidades'}`}</h2>
+        <p class="eyebrow">Publicaciones relevantes</p>
+        <h2 id="results-title">{items.length === 0 ? 'Sin publicaciones recientes' : `${items.length} ${items.length === 1 ? 'publicación' : 'publicaciones'}`}</h2>
       </div>
       {items.length > 0 && <p>Ordenadas por fecha de publicación</p>}
     </div>

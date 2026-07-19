@@ -14,10 +14,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dataPath = join(root, 'src', 'data', 'monitor.json');
 
 const feeds = [
-  { name: 'IGVS', url: 'https://www.contratosdegalicia.gal/rss/perfil-14.rss' },
-  { name: 'Consellería de Vivenda', url: 'https://www.contratosdegalicia.gal/rss/perfil-515.rss' },
-  { name: 'DOG · Vivienda y territorio', url: 'https://www.xunta.gal/diario-oficial-galicia/rss/Taxonomia22008_es.rss' },
-  { name: 'Contratos Públicos de Galicia', url: 'https://www.contratosdegalicia.gal/rss/ultimas-publicacions.rss' },
+  { name: 'IGVS · Adjudicaciones y sorteos', url: 'https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida', format: 'html' },
+  { name: 'IGVS', url: 'https://www.contratosdegalicia.gal/rss/perfil-14.rss', format: 'rss' },
+  { name: 'Consellería de Vivenda', url: 'https://www.contratosdegalicia.gal/rss/perfil-515.rss', format: 'rss' },
+  { name: 'DOG · Vivienda y territorio', url: 'https://www.xunta.gal/diario-oficial-galicia/rss/Taxonomia22008_es.rss', format: 'rss' },
+  { name: 'Contratos Públicos de Galicia', url: 'https://www.contratosdegalicia.gal/rss/ultimas-publicacions.rss', format: 'rss' },
 ];
 
 async function loadPrevious() {
@@ -29,17 +30,35 @@ async function loadPrevious() {
   }
 }
 
+function parseIgvsListing(html, sourceUrl) {
+  const links = html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi);
+  const items = new Map();
+
+  for (const [, href, rawTitle] of links) {
+    if (!href.includes('/adjudicaciones-sorteos-de-vivienda-protegida/')) continue;
+    const title = rawTitle.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const date = title.match(/^(\d{2}\/\d{2}\/\d{4})/u)?.[1];
+    if (!date) continue;
+    const itemTitle = title.replace(/^\d{2}\/\d{2}\/\d{4}\s*/u, '');
+    const link = new URL(href, sourceUrl).toString();
+    items.set(link, { title: itemTitle, link, pubDate: date });
+  }
+
+  return [...items.values()];
+}
+
 async function parseFeed(feed) {
   const response = await fetch(feed.url, {
-    headers: { Accept: 'application/rss+xml, application/xml, text/xml' },
+    headers: { Accept: feed.format === 'html' ? 'text/html' : 'application/rss+xml, application/xml, text/xml' },
     signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
+  if (feed.format === 'html') return parseIgvsListing(await response.text(), feed.url);
+
   const buffer = Buffer.from(await response.arrayBuffer());
   let xml = buffer.toString('utf8');
   if (xml.includes('\uFFFD') || xml.includes('Ã')) xml = iconv.decode(buffer, 'latin1');
-
   const parsed = await parser.parseString(xml);
   return parsed.items || [];
 }

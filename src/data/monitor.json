@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-07-19T22:32:18.375Z",
+  "checkedAt": "2026-07-19T22:48:41.620Z",
   "area": [
     "A Coruña",
     "Arteixo",
@@ -10,6 +10,12 @@
     "Bergondo"
   ],
   "sources": [
+    {
+      "name": "IGVS · Adjudicaciones y sorteos",
+      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida",
+      "ok": true,
+      "scanned": 10
+    },
     {
       "name": "IGVS",
       "url": "https://www.contratosdegalicia.gal/rss/perfil-14.rss",
@@ -35,5 +41,84 @@
       "scanned": 101
     }
   ],
-  "items": []
+  "items": [
+    {
+      "id": "fb53a257a1da6dc7",
+      "title": "A Coruña - Informe del sorteo del proceso de adjudicación de viviendas de VPP primera adjudicación en Xuxán, C2024010",
+      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/informe-del-sorteo-del-proceso-de-adjudicacion-de-viviendas-de-vpp-primera-adjudicacion-en-xuxan",
+      "source": "IGVS · Adjudicaciones y sorteos",
+      "publishedAt": "2026-07-15T00:00:00.000Z",
+      "firstSeenAt": "2026-07-19T22:48:08.625Z",
+      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "location": "A Coruña",
+      "type": "Vivienda protegida",
+      "status": null,
+      "summary": ""
+    },
+    {
+      "id": "12e7076dde9bf9a6",
+      "title": "A Coruña - Informe del sorteo del proceso de adjudicación de viviendas de VPP primera adjudicación en el Barrio Histórico, C2023CH01",
+      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/informe-del-sorteo-del-proceso-de-adjudicacion-de-viviendas-de-vpp-primera-adjudicacion-en-el-barrio",
+      "source": "IGVS · Adjudicaciones y sorteos",
+      "publishedAt": "2026-07-15T00:00:00.000Z",
+      "firstSeenAt": "2026-07-19T22:48:08.625Z",
+      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "location": "A Coruña",
+      "type": "Vivienda protegida",
+      "status": null,
+      "summary": ""
+    },
+    {
+      "id": "88fb0590025c7018",
+      "title": "A Coruña - Modificación de la Resolución de Inicio del proceso de adjudicación de vivendas de VPP en el Barrio Histórico, C2023CH01",
+      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/modificacion-de-la-resolucion-de-inicio-del-proceso-de-adjudicacion-de-vivendas-de-vpp-en-el-barrio",
+      "source": "IGVS · Adjudicaciones y sorteos",
+      "publishedAt": "2026-07-10T00:00:00.000Z",
+      "firstSeenAt": "2026-07-19T22:48:08.625Z",
+      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "location": "A Coruña",
+      "type": "Vivienda protegida",
+      "status": null,
+      "summary": ""
+    },
+    {
+      "id": "74fb1ac3c197fe39",
+      "title": "A Coruña - Modificación de la Resolución de Inicio del proceso de adjudicación de viviendas de VPP en Xuxán, C2024010",
+      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/modificacion-de-la-resolucion-de-inicio-del-proceso-de-adjudicacion-de-viviendas-de-vpp-en-xuxan",
+      "source": "IGVS · Adjudicaciones y sorteos",
+      "publishedAt": "2026-07-10T00:00:00.000Z",
+      "firstSeenAt": "2026-07-19T22:48:08.625Z",
+      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "location": "A Coruña",
+      "type": "Vivienda protegida",
+      "status": null,
+      "summary": ""
+    },
+    {
+      "id": "09bec8a193a2dbb7",
+      "title": "A Coruña - Fecha, hora y lugar del sorteo público del proceso de adjudicación de 4 viviendas de VPP, Barrio Histórico, C2023CH01",
+      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/fecha-hora-y-lugar-del-sorteo-publico-del-proceso-de-adjudicacion-de-4-viviendas-de-vpp-barrio",
+      "source": "IGVS · Adjudicaciones y sorteos",
+      "publishedAt": "2026-07-08T00:00:00.000Z",
+      "firstSeenAt": "2026-07-19T22:48:08.625Z",
+      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "location": "A Coruña",
+      "type": "Vivienda protegida",
+      "status": null,
+      "summary": ""
+    },
+    {
+      "id": "4474636a7b8e1f38",
+      "title": "A Coruña - Fecha, hora y lugar del sorteo público del proceso de adjudicación de 14 viviendas de VPP, Xuxán, C2024010",
+      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/fecha-hora-y-lugar-del-sorteo-publico-del-proceso-de-adjudicacion-de-14-viviendas-de-vpp-xuxan",
+      "source": "IGVS · Adjudicaciones y sorteos",
+      "publishedAt": "2026-07-08T00:00:00.000Z",
+      "firstSeenAt": "2026-07-19T22:48:08.625Z",
+      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "location": "A Coruña",
+      "type": "Vivienda protegida",
+      "status": null,
+      "summary": ""
+    }
+  ]
 }

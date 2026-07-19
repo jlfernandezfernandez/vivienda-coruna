@@ -22,7 +22,7 @@ const PLACE_PATTERNS = [
   { label: 'Bergondo', pattern: /\bbergondo\b/i },
   {
     label: 'A Coruña',
-    pattern: /\b(?:concello|municipio|termo municipal) (?:de |da )?a coruña\b|\b(?:en|na) a coruña\b|\ba coruña cidade\b/i,
+    pattern: /(?:^|\b)(?:concello|municipio|ayuntamiento|termo municipal) (?:de |da )?a coruña\b|\b(?:en|na) a coruña\b|\ba coruña cidade\b|\ba coruña\s*[-—:]/i,
   },
 ];
 
@@ -74,12 +74,18 @@ export function itemId(item) {
   return createHash('sha256').update(identity).digest('hex').slice(0, 16);
 }
 
+function parsePublicationDate(value = '') {
+  const spanish = String(value).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (spanish) return new Date(Date.UTC(Number(spanish[3]), Number(spanish[2]) - 1, Number(spanish[1])));
+  return new Date(value);
+}
+
 export function toOpportunity(item, source, now = new Date().toISOString()) {
   const title = cleanText(item.title);
   if (!isRelevantTitle(title)) return null;
 
   const details = cleanText(item.contentSnippet || item.content || item.description || '');
-  const parsedDate = new Date(item.isoDate || item.pubDate || '');
+  const parsedDate = parsePublicationDate(item.isoDate || item.pubDate || '');
 
   return {
     id: itemId(item),

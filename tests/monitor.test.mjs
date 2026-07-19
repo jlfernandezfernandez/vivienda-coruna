@@ -11,6 +11,7 @@ import {
 test('acepta únicamente A Coruña ciudad y su entorno inmediato', () => {
   const valid = [
     ['Construcción de 40 VPP en el municipio de A Coruña', 'A Coruña'],
+    ['A Coruña - Sorteo de 14 viviendas de VPP en Xuxán', 'A Coruña'],
     ['Parcela residencial para vivienda protegida en Arteixo', 'Arteixo'],
     ['Cooperativa de vivendas en Perillo', 'Perillo'],
     ['Promoción pública de vivienda en O Burgo', 'O Burgo'],
@@ -58,4 +59,10 @@ test('convierte un item RSS al esquema público', () => {
   assert.equal(result.type, 'Vivienda protegida');
   assert.equal(result.status, 'En curso');
   assert.equal(result.url, 'https://example.com/expediente/20');
+
+  const igvs = toOpportunity(
+    { title: '15/07/2026 A Coruña - Informe del sorteo de viviendas de VPP en Xuxán', link: 'https://example.com/xuxan', pubDate: '15/07/2026' },
+    'IGVS · Adjudicaciones y sorteos',
+  );
+  assert.equal(igvs.publishedAt, '2026-07-15T00:00:00.000Z');
 });
