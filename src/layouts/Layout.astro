@@ -1,27 +1,47 @@
 ---
-export interface Props { title: string; description?: string; }
+export interface Props {
+  title: string;
+  description?: string;
+}
 const { title, description } = Astro.props;
+const base = import.meta.env.BASE_URL;
 ---
+
 <!doctype html>
-<html lang="es" data-theme="light">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f2efe7" />
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
-    <link rel="icon" type="image/svg+xml" href="/vpa-monitor/favicon.svg" />
+    <link rel="canonical" href="https://jlfernandezfernandez.github.io/vpa-monitor/" />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-base-200 min-h-screen">
-    <header class="navbar bg-base-100 shadow-sm">
-      <div class="max-w-4xl mx-auto w-full px-4">
-        <a href="/vpa-monitor/" class="text-xl font-bold text-primary">🏠 VPA Coruña</a>
+  <body>
+    <header class="site-header">
+      <div class="shell site-header__inner">
+        <a class="brand" href={base} aria-label="VPA Coruña, inicio">
+          <span class="brand__mark" aria-hidden="true">AC</span>
+          <span>
+            <strong>VPA Coruña</strong>
+            <small>Monitor independiente</small>
+          </span>
+        </a>
+        <a class="source-link" href="https://github.com/jlfernandezfernandez/vpa-monitor" target="_blank" rel="noopener noreferrer">Código y fuentes</a>
       </div>
     </header>
-    <main class="max-w-4xl mx-auto px-4 py-8">
-      <slot />
-    </main>
-    <footer class="text-center text-xs text-base-content/50 py-6">
-      Datos de DOG, Contratos Públicos de Galicia y PLACSP · Sin afiliación oficial
+
+    <main><slot /></main>
+
+    <footer class="site-footer">
+      <div class="shell site-footer__inner">
+        <p>Datos públicos del DOG y de Contratos Públicos de Galicia.</p>
+        <p>Proyecto independiente, sin afiliación oficial.</p>
+      </div>
     </footer>
   </body>
 </html>

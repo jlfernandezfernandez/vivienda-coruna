@@ -2,50 +2,90 @@
 import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
-import FilterBar from '../components/FilterBar.astro';
-import opportunities from '../data/opportunities.json';
+import monitor from '../data/monitor.json';
 
-interface Opportunity {
-  hash: string;
-  title: string;
-  link: string;
-  source: string;
-  date: string;
-  snippet: string;
-}
-
-const items: Opportunity[] = Array.isArray(opportunities) ? opportunities : [];
-const filtro = Astro.url.searchParams.get('filtro') || 'todas';
-
-const filtered = items.filter((o) => {
-  const text = `${o.title} ${o.snippet}`.toLowerCase();
-  if (filtro === 'vpa') return /vpa|vivienda protegida|protección autonómica|protección pública|promoción pública/.test(text);
-  if (filtro === 'cooperativa') return /cooperativa/.test(text);
-  if (filtro === 'parcela') return /parcela|suelo|reparcelación|planeamento/.test(text);
-  return true;
-});
+const items = Array.isArray(monitor.items) ? monitor.items : [];
+const sources = Array.isArray(monitor.sources) ? monitor.sources : [];
+const healthySources = sources.filter((source) => source.ok).length;
+const checkedAt = monitor.checkedAt ? new Date(monitor.checkedAt) : null;
+const checkedLabel = checkedAt
+  ? checkedAt.toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Madrid' })
+  : 'Pendiente de la primera comprobación';
 ---
 
-<Layout title="VPA Coruña — Monitor de oportunidades" description="Nuevas promociones de VPA, cooperativas y parcelas en A Coruña">
-  <h1 class="text-2xl font-bold mb-2">Oportunidades en A Coruña</h1>
-  <p class="text-base-content/60 mb-6">Licitaciones, adjudicaciones y convenios de vivienda protegida, cooperativas y suelo residencial.</p>
-
-  <FilterBar active={filtro} />
-
-  {filtered.length === 0 ? (
-    <div class="text-center py-16 text-base-content/50">
-      <p class="text-4xl mb-3">📭</p>
-      <p class="text-lg font-medium">Sin resultados para este filtro</p>
-      <p class="text-sm mt-1">Prueba con otro filtro o vuelve más tarde.</p>
+<Layout
+  title="VPA Coruña — Vivienda protegida en A Coruña y alrededores"
+  description="Monitor independiente de vivienda protegida, cooperativas y suelo residencial en A Coruña, Arteixo, Culleredo, Oleiros y alrededores."
+>
+  <section class="intro shell" aria-labelledby="page-title">
+    <div class="intro__copy">
+      <p class="eyebrow">Radar de vivienda pública</p>
+      <h1 id="page-title">Lo nuevo, cerca de casa.</h1>
+      <p class="lede">Seguimos publicaciones oficiales sobre vivienda protegida, cooperativas y suelo residencial en A Coruña y su entorno inmediato.</p>
     </div>
-  ) : (
-    <div class="grid gap-4">
-      {filtered.map((o) => <OpportunityCard {...o} />)}
+
+    <aside class="scan-status" aria-label="Estado de la última comprobación">
+      <div class={`status-dot ${healthySources === sources.length && sources.length > 0 ? 'status-dot--ok' : ''}`}></div>
+      <div>
+        <span>Última comprobación</span>
+        <strong>{checkedLabel}</strong>
+        {sources.length > 0 && <small>{healthySources} de {sources.length} fuentes disponibles</small>}
+      </div>
+    </aside>
+  </section>
+
+  <section class="results shell" aria-labelledby="results-title">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Publicaciones localizadas</p>
+        <h2 id="results-title">{items.length === 0 ? 'Sin novedades activas' : `${items.length} ${items.length === 1 ? 'oportunidad' : 'oportunidades'}`}</h2>
+      </div>
+      {items.length > 0 && <p>Ordenadas por fecha de publicación</p>}
     </div>
+
+    {items.length === 0 ? (
+      <div class="empty-state">
+        <div class="empty-state__signal" aria-hidden="true"><span></span></div>
+        <div class="empty-state__copy">
+          <h3>Ahora mismo no hay nada que revisar.</h3>
+          <p>Las fuentes oficiales no muestran publicaciones relevantes para el área seleccionada. Volveremos a comprobarlas automáticamente.</p>
+        </div>
+      </div>
+    ) : (
+      <div class="opportunity-list">
+        {items.map((item) => <OpportunityCard {...item} />)}
+      </div>
+    )}
+  </section>
+
+  <section class="coverage shell" aria-labelledby="coverage-title">
+    <div class="coverage__intro">
+      <p class="eyebrow">Cobertura exacta</p>
+      <h2 id="coverage-title">Solo el área de A Coruña.</h2>
+      <p>No confundimos la ciudad con la provincia: Ferrol, Santiago y otras zonas quedan fuera.</p>
+    </div>
+    <ul class="place-list" aria-label="Localidades incluidas">
+      {monitor.area.map((place) => <li>{place}</li>)}
+    </ul>
+  </section>
+
+  {sources.length > 0 && (
+    <section class="sources shell" aria-labelledby="sources-title">
+      <div class="section-heading section-heading--compact">
+        <div>
+          <p class="eyebrow">Transparencia</p>
+          <h2 id="sources-title">Fuentes consultadas</h2>
+        </div>
+      </div>
+      <ul class="source-list">
+        {sources.map((source) => (
+          <li>
+            <span class={`source-state ${source.ok ? 'source-state--ok' : ''}`} aria-hidden="true"></span>
+            <a href={source.url} target="_blank" rel="noopener noreferrer">{source.name}</a>
+            <small>{source.ok ? `${source.scanned} publicaciones revisadas` : 'No disponible en la última comprobación'}</small>
+          </li>
+        ))}
+      </ul>
+    </section>
   )}
-
-  <p class="text-xs text-base-content/40 mt-8 text-center">
-    Actualizado: {new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
-    · {filtered.length} de {items.length} oportunidades
-  </p>
 </Layout>

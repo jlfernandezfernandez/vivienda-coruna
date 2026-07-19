@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-07-19T21:28:39.846Z",
+  "area": [
+    "A Coruña",
+    "Arteixo",
+    "Culleredo · O Burgo",
+    "Oleiros · Perillo · Santa Cruz",
+    "Cambre",
+    "Sada",
+    "Bergondo"
+  ],
+  "sources": [
+    {
+      "name": "IGVS",
+      "url": "https://www.contratosdegalicia.gal/rss/perfil-14.rss",
+      "ok": true,
+      "scanned": 11
+    },
+    {
+      "name": "Consellería de Vivenda",
+      "url": "https://www.contratosdegalicia.gal/rss/perfil-515.rss",
+      "ok": true,
+      "scanned": 11
+    },
+    {
+      "name": "DOG · Vivienda y territorio",
+      "url": "https://www.xunta.gal/diario-oficial-galicia/rss/Taxonomia22008_es.rss",
+      "ok": true,
+      "scanned": 2
+    },
+    {
+      "name": "Contratos Públicos de Galicia",
+      "url": "https://www.contratosdegalicia.gal/rss/ultimas-publicacions.rss",
+      "ok": true,
+      "scanned": 101
+    }
+  ],
+  "items": []
+}
