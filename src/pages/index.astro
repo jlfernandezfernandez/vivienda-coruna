@@ -3,7 +3,8 @@ import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
 import FilterBar from '../components/FilterBar.astro';
-import rawData from '../data/opportunities.json';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 interface Opportunity {
   hash: string;
@@ -14,7 +15,16 @@ interface Opportunity {
   snippet: string;
 }
 
-const opportunities: Opportunity[] = Array.isArray(rawData) ? rawData : [];
+const dataPath = join(process.cwd(), 'src', 'data', 'opportunities.json');
+let opportunities: Opportunity[] = [];
+try {
+  const raw = readFileSync(dataPath, 'utf-8');
+  const parsed = JSON.parse(raw);
+  opportunities = Array.isArray(parsed) ? parsed : [];
+} catch (e) {
+  console.error('Error reading opportunities:', e);
+}
+
 const filtro = Astro.url.searchParams.get('filtro') || 'todas';
 
 const filtered = opportunities.filter((o) => {
