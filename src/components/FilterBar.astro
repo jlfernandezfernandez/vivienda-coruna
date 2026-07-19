@@ -1,0 +1,18 @@
+---
+export interface Props { active: string; }
+const { active } = Astro.props;
+const filters = [
+  { key: 'todas', label: 'Todas' },
+  { key: 'vpa', label: '🏠 VPA' },
+  { key: 'cooperativa', label: '🤝 Cooperativa' },
+  { key: 'parcela', label: '📐 Parcela' },
+];
+---
+<nav class="flex flex-wrap gap-2 mb-6" aria-label="Filtros">
+  {filters.map(f => (
+    <a
+      href={f.key === 'todas' ? '/vpa-monitor/' : `/vpa-monitor/?filtro=${f.key}`}
+      class={`btn btn-sm ${active === f.key ? 'btn-primary' : 'btn-ghost'}`}
+    >{f.label}</a>
+  ))}
+</nav>

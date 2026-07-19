@@ -1,0 +1,25 @@
+---
+export interface Props {
+  title: string;
+  link: string;
+  source: string;
+  date: string;
+  snippet: string;
+}
+const { title, link, source, date, snippet } = Astro.props;
+const formattedDate = new Date(date).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' });
+---
+<article class="card bg-base-100 shadow-sm border border-base-300 hover:shadow-md transition-shadow">
+  <div class="card-body p-5">
+    <div class="flex items-start justify-between gap-3">
+      <h2 class="card-title text-base leading-snug">
+        <a href={link} target="_blank" rel="noopener" class="link link-hover link-primary">{title}</a>
+      </h2>
+      <span class="badge badge-sm badge-ghost shrink-0">{formattedDate}</span>
+    </div>
+    {snippet && <p class="text-sm text-base-content/70 mt-2 line-clamp-3">{snippet}</p>}
+    <div class="card-actions mt-3">
+      <span class="badge badge-outline badge-sm">{source}</span>
+    </div>
+  </div>
+</article>

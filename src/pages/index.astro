@@ -1,0 +1,51 @@
+---
+import '../styles/global.css';
+import Layout from '../layouts/Layout.astro';
+import OpportunityCard from '../components/OpportunityCard.astro';
+import FilterBar from '../components/FilterBar.astro';
+import rawData from '../data/opportunities.json';
+
+interface Opportunity {
+  hash: string;
+  title: string;
+  link: string;
+  source: string;
+  date: string;
+  snippet: string;
+}
+
+const opportunities: Opportunity[] = Array.isArray(rawData) ? rawData : [];
+const filtro = Astro.url.searchParams.get('filtro') || 'todas';
+
+const filtered = opportunities.filter((o) => {
+  const text = `${o.title} ${o.snippet}`.toLowerCase();
+  if (filtro === 'vpa') return /vpa|vivienda protegida|protección autonómica|protección pública|promoción pública/.test(text);
+  if (filtro === 'cooperativa') return /cooperativa/.test(text);
+  if (filtro === 'parcela') return /parcela|suelo|reparcelación|planeamento/.test(text);
+  return true;
+});
+---
+
+<Layout title="VPA Coruña — Monitor de oportunidades" description="Nuevas promociones de VPA, cooperativas y parcelas en A Coruña">
+  <h1 class="text-2xl font-bold mb-2">Oportunidades en A Coruña</h1>
+  <p class="text-base-content/60 mb-6">Licitaciones, adjudicaciones y convenios de vivienda protegida, cooperativas y suelo residencial.</p>
+
+  <FilterBar active={filtro} />
+
+  {filtered.length === 0 ? (
+    <div class="text-center py-16 text-base-content/50">
+      <p class="text-4xl mb-3">📭</p>
+      <p class="text-lg font-medium">Sin resultados para este filtro</p>
+      <p class="text-sm mt-1">Prueba con otro filtro o vuelve más tarde.</p>
+    </div>
+  ) : (
+    <div class="grid gap-4">
+      {filtered.map((o) => <OpportunityCard {...o} />)}
+    </div>
+  )}
+
+  <p class="text-xs text-base-content/40 mt-8 text-center">
+    Actualizado: {new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
+    · {filtered.length} de {opportunities.length} oportunidades
+  </p>
+</Layout>

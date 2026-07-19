@@ -1,0 +1,27 @@
+---
+export interface Props { title: string; description?: string; }
+const { title, description } = Astro.props;
+---
+<!doctype html>
+<html lang="es" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="icon" type="image/svg+xml" href="/vpa-monitor/favicon.svg" />
+  </head>
+  <body class="bg-base-200 min-h-screen">
+    <header class="navbar bg-base-100 shadow-sm">
+      <div class="max-w-4xl mx-auto w-full px-4">
+        <a href="/vpa-monitor/" class="text-xl font-bold text-primary">🏠 VPA Coruña</a>
+      </div>
+    </header>
+    <main class="max-w-4xl mx-auto px-4 py-8">
+      <slot />
+    </main>
+    <footer class="text-center text-xs text-base-content/50 py-6">
+      Datos de DOG, Contratos Públicos de Galicia y PLACSP · Sin afiliación oficial
+    </footer>
+  </body>
+</html>
