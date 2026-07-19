@@ -8,6 +8,8 @@ export const AREA_LABELS = [
   'Cambre',
   'Sada',
   'Bergondo',
+  'Carral',
+  'Abegondo',
 ];
 
 const PLACE_PATTERNS = [
@@ -19,14 +21,16 @@ const PLACE_PATTERNS = [
   { label: 'Oleiros', pattern: /\boleiros\b/i },
   { label: 'Cambre', pattern: /\bcambre\b/i },
   { label: 'Sada', pattern: /\bsada\b/i },
+  { label: 'Carral', pattern: /\bcarral\b/i },
+  { label: 'Abegondo', pattern: /\babegondo\b/i },
   { label: 'Bergondo', pattern: /\bbergondo\b/i },
   {
     label: 'A Coruña',
-    pattern: /(?:^|\b)(?:concello|municipio|ayuntamiento|termo municipal) (?:de |da )?a coruña\b|\b(?:en|na) a coruña\b|\ba coruña cidade\b|\ba coruña\s*[-—:]/i,
+    pattern: /(?:^|\b)(?:concello|municipio|ayuntamiento|termo municipal) (?:de |da )?a coruña\b|\b(?:en|na) a coruña\b|\ba coruña cidade\b|\b(?:área|area) (?:metropolitana )?de a coruña\b|\ba coruña\s*[-—:]/i,
   },
 ];
 
-const HOUSING_PATTERN = /\b(?:vpa|vpp|vivenda(?:s)?|vivienda(?:s)?|promoci[oó]n p[uú]blica|protexida(?:s)?|protegida(?:s)?|cooperativa(?:s)?|solo residencial|suelo residencial|reparcelaci[oó]n|parcela residencial)\b/i;
+const HOUSING_PATTERN = /\b(?:vpa|vpp|vivenda(?:s)?|vivienda(?:s)?|promoci[oó]n p[uú]blica|protexida(?:s)?|protegida(?:s)?|cooperativa(?:s)?|cohousing|autopromoci[oó]n|solo residencial|suelo residencial|reparcelaci[oó]n|parcela residencial)\b/i;
 const NOISE_PATTERN = /\b(?:veh[ií]culo(?:s)?|h[ií]brido(?:s)?|vestiario|vestuario)\b/i;
 
 export function cleanText(value = '') {
@@ -58,7 +62,7 @@ export function isRelevantTitle(title = '') {
 }
 
 export function detectType(text = '') {
-  if (/\bcooperativa/i.test(text)) return 'Cooperativa';
+  if (/\b(?:cooperativa|cohousing|autopromoci[oó]n|vivienda colaborativa)/i.test(text)) return 'Cooperativa';
   if (/\b(?:solo|suelo|parcela|reparcelaci[oó]n)\b/i.test(text)) return 'Suelo';
   if (/\b(?:rehabilitaci[oó]n|rexurbe)\b/i.test(text)) return 'Rehabilitación';
   return 'Vivienda protegida';
@@ -102,6 +106,18 @@ export function toOpportunity(item, source, now = new Date().toISOString()) {
   };
 }
 
+export function isFreshMarketAlert(item, now = new Date()) {
+  const published = new Date(item.publishedAt || item.firstSeenAt || 0);
+  const age = now.getTime() - published.getTime();
+  return !Number.isNaN(published.getTime()) && age >= 0 && age <= 180 * 24 * 60 * 60 * 1000;
+}
+
+function displayKey(item) {
+  if (item.sourceKind === 'market-alert') return item.id;
+  const caseId = item.title.match(/\bC\d{4}(?:CH)?\d+\b/i)?.[0];
+  return caseId ? `case:${caseId.toUpperCase()}` : item.id;
+}
+
 export function mergeOpportunities(current, previous, now = new Date().toISOString()) {
   const previousById = new Map(previous.map((item) => [item.id, item]));
   const merged = new Map();
@@ -116,10 +132,17 @@ export function mergeOpportunities(current, previous, now = new Date().toISOStri
   }
 
   for (const old of previous) {
-    if (!merged.has(old.id) && isRelevantTitle(old.title)) merged.set(old.id, old);
+    if (!merged.has(old.id) && old.sourceKind !== 'market-alert' && isRelevantTitle(old.title)) merged.set(old.id, old);
   }
 
+  const seenDisplayKeys = new Set();
   return [...merged.values()]
     .sort((a, b) => (b.publishedAt || b.firstSeenAt).localeCompare(a.publishedAt || a.firstSeenAt))
+    .filter((item) => {
+      const key = displayKey(item);
+      if (seenDisplayKeys.has(key)) return false;
+      seenDisplayKeys.add(key);
+      return true;
+    })
     .slice(0, 100);
 }

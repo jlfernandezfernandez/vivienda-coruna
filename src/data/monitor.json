@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-07-19T22:48:41.620Z",
+  "checkedAt": "2026-07-19T22:54:27.143Z",
   "area": [
     "A Coruña",
     "Arteixo",
@@ -7,38 +7,52 @@
     "Oleiros · Perillo · Santa Cruz",
     "Cambre",
     "Sada",
-    "Bergondo"
+    "Bergondo",
+    "Carral",
+    "Abegondo"
   ],
   "sources": [
     {
       "name": "IGVS · Adjudicaciones y sorteos",
       "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida",
+      "kind": "official",
       "ok": true,
       "scanned": 10
     },
     {
       "name": "IGVS",
       "url": "https://www.contratosdegalicia.gal/rss/perfil-14.rss",
+      "kind": "official",
       "ok": true,
       "scanned": 11
     },
     {
       "name": "Consellería de Vivenda",
       "url": "https://www.contratosdegalicia.gal/rss/perfil-515.rss",
+      "kind": "official",
       "ok": true,
       "scanned": 11
     },
     {
       "name": "DOG · Vivienda y territorio",
       "url": "https://www.xunta.gal/diario-oficial-galicia/rss/Taxonomia22008_es.rss",
+      "kind": "official",
       "ok": true,
       "scanned": 2
     },
     {
       "name": "Contratos Públicos de Galicia",
       "url": "https://www.contratosdegalicia.gal/rss/ultimas-publicacions.rss",
+      "kind": "official",
       "ok": true,
       "scanned": 101
+    },
+    {
+      "name": "Prensa local · cooperativas y promociones",
+      "url": "https://news.google.com/rss/search?q=%28%22cooperativa+de+viviendas%22+OR+cohousing+OR+autopromoci%C3%B3n%29+%28%22A+Coru%C3%B1a%22+OR+Arteixo+OR+Oleiros+OR+Culleredo+OR+Cambre+OR+Sada+OR+Carral+OR+Abegondo%29&hl=es&gl=ES&ceid=ES:es",
+      "kind": "market-alert",
+      "ok": true,
+      "scanned": 31
     }
   ],
   "items": [
@@ -49,11 +63,12 @@
       "source": "IGVS · Adjudicaciones y sorteos",
       "publishedAt": "2026-07-15T00:00:00.000Z",
       "firstSeenAt": "2026-07-19T22:48:08.625Z",
-      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "lastSeenAt": "2026-07-19T22:54:27.143Z",
       "location": "A Coruña",
       "type": "Vivienda protegida",
       "status": null,
-      "summary": ""
+      "summary": "",
+      "sourceKind": "official"
     },
     {
       "id": "12e7076dde9bf9a6",
@@ -62,63 +77,68 @@
       "source": "IGVS · Adjudicaciones y sorteos",
       "publishedAt": "2026-07-15T00:00:00.000Z",
       "firstSeenAt": "2026-07-19T22:48:08.625Z",
-      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "lastSeenAt": "2026-07-19T22:54:27.143Z",
       "location": "A Coruña",
       "type": "Vivienda protegida",
       "status": null,
-      "summary": ""
+      "summary": "",
+      "sourceKind": "official"
     },
     {
-      "id": "88fb0590025c7018",
-      "title": "A Coruña - Modificación de la Resolución de Inicio del proceso de adjudicación de vivendas de VPP en el Barrio Histórico, C2023CH01",
-      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/modificacion-de-la-resolucion-de-inicio-del-proceso-de-adjudicacion-de-vivendas-de-vpp-en-el-barrio",
-      "source": "IGVS · Adjudicaciones y sorteos",
-      "publishedAt": "2026-07-10T00:00:00.000Z",
-      "firstSeenAt": "2026-07-19T22:48:08.625Z",
-      "lastSeenAt": "2026-07-19T22:48:41.620Z",
-      "location": "A Coruña",
-      "type": "Vivienda protegida",
+      "id": "c1bd375b2dec31bf",
+      "title": "Comienza el proceso de constitución de una nueva cooperativa de viviendas protegidas en Oleiros - La Voz de Galicia",
+      "url": "https://news.google.com/rss/articles/CBMi-wFBVV95cUxPdWpWZmRldERZRXR6Vmp3bVM2ellXaTFCd18xTUc1OFVPNkxYT0xXS0lNd3djSEQzaU5oUVF2SEdnLXhlZmg1eXg1cWl4WVdSTkgwenBTVzVVanJCSDctWUc5U2E2cS1KS3ppZzRMMGdqZlJCbkpObTV3Y2VQYnA3RXlsVDVxa2pZeDZTRWtkTXBrVVB4STlfNmdwMWlvQzJaWmxwTGZ2VWt3bkJxT2lMRFk0VGEzQzZ6eTZqWXc1Y1lvSTZVM3J6TzZsZlpLSVdYN3REUFlKWVRBN2ZFRFlDalY2N3hhX0l5Nmg1NTBvR0RMeHhtUmNWZ19hY9IBlwJBVV95cUxQbG5iaUVacERtamNMLTJFZ3dLZzFHUEZ0TTJXaG1qcVBKSFByYmtlTnBmRnFHNThqVm43bmw0cVJTLUYyelE0UEwwWDk3MFJaajQ0Y1M0MThnN3p1M1R0bzBhaHVZeXVIV3E5WDJkaGhiS0s5b2pLQUJVWC1LaTBiOG1tVVhhZjFLZk01WjJEVFBSdWtIdXZNY2hEWUZMbnlPSUdEM2ZUWEF2QjdpOUJRdTNJbHZqUGpWS015Wk5rbGdxVC1WLW1MZWR2bU9Eem0xMTNIaldmWnpOOGdUSzlaLXNfdE5NbXNaOWRSSlhWNlp3ak1QU1ZyRXAzZzRxVWxaaHQ1dF9KdTNwQm9NTm1zTGZCTFNjY28?oc=5",
+      "source": "Prensa local · cooperativas y promociones",
+      "publishedAt": "2026-07-13T19:16:28.000Z",
+      "firstSeenAt": "2026-07-19T22:52:03.033Z",
+      "lastSeenAt": "2026-07-19T22:54:27.143Z",
+      "location": "Oleiros",
+      "type": "Cooperativa",
       "status": null,
-      "summary": ""
+      "summary": "Comienza el proceso de constitución de una nueva cooperativa de viviendas protegidas en Oleiros La Voz de Galicia",
+      "sourceKind": "market-alert"
     },
     {
-      "id": "74fb1ac3c197fe39",
-      "title": "A Coruña - Modificación de la Resolución de Inicio del proceso de adjudicación de viviendas de VPP en Xuxán, C2024010",
-      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/modificacion-de-la-resolucion-de-inicio-del-proceso-de-adjudicacion-de-viviendas-de-vpp-en-xuxan",
-      "source": "IGVS · Adjudicaciones y sorteos",
-      "publishedAt": "2026-07-10T00:00:00.000Z",
-      "firstSeenAt": "2026-07-19T22:48:08.625Z",
-      "lastSeenAt": "2026-07-19T22:48:41.620Z",
-      "location": "A Coruña",
+      "id": "bec7d33addc59646",
+      "title": "Más de 450 personas optan a una de las 20 nuevas viviendas protegidas de Oleiros - La Opinión A Coruña",
+      "url": "https://news.google.com/rss/articles/CBMitwFBVV95cUxPd04tbTE3ME1SajYteFV1aUpQX04zRHM4Q0poT1N2dGRlN1BkamxaZjI5LVRhZW8xakUxN0plU3ZyQTVsZjZENkVCVlZVVGItYUdqQ3NsbnZFS3BBbUVDcEVUYXh3Tm1vWDktUnJwZ2VHNGlYZzNNZ1h4dW9IMnNLdFR6cHlIZXJxLWZMOWRkek5RODU1VjdKZ0VRcUd2T2dHS2N2UEpORm9xdmw1d0EySFVnSUJfX3fSAbwBQVVfeXFMTWs5b3p1WGNQWHlQOGQzSDJhYnlYX3Q2SGdRZzFrMG9lUXdMV2p0OGhsNWhhd3N2dnkweHRDMk9pSTNCQVVYMmtrTTJDWWRjOGdPbkE4T29MVmJmWWlWSGRhVC1Cd2NwNDBiMVA1Zk9rdU8weGFyVzYxTm5sQmJOdjR2QTFvM0lQdVhLa1psUDNwaUZfejM2Y2ZHcUQ5cHBMMm5PS3EtUk16OG9WaWNqOFZuUlRjYjhkdThfOVQ?oc=5",
+      "source": "Prensa local · cooperativas y promociones",
+      "publishedAt": "2026-07-06T12:29:24.000Z",
+      "firstSeenAt": "2026-07-19T22:52:03.033Z",
+      "lastSeenAt": "2026-07-19T22:54:27.143Z",
+      "location": "Oleiros",
       "type": "Vivienda protegida",
       "status": null,
-      "summary": ""
+      "summary": "Más de 450 personas optan a una de las 20 nuevas viviendas protegidas de Oleiros La Opinión A Coruña",
+      "sourceKind": "market-alert"
     },
     {
-      "id": "09bec8a193a2dbb7",
-      "title": "A Coruña - Fecha, hora y lugar del sorteo público del proceso de adjudicación de 4 viviendas de VPP, Barrio Histórico, C2023CH01",
-      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/fecha-hora-y-lugar-del-sorteo-publico-del-proceso-de-adjudicacion-de-4-viviendas-de-vpp-barrio",
-      "source": "IGVS · Adjudicaciones y sorteos",
-      "publishedAt": "2026-07-08T00:00:00.000Z",
-      "firstSeenAt": "2026-07-19T22:48:08.625Z",
-      "lastSeenAt": "2026-07-19T22:48:41.620Z",
-      "location": "A Coruña",
-      "type": "Vivienda protegida",
+      "id": "9440375219f40d65",
+      "title": "La gestora de las cooperativas de Xaz, Mera y Perillo tomará las riendas de las dos promociones de vivienda protegida de A Rabadeira - La Opinión A Coruña",
+      "url": "https://news.google.com/rss/articles/CBMiqgFBVV95cUxOOGh1Z0Z6UGJKRWd3c0oxNEpfeTFUbHF5cmhSZzM2X2JRSFJWYVZ1M0Q2ZG51R0JQbzFyM2ZSWEM1bWNzV1F5Q2Zib0ZKOXRFemtXRVdRY3FDR1EzcEdpT0pTN1NwNDFCY0Rlck5YYzJqQmlzandtdnJURWhmYWU4a2NJcUZmTzNsVGZFOGVCWExYTElTN3lTSEhBM3dGUkpuaXJ4S0s3ajNDd9IBrwFBVV95cUxPTWxzWU1CY1E2TFVkVHNkUHNIek1sbXdyb293czBpX21sNHRLNk50STkxY2FtMTZjaS0teF83Rm1NLVRGYnctN0ZxMkdtc28tUTMxX2Y3bEZtRWhpcGl5TURkMUNpeWRBSHAxcTZHZkoyVlQ1elZPTC1LQWZGcmV6b0tJQ21JZEd5Z2NsY1pBN0FDMUpqMDZLNW5JSGlxdU5HY09WVDRnRS1IZ2tjTmZ3?oc=5",
+      "source": "Prensa local · cooperativas y promociones",
+      "publishedAt": "2026-04-02T07:00:00.000Z",
+      "firstSeenAt": "2026-07-19T22:52:03.033Z",
+      "lastSeenAt": "2026-07-19T22:54:27.143Z",
+      "location": "Perillo",
+      "type": "Cooperativa",
       "status": null,
-      "summary": ""
+      "summary": "La gestora de las cooperativas de Xaz, Mera y Perillo tomará las riendas de las dos promociones de vivienda protegida de A Rabadeira La Opinión A Coruña",
+      "sourceKind": "market-alert"
     },
     {
-      "id": "4474636a7b8e1f38",
-      "title": "A Coruña - Fecha, hora y lugar del sorteo público del proceso de adjudicación de 14 viviendas de VPP, Xuxán, C2024010",
-      "url": "https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones-sorteos-de-vivienda-protegida/fecha-hora-y-lugar-del-sorteo-publico-del-proceso-de-adjudicacion-de-14-viviendas-de-vpp-xuxan",
-      "source": "IGVS · Adjudicaciones y sorteos",
-      "publishedAt": "2026-07-08T00:00:00.000Z",
-      "firstSeenAt": "2026-07-19T22:48:08.625Z",
-      "lastSeenAt": "2026-07-19T22:48:41.620Z",
+      "id": "192f3b552d66d580",
+      "title": "Un proyecto de vivienda colaborativa en Xuxán, en A Coruña, solicita licencia para construir 32 pisos - El Español",
+      "url": "https://news.google.com/rss/articles/CBMi-AFBVV95cUxQWEIxekExSkhMSG5DRjFEY09FNkJ1R0tKaUxBaC1CamtDN2dPU2tscXFiZy1vcC1xZUZLT3RaSUhQTnZRcC1NRC1JdE4wX1c2SkZUeWNIZkxkamxYSnNCQzJndTRPajdhdUhHLUo4MFJZMC1JZTAxOGtTZ3phQVBPM21TS1QtOGtXLW9Bc1RGRENmSUQxZDE3R3dHTmNZRTRieFVvTzlkaFRjeHZiNUxkRVlVdTdYV21DckRFQWxrWG5ud0FRbEtRby1LREszbjVuNUgwZWJPNUsyS2s1dlRvUVUtN0VYUFFlTVpzcnplalgwTG9jcEJDYtIB_gFBVV95cUxNdWNPS1ZTMDlOSUtVeE8tUlFmMlZPQldnR3dCWklBREFJWC03Q2k1R29ONFVXekVsNXZ5VjhobUVCZXhKZ19rbGE2MTFtZDFYTVQwUEd5WjJlTFNlcmFoTmt6bW9NUE4xTl9nWUFpY3JDUU1ZU1FHd1pkVmI4dG1HeDZTSFBHQzBYbnYwRmJPRTBSV2VGdDFTOFNjRDNKbkFRUzA4dWhGZFVFYmhwQW05cmdQbFpOa2c3VHpVQ0F0MGJKcW9icGg1VWU3RGVKc25POFhwVkg3WlRSS0toZm1iN1NSWG9IMjQ1aThEdUtwa3pmU19nblhBVVJvMFNKZw?oc=5",
+      "source": "Prensa local · cooperativas y promociones",
+      "publishedAt": "2026-03-16T07:00:00.000Z",
+      "firstSeenAt": "2026-07-19T22:52:03.033Z",
+      "lastSeenAt": "2026-07-19T22:54:27.143Z",
       "location": "A Coruña",
-      "type": "Vivienda protegida",
+      "type": "Cooperativa",
       "status": null,
-      "summary": ""
+      "summary": "Un proyecto de vivienda colaborativa en Xuxán, en A Coruña, solicita licencia para construir 32 pisos El Español",
+      "sourceKind": "market-alert"
     }
   ]
 }

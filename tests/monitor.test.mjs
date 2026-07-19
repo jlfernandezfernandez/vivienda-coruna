@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   detectLocation,
   detectStatus,
+  isFreshMarketAlert,
   isRelevantTitle,
+  mergeOpportunities,
   normalizeUrl,
   toOpportunity,
 } from '../scripts/lib/monitor.mjs';
@@ -14,6 +16,8 @@ test('acepta únicamente A Coruña ciudad y su entorno inmediato', () => {
     ['A Coruña - Sorteo de 14 viviendas de VPP en Xuxán', 'A Coruña'],
     ['Parcela residencial para vivienda protegida en Arteixo', 'Arteixo'],
     ['Cooperativa de vivendas en Perillo', 'Perillo'],
+    ['Cohousing en Carral para vivienda colaborativa', 'Carral'],
+    ['Autopromoción de vivienda en Abegondo', 'Abegondo'],
     ['Promoción pública de vivienda en O Burgo', 'O Burgo'],
     ['VPP no Concello de Oleiros', 'Oleiros'],
   ];
@@ -33,6 +37,19 @@ test('no confunde la provincia de A Coruña con la ciudad', () => {
   ];
 
   for (const title of invalid) assert.equal(isRelevantTitle(title), false, title);
+});
+
+test('descarta alertas de mercado antiguas', () => {
+  assert.equal(isFreshMarketAlert({ publishedAt: '2026-07-01T00:00:00Z' }, new Date('2026-07-20T00:00:00Z')), true);
+  assert.equal(isFreshMarketAlert({ publishedAt: '2025-12-01T00:00:00Z' }, new Date('2026-07-20T00:00:00Z')), false);
+});
+
+test('muestra solo la actualización más reciente de cada expediente oficial', () => {
+  const items = mergeOpportunities([
+    { id: 'old', title: 'A Coruña - Inicio de VPP C2024010', publishedAt: '2026-07-01T00:00:00Z', firstSeenAt: '2026-07-01T00:00:00Z', sourceKind: 'official' },
+    { id: 'new', title: 'A Coruña - Sorteo de VPP C2024010', publishedAt: '2026-07-15T00:00:00Z', firstSeenAt: '2026-07-15T00:00:00Z', sourceKind: 'official' },
+  ], [], '2026-07-20T00:00:00Z');
+  assert.deepEqual(items.map((item) => item.id), ['new']);
 });
 
 test('normaliza enlaces y extrae estado', () => {

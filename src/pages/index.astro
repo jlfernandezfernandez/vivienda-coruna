@@ -14,14 +14,14 @@ const checkedLabel = checkedAt
 ---
 
 <Layout
-  title="VPA Coruña — Vivienda protegida en A Coruña y alrededores"
-  description="Monitor de publicaciones oficiales sobre vivienda protegida, adjudicaciones y suelo público en A Coruña y alrededores."
+  title="Vivienda Coruña — Vivienda protegida y cooperativa en A Coruña"
+  description="Monitor de publicaciones oficiales y alertas locales sobre vivienda protegida, cooperativas y suelo en el área de A Coruña."
 >
   <section class="intro shell" aria-labelledby="page-title">
     <div class="intro__copy">
-      <p class="eyebrow">Radar de vivienda pública</p>
+      <p class="eyebrow">Vivienda protegida y cooperativa</p>
       <h1 id="page-title">Lo nuevo, cerca de casa.</h1>
-      <p class="lede">Seguimos publicaciones oficiales sobre vivienda protegida, adjudicaciones y suelo público en A Coruña y su entorno inmediato.</p>
+      <p class="lede">Seguimos convocatorias oficiales, adjudicaciones, suelo público y alertas locales de cooperativas en el área de A Coruña.</p>
     </div>
 
     <aside class="scan-status" aria-label="Estado de la última comprobación">
@@ -62,7 +62,7 @@ const checkedLabel = checkedAt
     <div class="coverage__intro">
       <p class="eyebrow">Cobertura exacta</p>
       <h2 id="coverage-title">Solo el área de A Coruña.</h2>
-      <p>No confundimos la ciudad con la provincia: Ferrol, Santiago y otras zonas quedan fuera.</p>
+      <p>Incluye los nueve municipios del área funcional; Ferrol, Santiago y el resto de la provincia quedan fuera.</p>
     </div>
     <ul class="place-list" aria-label="Localidades incluidas">
       {monitor.area.map((place) => <li>{place}</li>)}
@@ -82,7 +82,7 @@ const checkedLabel = checkedAt
           <li>
             <span class={`source-state ${source.ok ? 'source-state--ok' : ''}`} aria-hidden="true"></span>
             <a href={source.url} target="_blank" rel="noopener noreferrer">{source.name}</a>
-            <small>{source.ok ? `${source.scanned} publicaciones revisadas` : 'No disponible en la última comprobación'}</small>
+            <small>{source.ok ? `${source.scanned} publicaciones revisadas${source.kind === 'market-alert' ? ' · alerta no oficial' : ''}` : 'No disponible en la última comprobación'}</small>
           </li>
         ))}
       </ul>

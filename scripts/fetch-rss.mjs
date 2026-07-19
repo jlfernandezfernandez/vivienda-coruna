@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   AREA_LABELS,
+  isFreshMarketAlert,
   mergeOpportunities,
   toOpportunity,
 } from './lib/monitor.mjs';
@@ -18,7 +19,8 @@ const feeds = [
   { name: 'IGVS', url: 'https://www.contratosdegalicia.gal/rss/perfil-14.rss', format: 'rss' },
   { name: 'Consellería de Vivenda', url: 'https://www.contratosdegalicia.gal/rss/perfil-515.rss', format: 'rss' },
   { name: 'DOG · Vivienda y territorio', url: 'https://www.xunta.gal/diario-oficial-galicia/rss/Taxonomia22008_es.rss', format: 'rss' },
-  { name: 'Contratos Públicos de Galicia', url: 'https://www.contratosdegalicia.gal/rss/ultimas-publicacions.rss', format: 'rss' },
+  { name: 'Contratos Públicos de Galicia', url: 'https://www.contratosdegalicia.gal/rss/ultimas-publicacions.rss', format: 'rss', kind: 'official' },
+  { name: 'Prensa local · cooperativas y promociones', url: 'https://news.google.com/rss/search?q=%28%22cooperativa+de+viviendas%22+OR+cohousing+OR+autopromoci%C3%B3n%29+%28%22A+Coru%C3%B1a%22+OR+Arteixo+OR+Oleiros+OR+Culleredo+OR+Cambre+OR+Sada+OR+Carral+OR+Abegondo%29&hl=es&gl=ES&ceid=ES:es', format: 'rss', kind: 'market-alert' },
 ];
 
 async function loadPrevious() {
@@ -75,14 +77,16 @@ async function main() {
     if (result.status === 'fulfilled') {
       const relevant = result.value
         .map((item) => toOpportunity(item, feed.name, checkedAt))
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((item) => ({ ...item, sourceKind: feed.kind || 'official' }))
+        .filter((item) => feed.kind !== 'market-alert' || isFreshMarketAlert(item, new Date(checkedAt)));
       candidates.push(...relevant);
-      sources.push({ name: feed.name, url: feed.url, ok: true, scanned: result.value.length });
+      sources.push({ name: feed.name, url: feed.url, kind: feed.kind || 'official', ok: true, scanned: result.value.length });
       console.log(`✓ ${feed.name}: ${result.value.length} revisados, ${relevant.length} relevantes`);
       return;
     }
 
-    sources.push({ name: feed.name, url: feed.url, ok: false, scanned: 0 });
+    sources.push({ name: feed.name, url: feed.url, kind: feed.kind || 'official', ok: false, scanned: 0 });
     console.error(`✗ ${feed.name}: ${result.reason?.message || 'error desconocido'}`);
   });
 
