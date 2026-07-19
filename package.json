@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "test": "node --test tests/*.test.mjs",
+    "refresh": "node scripts/fetch-rss.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },
