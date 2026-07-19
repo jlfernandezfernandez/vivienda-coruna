@@ -3,34 +3,64 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import iconv from 'iconv-lite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const parser = new Parser();
+const parser = new Parser({
+  customFields: { item: ['description'] },
+});
 
-const FEEDS = [
-  {
-    name: 'DOG — Territorio, vivienda y transporte',
-    url: 'https://www.xunta.gal/diario-oficial-galicia/rssAreaTematica.jsp?area=Territorio,%20vivienda%20y%20transporte&lang=es',
-  },
-  {
-    name: 'Contratos Públicos de Galicia — IGVS',
-    url: 'https://www.contratosdegalicia.gal/rss/perfilContratante.jsp?codigoOrganismo=IGVS&lang=es',
-  },
-  {
-    name: 'Contratos Públicos de Galicia — Xestur',
-    url: 'https://www.contratosdegalicia.gal/rss/perfilContratante.jsp?codigoOrganismo=XESTUR&lang=es',
-  },
+const HOUSING_FEEDS = [
+  { name: 'CPG — IGVS', url: 'https://www.contratosdegalicia.gal/rss/perfil-14.rss' },
+  { name: 'CPG — Consellería de Vivenda', url: 'https://www.contratosdegalicia.gal/rss/perfil-515.rss' },
 ];
 
-const KEYWORDS = [
-  'vivienda protegida', 'VPA', 'vivienda de protección autonómica',
-  'vivienda de promoción pública', 'cooperativa', 'cooperativa de viviendas',
-  'parcela', 'convenio urbanístico', 'planeamento', 'reparcelación',
-  'vivienda pública', 'promoción pública', 'viviendas protegidas',
-  'adjudicación', 'concurso', 'suelo residencial',
+const GENERAL_FEEDS = [
+  { name: 'DOG — Territorio, vivienda y transporte', url: 'https://www.xunta.gal/diario-oficial-galicia/rss/Taxonomia22008_es.rss' },
+  { name: 'CPG — Últimas publicaciones', url: 'https://www.contratosdegalicia.gal/rss/ultimas-publicacions.rss' },
 ];
 
-const MUNICIPIOS = ['A Coruña', 'Coruña, A', 'Coruña', 'coruña', 'coruna'];
+const HOUSING_KEYWORDS = [
+  'vivenda', 'vivienda', 'VPP', 'VPA', 'promoción pública', 'promocion publica',
+  'rehabilitación', 'rehabilitacion', 'edificio', 'parcela',
+  'solo', 'suelo', 'cooperativa', 'alugueiro', 'alquiler', 'realojo',
+  'construción', 'construccion', 'construcción',
+];
+
+const EXCLUDE_KEYWORDS = [
+  'vehículo', 'vehiculo', 'vehículos', 'vehiculos',
+  'híbrido', 'hibrido', 'híbridos', 'hibridos',
+  'subministración de vestiario', 'suministro de vestuario',
+  'campaña sensibilización', 'campaña de sensibilización',
+];
+
+const GENERAL_KEYWORDS = [
+  'vivienda protegida', 'VPA', 'vivienda de protección',
+  'vivienda de promoción pública', 'VPP', 'vivenda de promoción pública',
+  'vivenda protexida', 'cooperativa', 'cooperativa de viviendas',
+  'cooperativa de vivendas', 'parcela', 'convenio urbanístico',
+  'planeamento', 'reparcelación', 'vivienda pública',
+  'promoción pública', 'viviendas protegidas', 'vivendas protexidas',
+  'suelo residencial', 'solo residencial',
+  'construción', 'construcción', 'edificio para', 'edificio de',
+  'obras de construción', 'obras de construcción',
+];
+
+// NOTE: "Vedra" is excluded because "Pontevedra" contains it as substring
+const MUNICIPIOS = [
+  'A Coruña', 'Coruña, A', 'Coruña', 'coruña', 'coruna',
+  'Arteixo', 'Culleredo', 'Oleiros', 'Cambre', 'Sada', 'Bergondo',
+  'Carral', 'Abegondo', 'Ferrol', 'Narón', 'Naron', 'Betanzos',
+  'Miño', 'Pontedeume', 'Cabanas', 'Ares', 'Mugardos', 'Fene',
+  'As Pontes', 'Pontes de García', 'Laracha', 'Carballo',
+  'Cerceda', 'Ordes', 'Curtis', 'Sobrado', 'Arzúa', 'Arzua',
+  'Melide', 'Touro', 'O Pino', 'Boqueixón', 'Boqueixon',
+  'Teo', 'Ames', 'Brión', 'Brion', 'Negreira',
+  'Santa Comba', 'Zas', 'Mazaricos', 'Muros', 'Outes',
+  'Noia', 'Lousame', 'Rois', 'Dodro', 'Padrón', 'Padron',
+  'Rianxo', 'Boiro', 'A Pobra', 'Ribeira',
+  'Santiago de Compostela', 'Santiago',
+];
 
 const DATA_PATH = join(__dirname, '..', 'src', 'data', 'opportunities.json');
 
@@ -38,14 +68,11 @@ function hashItem(item) {
   return createHash('sha256').update(item.link || item.guid || item.title).digest('hex').slice(0, 16);
 }
 
-function matchesKeywords(text) {
-  const lower = (text || '').toLowerCase();
-  return KEYWORDS.some(kw => lower.includes(kw.toLowerCase()));
-}
-
-function matchesMunicipio(text) {
-  const lower = (text || '').toLowerCase();
-  return MUNICIPIOS.some(m => lower.includes(m.toLowerCase()));
+function matchesAny(text, keywords) {
+  return keywords.some(kw => {
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('\\b' + escaped + '\\b', 'i').test(text);
+  });
 }
 
 function extractDate(item) {
@@ -54,43 +81,109 @@ function extractDate(item) {
   return isNaN(d.getTime()) ? new Date().toISOString().slice(0, 10) : d.toISOString().slice(0, 10);
 }
 
+function cleanText(text) {
+  return (text || '').replace(/\s+/g, ' ').trim();
+}
+
+function isExcluded(text) {
+  return matchesAny(text, EXCLUDE_KEYWORDS);
+}
+
+function isOrganismPage(item) {
+  const title = cleanText(item.title || '');
+  const link = item.link || '';
+  return link.includes('consultaOrganismo.jsp') || title.length < 20;
+}
+
+async function fetchAndParse(url) {
+  const res = await fetch(url, { headers: { 'Accept': 'application/rss+xml, application/xml, text/xml' } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  let xml;
+  try {
+    xml = buf.toString('utf-8');
+    if (xml.includes('\uFFFD') || xml.includes('Ã') || xml.includes('Ã±')) {
+      xml = iconv.decode(buf, 'iso-8859-1');
+    }
+  } catch {
+    xml = iconv.decode(buf, 'iso-8859-1');
+  }
+  return parser.parseString(xml);
+}
+
 async function main() {
   mkdirSync(dirname(DATA_PATH), { recursive: true });
   const existing = existsSync(DATA_PATH)
     ? JSON.parse(readFileSync(DATA_PATH, 'utf-8'))
     : [];
   const seen = new Set(existing.map(o => o.hash));
-
   const allItems = [];
 
-  for (const feed of FEEDS) {
+  for (const feed of HOUSING_FEEDS) {
     try {
       console.log(`Fetching ${feed.name}...`);
-      const data = await parser.parseURL(feed.url);
+      const data = await fetchAndParse(feed.url);
+      console.log(`  Got ${data.items?.length || 0} items`);
       for (const item of data.items || []) {
-        const text = `${item.title || ''} ${item.contentSnippet || item.content || ''}`;
-        if (!matchesKeywords(text) || !matchesMunicipio(text)) continue;
+        if (isOrganismPage(item)) continue;
+        const title = cleanText(item.title || '');
+        const snippet = cleanText(item.contentSnippet || item.content || item.description || '');
+        const fullText = `${item.title || ''} ${item.contentSnippet || item.content || item.description || ''}`;
+        const cleanFull = cleanText(fullText);
+        if (!matchesAny(cleanFull, HOUSING_KEYWORDS)) continue;
+        if (!matchesAny(item.title || '', MUNICIPIOS)) continue;
+        if (isExcluded(cleanFull)) continue;
         const hash = hashItem(item);
         if (seen.has(hash)) continue;
         seen.add(hash);
         allItems.push({
           hash,
-          title: (item.title || '').trim(),
+          title: title.slice(0, 200),
           link: item.link || '',
           source: feed.name,
           date: extractDate(item),
-          snippet: (item.contentSnippet || '').trim().slice(0, 300),
+          snippet: snippet.slice(0, 300),
         });
       }
     } catch (err) {
-      console.error(`Error fetching ${feed.name}:`, err.message);
+      console.error(`  Error: ${err.message}`);
+    }
+  }
+
+  for (const feed of GENERAL_FEEDS) {
+    try {
+      console.log(`Fetching ${feed.name}...`);
+      const data = await fetchAndParse(feed.url);
+      console.log(`  Got ${data.items?.length || 0} items`);
+      for (const item of data.items || []) {
+        if (isOrganismPage(item)) continue;
+        const title = cleanText(item.title || '');
+        const snippet = cleanText(item.contentSnippet || item.content || item.description || '');
+        const text = `${title} ${snippet}`;
+        if (!matchesAny(text, GENERAL_KEYWORDS)) continue;
+        if (!matchesAny(text, MUNICIPIOS)) continue;
+        if (isExcluded(text)) continue;
+        const hash = hashItem(item);
+        if (seen.has(hash)) continue;
+        seen.add(hash);
+        allItems.push({
+          hash,
+          title: title.slice(0, 200),
+          link: item.link || '',
+          source: feed.name,
+          date: extractDate(item),
+          snippet: snippet.slice(0, 300),
+        });
+      }
+    } catch (err) {
+      console.error(`  Error: ${err.message}`);
     }
   }
 
   allItems.sort((a, b) => b.date.localeCompare(a.date));
   const merged = [...allItems, ...existing].slice(0, 200);
   writeFileSync(DATA_PATH, JSON.stringify(merged, null, 2));
-  console.log(`Saved ${merged.length} opportunities (${allItems.length} new).`);
+  console.log(`\nSaved ${merged.length} opportunities (${allItems.length} new).`);
 }
 
 main();
