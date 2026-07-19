@@ -4,6 +4,7 @@ import Layout from '../layouts/Layout.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
 import monitor from '../data/monitor.json';
 
+const base = import.meta.env.BASE_URL;
 const items = Array.isArray(monitor.items) ? monitor.items : [];
 const sources = Array.isArray(monitor.sources) ? monitor.sources : [];
 const marketItems = items.filter((item) => item.sourceKind === 'market-alert');
@@ -11,120 +12,65 @@ const publicItems = items.filter((item) => item.sourceKind !== 'market-alert');
 const healthySources = sources.filter((source) => source.ok).length;
 const checkedAt = monitor.checkedAt ? new Date(monitor.checkedAt) : null;
 const checkedLabel = checkedAt
-  ? checkedAt.toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Madrid' })
-  : 'Pendiente de la primera comprobación';
+  ? checkedAt.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' })
+  : 'Pendiente';
 ---
 
 <Layout
-  title="Vivienda Coruña — Cooperativas y promociones nuevas en A Coruña"
-  description="Monitor de cooperativas, promociones nuevas y vivienda protegida en el área de A Coruña. Fuentes oficiales y alertas locales claramente diferenciadas."
+  title="Vivienda Coruña — Cooperativas y promociones nuevas"
+  description="Monitor de cooperativas, promociones nuevas y vivienda protegida en el área de A Coruña."
 >
-  <section class="intro shell" aria-labelledby="page-title">
-    <div class="intro__copy">
-      <p class="eyebrow">Para buscar vivienda</p>
-      <h1 id="page-title">Empieza antes de que se anuncie.</h1>
-      <p class="lede">Seguimos cooperativas, promociones en fase temprana y vivienda protegida en el área de A Coruña. La señal de mercado y la información pública van separadas.</p>
-    </div>
+  <p class="tool-meta shell" aria-label="Estado de la última comprobación">
+    <span class={`status-dot ${healthySources === sources.length && sources.length > 0 ? 'status-dot--ok' : ''}`} aria-hidden="true"></span>
+    Actualizado {checkedLabel} · {healthySources}/{sources.length} fuentes
+  </p>
 
-    <aside class="scan-status" aria-label="Estado de la última comprobación">
-      <div class={`status-dot ${healthySources === sources.length && sources.length > 0 ? 'status-dot--ok' : ''}`}></div>
-      <div>
-        <span>Última comprobación</span>
-        <strong>{checkedLabel}</strong>
-        {sources.length > 0 && <small>{healthySources} de {sources.length} fuentes disponibles</small>}
+  <div class="tool-layout shell">
+    <section class="results" aria-labelledby="market-title">
+      <div class="section-heading">
+        <h2 id="market-title">Novedades <span>{marketItems.length}</span></h2>
+        <p>Cooperativas y promociones detectadas en prensa local.</p>
       </div>
-    </aside>
-  </section>
 
-  <section class="buyer-guide shell" aria-labelledby="buyer-guide-title">
-    <div>
-      <p class="eyebrow">Cómo usarlo</p>
-      <h2 id="buyer-guide-title">Dos señales, dos decisiones.</h2>
-    </div>
-    <div class="buyer-guide__items">
-      <article>
-        <h3>Cooperativas y promoción nueva</h3>
-        <p>Es la parte útil para llegar pronto: constitución de cooperativas, búsqueda de socios, licencias y promociones que empiezan a moverse. Confirma siempre las condiciones directamente con la entidad promotora.</p>
-      </article>
-      <article>
-        <h3>Vivienda pública y suelo</h3>
-        <p>VPP y VPA son vivienda protegida, con requisitos y procedimientos distintos. Se mantienen como información de contexto y para comprobar convocatorias, no como una promesa de elegibilidad.</p>
-      </article>
-    </div>
-  </section>
-
-  <section class="results shell" aria-labelledby="market-title">
-    <div class="section-heading">
-      <div>
-        <p class="eyebrow">Señales tempranas</p>
-        <h2 id="market-title">{marketItems.length === 0 ? 'Sin cooperativas o promociones recientes' : `${marketItems.length} ${marketItems.length === 1 ? 'señal' : 'señales'} para revisar`}</h2>
-      </div>
-      {marketItems.length > 0 && <p>Prensa local · verifica antes de contactar</p>}
-    </div>
-
-    {marketItems.length === 0 ? (
-      <div class="empty-state">
-        <div class="empty-state__signal" aria-hidden="true"><span></span></div>
-        <div class="empty-state__copy">
-          <h3>Aún no hay una señal temprana.</h3>
-          <p>Las alertas locales no han detectado cooperativas o promociones nuevas en el área. Las comprobamos cada día.</p>
+      {marketItems.length === 0 ? (
+        <p class="empty-state">Sin novedades en esta comprobación.</p>
+      ) : (
+        <div class="opportunity-list">
+          {marketItems.map((item) => <OpportunityCard {...item} />)}
         </div>
-      </div>
-    ) : (
-      <div class="opportunity-list">
-        {marketItems.map((item) => <OpportunityCard {...item} />)}
-      </div>
-    )}
-  </section>
+      )}
 
-  {publicItems.length > 0 && (
-    <section class="public-updates shell" aria-labelledby="public-updates-title">
-      <details>
-        <summary>
-          <span>
-            <span class="eyebrow">Seguimiento público</span>
-            <strong id="public-updates-title">Vivienda pública y suelo · {publicItems.length} {publicItems.length === 1 ? 'actualización' : 'actualizaciones'}</strong>
-          </span>
-          <span class="public-updates__hint">Ver seguimiento</span>
-        </summary>
-        <div class="public-updates__content">
-          <p>Incluye expedientes, sorteos y adjudicaciones del IGVS. VPP y VPA no son lo mismo: revisa los requisitos vigentes de cada convocatoria antes de contar con una opción.</p>
-          <div class="opportunity-list">
+      {publicItems.length > 0 && (
+        <details class="public-updates">
+          <summary>Actualizaciones públicas <span>{publicItems.length}</span></summary>
+          <div class="public-updates__content opportunity-list">
             {publicItems.map((item) => <OpportunityCard {...item} />)}
           </div>
-        </div>
-      </details>
+        </details>
+      )}
     </section>
-  )}
 
-  <section class="coverage shell" aria-labelledby="coverage-title">
-    <div class="coverage__intro">
-      <p class="eyebrow">Cobertura exacta</p>
-      <h2 id="coverage-title">Solo el área de A Coruña.</h2>
-      <p>Incluye los nueve municipios del área funcional; Ferrol, Santiago y el resto de la provincia quedan fuera.</p>
-    </div>
-    <ul class="place-list" aria-label="Localidades incluidas">
-      {monitor.area.map((place) => <li>{place}</li>)}
-    </ul>
-  </section>
+    <aside class="coverage" aria-labelledby="coverage-title">
+      <h2 id="coverage-title">Zona cubierta</h2>
+      <img src={`${base}/coverage-map.svg`} alt="Mapa de A Coruña, Arteixo, Culleredo, Oleiros, Cambre, Sada, Bergondo, Carral y Abegondo" />
+      <p>{monitor.area.length} municipios</p>
+    </aside>
+  </div>
 
   {sources.length > 0 && (
     <section class="sources shell" aria-labelledby="sources-title">
-      <div class="section-heading section-heading--compact">
-        <div>
-          <p class="eyebrow">Transparencia</p>
-          <h2 id="sources-title">Fuentes consultadas</h2>
-        </div>
-      </div>
-      <ul class="source-list">
-        {sources.map((source) => (
-          <li>
-            <span class={`source-state ${source.ok ? 'source-state--ok' : ''}`} aria-hidden="true"></span>
-            <a href={source.url} target="_blank" rel="noopener noreferrer">{source.name}</a>
-            <small>{source.ok ? `${source.scanned} publicaciones revisadas${source.kind === 'market-alert' ? ' · alerta no oficial' : ''}` : 'No disponible en la última comprobación'}</small>
-          </li>
-        ))}
-      </ul>
+      <details>
+        <summary id="sources-title">Fuentes <span>{sources.length}</span></summary>
+        <ul class="source-list">
+          {sources.map((source) => (
+            <li>
+              <span class={`source-state ${source.ok ? 'source-state--ok' : ''}`} aria-hidden="true"></span>
+              <a href={source.url} target="_blank" rel="noopener noreferrer">{source.name}</a>
+              <small>{source.ok ? `${source.scanned} revisadas` : 'No disponible'}</small>
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   )}
 </Layout>
