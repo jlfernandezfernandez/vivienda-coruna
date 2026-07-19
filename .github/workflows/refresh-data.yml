@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: refresh-vpa-data
@@ -35,3 +36,4 @@ jobs:
           git add src/data/monitor.json
           git commit -m "chore(data): refresh VPA opportunities"
           git push
+          gh workflow run deploy.yml --ref master
