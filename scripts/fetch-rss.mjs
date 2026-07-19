@@ -46,20 +46,26 @@ const GENERAL_KEYWORDS = [
   'obras de construción', 'obras de construcción',
 ];
 
-// NOTE: "Vedra" is excluded because "Pontevedra" contains it as substring
+// Área metropolitana de A Coruña ciudad y alrededores inmediatos
 const MUNICIPIOS = [
   'A Coruña', 'Coruña, A', 'Coruña', 'coruña', 'coruna',
-  'Arteixo', 'Culleredo', 'Oleiros', 'Cambre', 'Sada', 'Bergondo',
-  'Carral', 'Abegondo', 'Ferrol', 'Narón', 'Naron', 'Betanzos',
-  'Miño', 'Pontedeume', 'Cabanas', 'Ares', 'Mugardos', 'Fene',
-  'As Pontes', 'Pontes de García', 'Laracha', 'Carballo',
-  'Cerceda', 'Ordes', 'Curtis', 'Sobrado', 'Arzúa', 'Arzua',
-  'Melide', 'Touro', 'O Pino', 'Boqueixón', 'Boqueixon',
-  'Teo', 'Ames', 'Brión', 'Brion', 'Negreira',
-  'Santa Comba', 'Zas', 'Mazaricos', 'Muros', 'Outes',
-  'Noia', 'Lousame', 'Rois', 'Dodro', 'Padrón', 'Padron',
-  'Rianxo', 'Boiro', 'A Pobra', 'Ribeira',
-  'Santiago de Compostela', 'Santiago',
+  'Arteixo', 'Culleredo', 'O Burgo', 'El Burgo', 'Oleiros',
+  'Perillo', 'Santa Cruz', 'Cambre', 'Sada', 'Bergondo',
+];
+
+// Municipios de fuera del área que NO queremos (evitan falsos positivos
+// cuando "A Coruña" aparece como provincia)
+const EXCLUDE_MUNICIPIOS = [
+  'Ferrol', 'Narón', 'Naron', 'Betanzos', 'Pontedeume',
+  'Santiago de Compostela', 'Santiago', 'Lugo', 'Ourense',
+  'Pontevedra', 'Vigo', 'Sanxenxo', 'Ribadeo', 'Carballo',
+  'Laracha', 'Noia', 'Ribeira', 'Boiro', 'Padrón', 'Padron',
+  'Melide', 'Arzúa', 'Arzua', 'Ordes', 'Fene', 'Mugardos',
+  'Ares', 'Cabanas', 'Miño', 'As Pontes', 'Curtis', 'Sobrado',
+  'Touro', 'O Pino', 'Boqueixón', 'Boqueixon', 'Teo', 'Ames',
+  'Brión', 'Brion', 'Negreira', 'Santa Comba', 'Zas', 'Mazaricos',
+  'Muros', 'Outes', 'Lousame', 'Rois', 'Dodro', 'Rianxo',
+  'A Pobra', 'Cerceda', 'Carral', 'Abegondo',
 ];
 
 const DATA_PATH = join(__dirname, '..', 'src', 'data', 'opportunities.json');
@@ -132,6 +138,7 @@ async function main() {
         const cleanFull = cleanText(fullText);
         if (!matchesAny(cleanFull, HOUSING_KEYWORDS)) continue;
         if (!matchesAny(item.title || '', MUNICIPIOS)) continue;
+        if (matchesAny(item.title || '', EXCLUDE_MUNICIPIOS)) continue;
         if (isExcluded(cleanFull)) continue;
         const hash = hashItem(item);
         if (seen.has(hash)) continue;
@@ -162,6 +169,7 @@ async function main() {
         const text = `${title} ${snippet}`;
         if (!matchesAny(text, GENERAL_KEYWORDS)) continue;
         if (!matchesAny(text, MUNICIPIOS)) continue;
+        if (matchesAny(text, EXCLUDE_MUNICIPIOS)) continue;
         if (isExcluded(text)) continue;
         const hash = hashItem(item);
         if (seen.has(hash)) continue;
