@@ -2,9 +2,7 @@
 
 Monitor abierto de **cooperativas, promociones nuevas y vivienda protegida** en el área metropolitana de A Coruña.
 
-**Web:** https://jlfernandezfernandez.github.io/vivienda-coruna/
-
-> La prioridad es detectar señales tempranas: constitución de cooperativas, búsqueda de socios, licencias y promociones que empiezan a moverse. La vivienda protegida se muestra por separado como seguimiento público.
+La prioridad es detectar señales tempranas: constitución de cooperativas, búsqueda de socios, licencias y promociones que empiezan a moverse. La vivienda protegida se muestra por separado como seguimiento público.
 
 ## Qué cubre
 
