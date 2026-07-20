@@ -70,11 +70,7 @@ export const config = {
 
   firecrawl: {
     apiKey: env.FIRECRAWL_API_KEY || null,
-  },
-
-  // Jina Reader (scrape/map). Funciona sin key; la key opcional sube los límites.
-  jina: {
-    apiKey: env.JINA_API_KEY || null,
+    baseUrl: env.FIRECRAWL_BASE_URL || 'https://api.firecrawl.dev',
   },
 
   // Frontend Configuration for high customization

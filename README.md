@@ -40,7 +40,7 @@ Fuentes RSS / IGVS / Prensa Local
 ```
 
 1. **Rastreador**: Un script en Node.js consulta los tablones oficiales de la Xunta de Galicia y los canales de prensa local.
-2. **Raspado Avanzado (Firecrawl)**: Si la noticia proviene de prensa local, utiliza la API de Firecrawl para descargar el artículo completo en formato markdown limpio, saltándose paywalls y renderizaciones complejas.
+2. **Raspado Avanzado (Firecrawl)**: Scrape, map y búsqueda web van por Firecrawl (`FIRECRAWL_BASE_URL`, por defecto la API oficial) (por defecto la API oficial de Firecrawl; opcionalmente tu instancia self-hosted vía `FIRECRAWL_BASE_URL`) que descarga el artículo completo en markdown limpio, saltándose paywalls y renderizaciones complejas.
 3. **Extracción por IA (OpenRouter)**: El modelo `openai/gpt-4o-mini` analiza el texto completo de la noticia y extrae un JSON estructurado con el precio de salida, número de dormitorios, baños, promotora y equipamiento (garaje, trastero, terraza).
 4. **Base de Datos SQLite (`monitor.db`)**: Centraliza los datos en una base de datos relacional nativa en Node.js. Esto conserva todo el historial ilimitado de cooperativas y licencias sin perder las noticias que van saliendo de los feeds RSS.
 5. **Astro + GitHub Pages**: En cada compilación, se exportan las últimas 150 oportunidades a un JSON estático para renderizar el frontal con búsquedas instantáneas, mapa y un **Directorio de Gestoras de Cooperativas** (Gestogar/Nosogar, Xesta, Galivivienda, Libra GP) integrado.
@@ -66,7 +66,8 @@ cp .env.example .env
 ```
 Rellena tus credenciales en el archivo `.env`:
 * **`LLM_API_KEY`**: Tu API Key de OpenRouter.
-* **`FIRECRAWL_API_KEY`**: Tu API Key de Firecrawl (opcional, si deseas raspado completo de noticias).
+* **`FIRECRAWL_API_KEY`**: API Key de tu instancia de Firecrawl (necesaria para scrape/map/search).
+* **`FIRECRAWL_BASE_URL`**: URL de tu Firecrawl self-hosted (opcional, por defecto la API oficial `https://api.firecrawl.dev`).
 
 ### Comandos de desarrollo
 ```bash

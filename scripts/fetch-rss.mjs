@@ -14,8 +14,6 @@ import {
   getOpportunity,
   getAllOpportunities,
   saveSource,
-  getAllSources,
-  getAllGestoras,
   saveGestora,
   saveGestoraPromotion,
 } from './lib/db.mjs';
@@ -258,7 +256,13 @@ async function main() {
     if (!gestora.website) continue;
 
     const siteUrls = await mapSite(gestora.website);
-    const relevantUrls = siteUrls.filter((url) => areaKeywords.some((kw) => stripAccents(url).includes(kw)));
+    // Subpáginas relevantes: las que nombran un municipio del área o las que parecen
+    // de promociones/proyectos (muchas gestoras no ponen el municipio en la URL).
+    const relevantUrls = siteUrls.filter(
+      (url) =>
+        areaKeywords.some((kw) => stripAccents(url).includes(kw)) ||
+        /promo|proyect|proxect|vivienda|obra|residencial/i.test(url),
+    );
     const contactUrl = siteUrls.find((url) => /contacto|contact/i.test(url));
     // Si el mapeo no da nada relevante, caemos a la portada.
     const pagesToScrape = relevantUrls.length > 0 ? relevantUrls.slice(0, 12) : [gestora.website];

@@ -1,54 +1,51 @@
 import { config } from './config.mjs';
 
-// Scraping y mapeo van por Jina Reader (r.jina.ai): gratis, sin key para uso básico
-// (JINA_API_KEY opcional sube límites), renderiza JS y no tiene el rate-limit agresivo
-// de Firecrawl. La búsqueda sigue en Firecrawl, que ahí no daba problemas.
+// Todo (scrape / map / search) va por Firecrawl. URL base en config.firecrawl.baseUrl
+// (env FIRECRAWL_BASE_URL, por defecto la API oficial). Token opcional: la instancia
+// self-hosted puede ir sin key; la API oficial la necesita.
 
-function jinaHeaders(extra = {}) {
-  const headers = { ...extra };
-  if (config.jina?.apiKey) headers.Authorization = `Bearer ${config.jina.apiKey}`;
-  return headers;
+async function firecrawl(path, body, timeoutMs) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (config.firecrawl.apiKey) headers.Authorization = `Bearer ${config.firecrawl.apiKey}`;
+  const response = await fetch(`${config.firecrawl.baseUrl}${path}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) {
+    console.warn(`[firecrawl] ${path} → HTTP ${response.status}`);
+    return null;
+  }
+  return response.json();
 }
 
-/**
- * Scrapes a URL to markdown. Jina Reader first (free, no aggressive rate limit);
- * if it fails, Firecrawl as fallback — it resolves Google News redirect URLs
- * (news.google.com/rss/articles/...) that Jina returns 403 for.
- */
+// Cloudflare ofusca emails: el markdown trae "[email protected]" y el email real
+// va cifrado en un atributo data-cfemail del html. Lo desciframos y reponemos.
+function decodeCfEmail(hex) {
+  const key = parseInt(hex.slice(0, 2), 16);
+  let email = '';
+  for (let i = 2; i < hex.length; i += 2) {
+    email += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key);
+  }
+  return email;
+}
+
+function deobfuscateCfEmails(markdown, html) {
+  const placeholder = /\\?\[email\s+protected\\?\]/gi;
+  if (!html || !placeholder.test(markdown)) return markdown;
+  const emails = [...html.matchAll(/data-cfemail="([0-9a-fA-F]+)"/g)].map((m) => decodeCfEmail(m[1]));
+  let i = 0;
+  return markdown.replace(placeholder, () => emails[i++] ?? '[email protected]');
+}
+
+/** Scrapes a URL to markdown, or null. */
 export async function scrapeUrl(url) {
   try {
-    const response = await fetch(`https://r.jina.ai/${url}`, {
-      headers: jinaHeaders(),
-      signal: AbortSignal.timeout(45_000),
-    });
-    if (response.ok) {
-      const text = (await response.text()).trim();
-      if (text) return text;
-    }
-  } catch (error) {
-    console.warn(`[jina] Error al raspar ${url}: ${error.message}`);
-  }
-  return firecrawlScrape(url);
-}
-
-async function firecrawlScrape(url) {
-  if (!config.firecrawl.apiKey) return null;
-  try {
-    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.firecrawl.apiKey}`,
-      },
-      body: JSON.stringify({ url, formats: ['markdown'] }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
-      console.warn(`[firecrawl] Fallo al raspar ${url}: HTTP ${response.status}`);
-      return null;
-    }
-    const json = await response.json();
-    return json?.data?.markdown || null;
+    const json = await firecrawl('/v1/scrape', { url, formats: ['markdown', 'html'] }, 45_000);
+    const markdown = json?.data?.markdown;
+    if (!markdown) return null;
+    return deobfuscateCfEmails(markdown, json.data.html);
   } catch (error) {
     console.warn(`[firecrawl] Error al raspar ${url}: ${error.message}`);
     return null;
@@ -58,43 +55,20 @@ async function firecrawlScrape(url) {
 /** Same-origin URLs found on a site (project pages aren't usually on the homepage), or []. */
 export async function mapSite(url) {
   try {
-    const response = await fetch(`https://r.jina.ai/${url}`, {
-      headers: jinaHeaders({ 'X-With-Links-Summary': 'true' }),
-      signal: AbortSignal.timeout(45_000),
-    });
-    if (!response.ok) {
-      console.warn(`[jina] Fallo al mapear ${url}: HTTP ${response.status}`);
-      return [];
-    }
-    const text = await response.text();
+    const json = await firecrawl('/v1/map', { url }, 45_000);
     const origin = new URL(url).origin;
-    const found = text.match(/https?:\/\/[^\s)\]"']+/g) || [];
-    return [...new Set(found.filter((u) => u.startsWith(origin)))];
+    return (json?.links || []).filter((u) => u.startsWith(origin));
   } catch (error) {
-    console.warn(`[jina] Error al mapear ${url}: ${error.message}`);
+    console.warn(`[firecrawl] Error al mapear ${url}: ${error.message}`);
     return [];
   }
 }
 
-/** Web search for a company's real pages (Firecrawl), or []. */
+/** Web search for a company's real pages, or []. */
 export async function searchWeb(query, limit = 3) {
-  if (!config.firecrawl.apiKey) return [];
   try {
-    const response = await fetch('https://api.firecrawl.dev/v1/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.firecrawl.apiKey}`,
-      },
-      body: JSON.stringify({ query, limit }),
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!response.ok) {
-      console.warn(`[firecrawl] Fallo al buscar "${query}": HTTP ${response.status}`);
-      return [];
-    }
-    const json = await response.json();
-    return (json.data || []).map((r) => ({ url: r.url, title: r.title }));
+    const json = await firecrawl('/v1/search', { query, limit }, 20_000);
+    return (json?.data || []).map((r) => ({ url: r.url, title: r.title }));
   } catch (error) {
     console.warn(`[firecrawl] Error al buscar "${query}": ${error.message}`);
     return [];

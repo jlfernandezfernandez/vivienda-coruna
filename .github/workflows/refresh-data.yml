@@ -27,6 +27,7 @@ jobs:
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          FIRECRAWL_BASE_URL: ${{ secrets.FIRECRAWL_BASE_URL }}
       - name: Publish refreshed data
         run: |
           if git diff --quiet -- src/data/monitor.db; then
