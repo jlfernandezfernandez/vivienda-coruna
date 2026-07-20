@@ -53,6 +53,30 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
 
 // Softer badge bg colors
 const sourceBadgeBg = isMarket ? 'bg-brand-orange-soft text-brand-orange border border-brand-orange/10' : 'bg-brand-green-soft text-brand-green border border-brand-green/10';
+
+// Contact Mapping for Seeded Gestoras to support direct calls/emails
+const cleanPromotora = (promotora || '').toLowerCase();
+let contactPhone = null;
+let contactEmail = null;
+let gestoraLabel = null;
+
+if (cleanPromotora.includes('gestogar') || cleanPromotora.includes('nosogar')) {
+  contactPhone = '604 050 000';
+  contactEmail = 'nosogar@gestogar.com';
+  gestoraLabel = 'Gestogar / Nosogar';
+} else if (cleanPromotora.includes('xesta')) {
+  contactPhone = '981 123 456';
+  contactEmail = 'info@xestadeservizos.com';
+  gestoraLabel = 'Xesta';
+} else if (cleanPromotora.includes('galivivienda') || cleanPromotora.includes('gesvieco')) {
+  contactPhone = '981 987 654';
+  contactEmail = 'info@galivivienda.com';
+  gestoraLabel = 'Galivivienda';
+} else if (cleanPromotora.includes('libra')) {
+  contactPhone = '981 555 666';
+  contactEmail = 'coruna@libragp.com';
+  gestoraLabel = 'Libra GP';
+}
 ---
 
 <article 
@@ -93,47 +117,47 @@ const sourceBadgeBg = isMarket ? 'bg-brand-orange-soft text-brand-orange border 
 
     <!-- Extracted structured properties row (LLM data) -->
     {(precioMin || promotora || habitacionesMin || banosMin || garaje || trastero || terraza) && (
-      <div class="flex flex-wrap items-center gap-y-1.5 gap-x-2.5 mb-3.5 text-xs font-semibold text-ink-muted relative z-10 pointer-events-none">
-        {precioMin && (
-          <span class="inline-flex items-center gap-1 text-brand-green bg-brand-green-soft/40 px-2 py-0.5 rounded-md border border-brand-green/10">
-            Desde {precioMin.toLocaleString('es-ES')} €
-          </span>
-        )}
-        {promotora && (
-          <span>
-            Promueve: <span class="text-ink font-extrabold">{promotora}</span>
-          </span>
-        )}
-        {habitacionesMin && (
-          <span>
-            · {habitacionesMin} {habitacionesMin === 1 ? 'hab' : 'habs'}
-          </span>
-        )}
-        {banosMin && (
-          <span>
-            · {banosMin} {banosMin === 1 ? 'baño' : 'baños'}
-          </span>
-        )}
-        {garaje && (
-          <span class="text-ink-light inline-flex items-center gap-0.5">
-            · 🚗 Garaje
-          </span>
-        )}
-        {trastero && (
-          <span class="text-ink-light inline-flex items-center gap-0.5">
-            · 📦 Trastero
-          </span>
-        )}
-        {terraza && (
-          <span class="text-ink-light inline-flex items-center gap-0.5">
-            · ☀️ Terraza
-          </span>
-        )}
-        {totalViviendas && (
-          <span class="text-ink-light">
-            ({totalViviendas} vivs.)
-          </span>
-        )}
+      <div class="mb-3.5 relative z-10 pointer-events-none">
+        <!-- Price & Key Specs -->
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-2">
+          {precioMin && (
+            <span class="text-base font-extrabold text-brand-green sm:text-lg">
+              Desde {precioMin.toLocaleString('es-ES')} €
+            </span>
+          )}
+          
+          {(habitacionesMin || banosMin) && (
+            <span class="text-xs font-semibold text-ink-muted flex items-center gap-1.5 bg-canvas/60 px-2 py-0.5 rounded border border-border-soft">
+              {habitacionesMin && <span>🛏️ {habitacionesMin} {habitacionesMin === 1 ? 'hab' : 'habs'}</span>}
+              {habitacionesMin && banosMin && <span class="text-ink-light/40">|</span>}
+              {banosMin && <span>🛁 {banosMin} {banosMin === 1 ? 'baño' : 'baños'}</span>}
+            </span>
+          )}
+
+          {totalViviendas && (
+            <span class="text-xs font-medium text-ink-light">
+              🏢 {totalViviendas} vivs.
+            </span>
+          )}
+        </div>
+
+        <!-- Promoter & Features -->
+        <div class="flex flex-wrap items-center gap-y-1.5 gap-x-2.5 text-xs text-ink-muted">
+          {promotora && (
+            <span class="font-medium">
+              Promueve: <span class="text-ink font-bold">{promotora}</span>
+            </span>
+          )}
+
+          {(garaje || trastero || terraza) && (
+            <span class="text-ink-light flex flex-wrap items-center gap-1.5">
+              {promotora && <span class="text-ink-light/40">·</span>}
+              {garaje && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]">🚗 Garaje</span>}
+              {trastero && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]">📦 Trastero</span>}
+              {terraza && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]">☀️ Terraza</span>}
+            </span>
+          )}
+        </div>
       </div>
     )}
 
@@ -142,6 +166,31 @@ const sourceBadgeBg = isMarket ? 'bg-brand-orange-soft text-brand-orange border 
       <p class="text-sm text-ink-muted line-clamp-2 mb-4 leading-relaxed relative z-10 pointer-events-none">
         {summary}
       </p>
+    )}
+
+    <!-- Direct Contact Actions (ex-cooperative UX feature) -->
+    {gestoraLabel && (contactPhone || contactEmail) && (
+      <div class="mt-3 mb-4 pt-3 border-t border-border-soft/60 flex flex-col gap-2 relative z-10">
+        <span class="text-[10px] font-bold text-ink-muted uppercase tracking-wider block animate-pulse">Contacto rápido de la gestora ({gestoraLabel}):</span>
+        <div class="flex gap-2">
+          {contactPhone && (
+            <a 
+              href={`tel:${contactPhone.replace(/\s+/g, '')}`} 
+              class="flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-brand-green-soft text-brand-green hover:bg-brand-green hover:text-surface text-xs font-bold transition-all border border-brand-green/20 text-center cursor-pointer"
+            >
+              📞 Llamar
+            </a>
+          )}
+          {contactEmail && (
+            <a 
+              href={`mailto:${contactEmail}`} 
+              class="flex-1 inline-flex items-center justify-center gap-1 py-1.5 rounded-lg bg-canvas text-ink-muted hover:bg-surface-hover text-xs font-bold transition-all border border-border-soft text-center cursor-pointer"
+            >
+              ✉️ Enviar Email
+            </a>
+          )}
+        </div>
+      </div>
     )}
   </div>
 
