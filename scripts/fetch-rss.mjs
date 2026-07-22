@@ -7,6 +7,7 @@ import {
   toOpportunity,
 } from './lib/monitor.mjs';
 import { extractHousingData, extractGestoraContactFromText, pickOfficialWebsite, extractPromotionsFromText, discoverGestoraNames } from './lib/llm.mjs';
+import { extractWithRegex } from './lib/regex-extractor.mjs';
 import { scrapeUrl, searchWeb, mapSite } from './lib/scraper.mjs';
 import {
   getDatabase,
@@ -182,7 +183,20 @@ async function main() {
         }
       }
 
-      const llmData = await extractHousingData(item.title, contentToAnalyze);
+      // ── Fase 1: Regex (gratis, captura ~80% de los casos) ──
+      const regexData = extractWithRegex(item.title + '\n' + contentToAnalyze);
+      const regexFields = regexData._regexFieldsFound || 0;
+
+      let llmData;
+      if (regexData._llmNeeded) {
+        // Regex no pudo sacar suficiente → LLM
+        llmData = await extractHousingData(item.title, contentToAnalyze);
+        console.log(`  [Regex→LLM] ${regexFields} campos por regex, ${Object.values(llmData).filter(v => v !== null && v !== undefined).length - 1} por LLM`);
+      } else {
+        // Regex cubrió todo → sin gasto de LLM
+        llmData = { ...regexData, llmCallFailed: false };
+        console.log(`  [Regex] ${regexFields} campos extraídos sin LLM (ahorro ~500 tokens)`);
+      }
 
       const enrichedItem = {
         ...item,
@@ -197,7 +211,6 @@ async function main() {
         terraza: llmData.terraza,
         status: llmData.estado || item.status,
         nombrePromocion: llmData.nombrePromocion,
-        // Si el LLM falló (cuota, red), no marcar enriched: reintentar en la próxima corrida.
         enriched: !llmData.llmCallFailed,
       };
 
@@ -258,14 +271,23 @@ async function main() {
     const siteUrls = await mapSite(gestora.website);
     // Subpáginas relevantes: las que nombran un municipio del área o las que parecen
     // de promociones/proyectos (muchas gestoras no ponen el municipio en la URL).
-    const relevantUrls = siteUrls.filter(
-      (url) =>
-        areaKeywords.some((kw) => stripAccents(url).includes(kw)) ||
-        /promo|proyect|proxect|vivienda|obra|residencial/i.test(url),
-    );
+    // Priorizamos keywords de proyecto sobre páginas genéricas.
+    const projectKeywords = /promo|proyect|proxect|vivienda|obra|residencial|edificio|torre|conjunto|urbanizacion|parcela|solar|suelo|cooperativa|cohousing/i;
     const contactUrl = siteUrls.find((url) => /contacto|contact/i.test(url));
+    
+    // Ordenar: primero las que matchean keywords de proyecto, luego las de municipio
+    const scored = siteUrls.map((url) => {
+      let score = 0;
+      if (projectKeywords.test(url)) score += 10;
+      if (areaKeywords.some((kw) => stripAccents(url).includes(kw))) score += 5;
+      if (/contacto|contact|blog|noticias|news|sobre-nosotros|quienes-somos|aviso-legal|politica/i.test(url)) score -= 20;
+      return { url, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    
     // Si el mapeo no da nada relevante, caemos a la portada.
-    const pagesToScrape = relevantUrls.length > 0 ? relevantUrls.slice(0, 12) : [gestora.website];
+    const relevantUrls = scored.filter((s) => s.score > 0).map((s) => s.url);
+    const pagesToScrape = relevantUrls.length > 0 ? relevantUrls.slice(0, 25) : [gestora.website];
 
     const allPromotions = [];
     for (const pageUrl of pagesToScrape) {

@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { config, AREA_LABELS } from './lib/config.mjs';
-import { searchWeb } from './lib/scraper.mjs';
+import { searchWeb, scrapeUrl } from './lib/scraper.mjs';
+import { extractWithRegex } from './lib/regex-extractor.mjs';
+import { extractHousingData } from './lib/llm.mjs';
 import {
   getDatabase,
   saveOpportunity,
   getAllOpportunities,
-  saveSource,
 } from './lib/db.mjs';
 import {
   cleanText,
@@ -23,7 +24,15 @@ const MUNICIPIOS = [
 const SEARCH_QUERIES = [
   'cooperativa vivienda {municipio} 2026',
   'promoción obra nueva viviendas {municipio} 2026',
+  'licencia de obras viviendas {municipio} 2026',
+  'reparcelación suelo residencial {municipio}',
+  'concurso de suelo vivienda {municipio}',
+  'nueva promoción inmobiliaria {municipio} 2026',
 ];
+
+const DELAY_MS = 800; // Evitar rate limiting de Firecrawl
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function toOpportunityFromSearch(result, source, now) {
   const title = cleanText(result.title);
@@ -48,6 +57,46 @@ function toOpportunityFromSearch(result, source, now) {
   };
 }
 
+async function enrichOpportunity(db, item) {
+  // Intentar scrapear el artículo completo para mejor contexto
+  let contentToAnalyze = item.summary || '';
+  if (item.url) {
+    try {
+      const md = await scrapeUrl(item.url);
+      if (md) contentToAnalyze = md.slice(0, 10000);
+    } catch { /* usar summary */ }
+  }
+
+  // Fase 1: Regex (gratis)
+  const regexData = extractWithRegex(item.title + '\n' + contentToAnalyze);
+  const regexFields = regexData._regexFieldsFound || 0;
+
+  let llmData;
+  if (regexData._llmNeeded) {
+    llmData = await extractHousingData(item.title, contentToAnalyze);
+    console.log(`  [Regex→LLM] ${regexFields} campos regex + LLM para "${item.title.slice(0, 50)}..."`);
+  } else {
+    llmData = { ...regexData, llmCallFailed: false };
+    console.log(`  [Regex] ${regexFields} campos sin LLM para "${item.title.slice(0, 50)}..."`);
+  }
+
+  saveOpportunity(db, {
+    ...item,
+    precioMin: llmData.precioMin,
+    precioMax: llmData.precioMax,
+    habitacionesMin: llmData.habitacionesMin,
+    banosMin: llmData.banosMin,
+    promotora: llmData.promotora,
+    totalViviendas: llmData.totalViviendas,
+    garaje: llmData.garaje,
+    trastero: llmData.trastero,
+    terraza: llmData.terraza,
+    status: llmData.estado || item.status,
+    nombrePromocion: llmData.nombrePromocion,
+    enriched: !llmData.llmCallFailed,
+  });
+}
+
 async function main() {
   const checkedAt = new Date().toISOString();
   const db = getDatabase();
@@ -70,16 +119,20 @@ async function main() {
           if (opp) {
             saveOpportunity(db, opp);
             newCount++;
+            // Enriquecer inmediatamente (regex + LLM si necesario)
+            await enrichOpportunity(db, opp);
           }
         }
       } catch (err) {
         console.error(`✗ ${sourceName}: ${err.message}`);
       }
+      await sleep(DELAY_MS);
     }
   }
 
   const total = getAllOpportunities(db, 500).length;
-  console.log(`\n${newCount} nuevas desde Firecrawl Search. Total en DB: ${total}`);
+  const enriched = db.prepare('SELECT count(*) as n FROM opportunities WHERE enriched=1').all()[0].n;
+  console.log(`\n${newCount} nuevas desde Firecrawl Search. Total: ${total} (${enriched} enriquecidas)`);
 }
 
 main().catch((err) => {
