@@ -30,7 +30,8 @@ const SEARCH_QUERIES = [
   'nueva promoción inmobiliaria {municipio} 2026',
 ];
 
-const DELAY_MS = 800; // Evitar rate limiting de Firecrawl
+const DELAY_MS = 2000; // 2s entre queries para no saturar Firecrawl
+const MUNICIPIO_PAUSE_MS = 5000; // 5s entre municipios
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -128,6 +129,7 @@ async function main() {
       }
       await sleep(DELAY_MS);
     }
+    await sleep(MUNICIPIO_PAUSE_MS); // Pausa entre municipios
   }
 
   const total = getAllOpportunities(db, 500).length;
