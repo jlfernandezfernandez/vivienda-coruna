@@ -39,4 +39,3 @@ jobs:
           git add src/data/monitor.db
           git commit -m "chore(data): refresh housing monitor"
           git push
-

@@ -10,6 +10,8 @@
     "build": "astro build",
     "test": "LLM_API_KEY=test node --test tests/*.test.mjs",
     "refresh": "node scripts/fetch-rss.mjs",
+    "enrich": "node scripts/enrich-firecrawl.mjs",
+    "refresh:all": "node scripts/fetch-rss.mjs && node scripts/enrich-firecrawl.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },
