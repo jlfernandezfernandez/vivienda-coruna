@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { config, AREA_LABELS } from './config.mjs';
+import { statusLabels, statusDescription } from './statuses.mjs';
 
 let openaiClient = null;
 
@@ -53,7 +54,7 @@ export async function extractHousingData(title, summary) {
 
   const systemPrompt = `Eres un asistente experto en el sector inmobiliario español. Tu tarea es extraer información estructurada a partir del título y el resumen de una noticia sobre promociones de vivienda, cooperativas o parcelas de suelo residencial en España.
 Rellena cada uno de los campos requeridos en el objeto JSON de salida. Si un campo no se menciona en la noticia, asígnale el valor null.
-Para "estado", deduce el estado real de comercialización a partir del texto (no asumas "Comercialización" por defecto): usa "Agotada/Vendida" si dice que ya no quedan viviendas o están todas reservadas/vendidas, "Últimas unidades" si quedan pocas, "En construcción" si está en obra, "Entregada" si ya se entregó, "Comercialización" solo si el texto indica activamente que se están vendiendo/reservando viviendas ahora, "Suelo/Proyecto" si aún no hay obra. Si el texto no da ninguna pista, deja null.
+Para "estado", deduce el estado real de comercialización a partir del texto (no asumas "Comercialización" por defecto): ${statusDescription()}. Si el texto no da ninguna pista, deja null.
 "nombrePromocion" es el nombre propio del proyecto principal del que trata la noticia (ej. "Mirador do Ézaro"), NUNCA de otros proyectos o promotoras que la noticia solo mencione de pasada como contexto o comparación (habitual en prensa inmobiliaria: "en la misma zona destacan también..."). Si tienes dudas de si un nombre pertenece al proyecto principal de esta noticia, déjalo fuera.`;
 
   const userPrompt = `Noticia para analizar:
@@ -115,7 +116,7 @@ Resumen: ${summary}`;
               },
               estado: {
                 type: ['string', 'null'],
-                enum: ['Agotada/Vendida', 'Últimas unidades', 'En construcción', 'Entregada', 'Comercialización', 'Suelo/Proyecto', null],
+                enum: [...statusLabels(), null],
                 description: 'Estado real de comercialización deducido del texto. null si el texto no da pistas.'
               },
               nombrePromocion: {

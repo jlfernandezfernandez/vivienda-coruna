@@ -1,3 +1,5 @@
+import { detectStatus } from './statuses.mjs';
+
 /**
  * Regex-based housing data extractor.
  * Captures structured fields from Spanish real-estate text WITHOUT an LLM call.
@@ -96,22 +98,9 @@ export function extractWithRegex(text) {
   }
 
   // ── ESTADO ───────────────────────────────────────────────────────────
-  if (/\b(?:agotad[ao]s?|vendid[ao]s?|tod[ao]s? vendid[ao]s?|no quedan|completamente vendido)\b/i.test(t)) {
-    result.estado = 'Agotada/Vendida';
-  } else if (/\b(?:[uú]ltimas?\s*(?:unidades|viviendas|disponibles)|quedan\s*poc[ao]s?)\b/i.test(t)) {
-    result.estado = 'Últimas unidades';
-  } else if (/\b(?:en construcci[oó]n|en obras|actualmente en obra|fase de construcci[oó]n)\b/i.test(t)) {
-    result.estado = 'En construcción';
-  } else if (/\b(?:entregad[ao]s?|finalizad[ao]s?|ya entregad[ao]s?|llaves entregadas)\b/i.test(t)) {
-    result.estado = 'Entregada';
-  } else if (/\b(?:comercializaci[oó]n|en venta|a la venta|se comercializa|reservas? abiertas?)\b/i.test(t)) {
-    result.estado = 'Comercialización';
-  } else if (/\b(?:suelo|proyecto|anteproyecto|licencia|en tramitaci[oó]n|planeamiento|futuro desarrollo)\b/i.test(t) && !/\b(?:en construcci[oó]n|en obras)\b/i.test(t)) {
-    result.estado = 'Suelo/Proyecto';
-  }
+  result.estado = detectStatus(t);
 
   // ── NOMBRE PROMOCIÓN ─────────────────────────────────────────────────
-  // "Residencial Casablanca", "Edificio Montevideo", "Parque de Oza",
   // "promoción Mirador do Ézaro", "cooperativa As Lavandeiras"
   const nombreMatch = t.match(/(?:Residencial|Edificio|Torre|Conjunto|Urbanizaci[oó]n|Cooperativa|Promoci[oó]n)\s+([A-ZÁÉÍÓÚÑ][\w\s'’.-]{3,40})/i);
   if (nombreMatch) {

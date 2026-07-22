@@ -44,7 +44,8 @@ const {
 } = Astro.props;
 
 const isMarket = sourceKind === 'market-alert';
-const sourceLabel = isMarket ? 'Prensa local' : source;
+const isFirecrawl = sourceKind === 'firecrawl-search';
+const sourceLabel = isMarket ? 'Prensa local' : isFirecrawl ? 'Búsqueda web' : source;
 const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
   day: 'numeric',
   month: 'short',
@@ -54,18 +55,7 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
 // Softer badge bg colors
 const sourceBadgeBg = isMarket ? 'bg-brand-orange-soft text-brand-orange border border-brand-orange/10' : 'bg-brand-green-soft text-brand-green border border-brand-green/10';
 
-// Status colors: distinct per state
-function statusColors(s) {
-  if (!s) return 'bg-brand-blue-soft text-brand-blue border border-brand-blue/10';
-  const st = s.toLowerCase();
-  if (/agotad|vendid|completamente/i.test(st)) return 'bg-red-50 text-red-700 border border-red-100';
-  if (/[uú]ltimas/i.test(st)) return 'bg-amber-50 text-amber-700 border border-amber-100';
-  if (/construcci[oó]n|en obra/i.test(st)) return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
-  if (/comercializaci[oó]n|en venta|a la venta/i.test(st)) return 'bg-green-50 text-green-700 border border-green-100';
-  if (/suelo|proyecto|anteproyecto|licencia|tramitaci[oó]n/i.test(st)) return 'bg-stone-100 text-stone-600 border border-stone-200';
-  if (/entregad/i.test(st)) return 'bg-slate-100 text-slate-600 border border-slate-200';
-  return 'bg-brand-blue-soft text-brand-blue border border-brand-blue/10';
-}
+import { statusColors } from '../../scripts/lib/statuses.mjs';
 
 // Maps link for location
 const mapsQuery = encodeURIComponent(location + ' A Coruña España');
