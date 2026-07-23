@@ -739,9 +739,9 @@ const municipalities = config.site.municipalities;
       const val = parseInt((e.target as HTMLInputElement).value, 10);
       maxPrice = val;
       if (val === 600000) {
-        priceDisplay.textContent = 'Cualquier precio';
+        priceDisplay.textContent = '<' + (val / 1000).toFixed(0) + 'k €';
       } else {
-        priceDisplay.textContent = `Menos de ${val.toLocaleString('es-ES')} €`;
+        priceDisplay.textContent = `\u003c ${val.toLocaleString('es-ES')} €`;
       }
       updateFilters();
     });
