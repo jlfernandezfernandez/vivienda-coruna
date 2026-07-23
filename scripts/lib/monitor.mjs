@@ -19,6 +19,7 @@ const PLACE_PATTERNS = [
 ];
 const HOUSING_PATTERN = /\b(?:vpa|vpp|vivenda(?:s)?|vivienda(?:s)?|obra nueva|promoci[oó]n nueva|promoci[oó]n inmobiliaria|promoci[oó]n residencial|promoci[oó]n p[uú]blica|protexida(?:s)?|protegida(?:s)?|cooperativa(?:s)?|cohousing|covivienda|autopromoci[oó]n|solo residencial|suelo residencial|reparcelaci[oó]n|parcela residencial|edificio residencial|proyecto residencial|promotora|constructora|gestora|libra gp|libra gesti[oó]n|galivivienda|gescomar|prygesa|gestogar|metrovacesa|avantespacia|aelca|neinor|c[eé]lere)\b/i;
 const NOISE_PATTERN = /\b(?:veh[ií]culo(?:s)?|h[ií]brido(?:s)?|vestiario|vestuario|fotocasa|idealista)\b/i;
+const GARBAGE_PATTERN = /\b(?:yaencontre|nestoria|habitaclia|fotocasa|idealista|reformantia|subastasdelboe|tramitesayuntamiento|solicitud de licencias de obra para reforma|promociones de obra nueva en|inmuebles de obra nueva en|obra nueva en.*promociones en venta|obra nueva con entrega para)\b/i;
 const MARKET_CONTEXT_NOISE_PATTERN = /\b(?:costes?|demanda|mercado|informe|an[aá]lisis|sin construir)\b/i;
 
 export function cleanText(value = '') {
@@ -46,7 +47,7 @@ export function detectLocation(title = '') {
 
 export function isRelevantTitle(title = '') {
   const text = cleanText(title);
-  return Boolean(detectLocation(text)) && HOUSING_PATTERN.test(text) && !NOISE_PATTERN.test(text);
+  return Boolean(detectLocation(text)) && HOUSING_PATTERN.test(text) && !NOISE_PATTERN.test(text) && !GARBAGE_PATTERN.test(text);
 }
 
 export function detectType(text = '', sourceKind = '') {

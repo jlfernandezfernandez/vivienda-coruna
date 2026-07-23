@@ -216,11 +216,12 @@ const municipalities = config.site.municipalities;
           </div>
         </div>
 
-        <!-- Card 2: Características del Piso -->
-        <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col gap-4">
-          <h3 class="text-xs font-bold text-ink-muted uppercase tracking-wider border-b border-border-soft pb-2">
+        <!-- Card 2: Características (colapsado por defecto) -->
+        <details class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium group">
+          <summary class="text-xs font-bold text-ink-muted uppercase tracking-wider cursor-pointer list-none flex items-center justify-between">
             Características de la Vivienda
-          </h3>
+            <svg class="h-4 w-4 text-ink-light transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+          </summary>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <!-- Price Slider -->
@@ -337,9 +338,7 @@ const municipalities = config.site.municipalities;
               </label>
             </div>
           </div>
-        </div>
-
-        <!-- Section header with results counter -->
+        </details>
         <div class="flex items-center justify-between pb-2 px-1 mt-4">
           <h2 class="text-lg font-bold text-ink flex items-center gap-2">
             Novedades detectadas
@@ -431,36 +430,6 @@ const municipalities = config.site.municipalities;
               </li>
             ))}
           </ul>
-        </section>
-
-        <!-- Quick Guide concepts Section -->
-        <section class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium text-sm" aria-labelledby="edu-title">
-          <h2 id="edu-title" class="text-base font-bold text-ink border-b border-border-soft pb-2 mb-3.5">Guía de Conceptos</h2>
-          <div class="space-y-4 text-ink-muted leading-relaxed">
-            <div>
-              <span class="font-bold text-ink block mb-0.5 text-sm">VPP (Vivienda de Promoción Pública)</span>
-              <p class="text-xs sm:text-sm">Promovida por la Xunta (IGVS) y adjudicada por sorteo público y reglado de demandantes.</p>
-            </div>
-            <div>
-              <span class="font-bold text-ink block mb-0.5 text-sm">VPA (Vivienda de Protección Autonómica)</span>
-              <p class="text-xs sm:text-sm">Vivienda protegida de promotores privados o cooperativas, con precios máximos fijados legalmente.</p>
-            </div>
-            <div>
-              <span class="font-bold text-ink block mb-0.5 text-sm">Cooperativas de Vivienda</span>
-              <p class="text-xs sm:text-sm">Socios agrupados que autopromueven viviendas a precio de coste. No exigen registro oficial salvo en VPP/VPA.</p>
-            </div>
-            <div class="pt-3 border-t border-border-soft">
-              <a 
-                href="https://igvs.xunta.gal/es/registro-de-demandantes-de-vivienda-protegida" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                class="inline-flex items-center gap-1 text-xs font-bold text-brand-green hover:underline"
-              >
-                Registro de Demandantes (Xunta)
-                <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              </a>
-            </div>
-          </div>
         </section>
 
       </aside>
