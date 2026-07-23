@@ -223,119 +223,70 @@ const municipalities = config.site.municipalities;
             <svg class="h-4 w-4 text-ink-light transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
           </summary>
 
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-            <!-- Price Slider -->
-            <div class="flex flex-col gap-2">
-              <div class="flex justify-between items-center">
-                <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Precio máximo</span>
-                <span id="price-display" class="inline-flex items-center rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10">
-                  Sin límite
-                </span>
+          <div class="flex flex-col gap-4 mt-4">
+            <!-- Price + Bedrooms + Bathrooms row -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <!-- Price Slider -->
+              <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Precio máximo</span>
+                  <span id="price-display" class="inline-flex items-center rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10">
+                    Sin límite
+                  </span>
+                </div>
+                <div class="flex items-center h-10">
+                  <input 
+                    type="range" 
+                    id="price-range" 
+                    min="150000" 
+                    max="600000" 
+                    step="25000" 
+                    value="600000" 
+                    class="w-full accent-brand-green cursor-pointer h-1.5 bg-canvas rounded-lg appearance-none border border-border-soft"
+                  />
+                </div>
               </div>
-              <div class="flex items-center h-10">
-                <input 
-                  type="range" 
-                  id="price-range" 
-                  min="150000" 
-                  max="600000" 
-                  step="25000" 
-                  value="600000" 
-                  class="w-full accent-brand-green cursor-pointer h-1.5 bg-canvas rounded-lg appearance-none border border-border-soft"
-                />
+
+              <!-- Bedrooms Filter -->
+              <div class="flex flex-col gap-2">
+                <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Dormitorios</span>
+                <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center">
+                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer" data-filter-rooms="0">Todos</button>
+                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="1">1+</button>
+                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="2">2+</button>
+                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="3">3+</button>
+                </div>
+              </div>
+
+              <!-- Bathrooms Filter -->
+              <div class="flex flex-col gap-2">
+                <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Baños</span>
+                <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center">
+                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer" data-filter-baths="0">Todos</button>
+                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="1">1+</button>
+                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="2">2+</button>
+                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="3">3+</button>
+                </div>
               </div>
             </div>
 
-            <!-- Bedrooms Filter -->
-            <div class="flex flex-col gap-2">
-              <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Dormitorios</span>
-              <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center">
-                <button 
-                  class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer"
-                  data-filter-rooms="0"
-                >
-                  Todos
-                </button>
-                <button 
-                  class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
-                  data-filter-rooms="1"
-                >
-                  1+
-                </button>
-                <button 
-                  class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
-                  data-filter-rooms="2"
-                >
-                  2+
-                </button>
-                <button 
-                  class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
-                  data-filter-rooms="3"
-                >
-                  3+
-                </button>
+            <!-- Extras Checkboxes -->
+            <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
+              <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Equipamiento adicional</span>
+              <div class="flex flex-wrap gap-4 items-center min-h-10">
+                <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
+                  <input type="checkbox" id="filter-garage" class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" />
+                  <span>🚗 Con Garaje</span>
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
+                  <input type="checkbox" id="filter-storage" class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" />
+                  <span>📦 Con Trastero</span>
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
+                  <input type="checkbox" id="filter-terrace" class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" />
+                  <span>☀️ Con Terraza</span>
+                </label>
               </div>
-            </div>
-
-            <!-- Bathrooms Filter -->
-            <div class="flex flex-col gap-2">
-              <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Baños</span>
-              <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center">
-                <button 
-                  class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer"
-                  data-filter-baths="0"
-                >
-                  Todos
-                </button>
-                <button 
-                  class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
-                  data-filter-baths="1"
-                >
-                  1+
-                </button>
-                <button 
-                  class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
-                  data-filter-baths="2"
-                >
-                  2+
-                </button>
-                <button 
-                  class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
-                  data-filter-baths="3"
-                >
-                  3+
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Extras Checkboxes -->
-          <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
-            <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Equipamiento adicional</span>
-            <div class="flex flex-wrap gap-4 items-center min-h-10">
-              <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
-                <input 
-                  type="checkbox" 
-                  id="filter-garage" 
-                  class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" 
-                />
-                <span>🚗 Con Garaje</span>
-              </label>
-              <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
-                <input 
-                  type="checkbox" 
-                  id="filter-storage" 
-                  class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" 
-                />
-                <span>📦 Con Trastero</span>
-              </label>
-              <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
-                <input 
-                  type="checkbox" 
-                  id="filter-terrace" 
-                  class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" 
-                />
-                <span>☀️ Con Terraza</span>
-              </label>
             </div>
           </div>
         </details>
