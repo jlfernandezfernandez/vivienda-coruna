@@ -255,7 +255,7 @@ function step3_clean(report) {
 }
 
 // ── STEP 4: Learn & patch code ──
-function step4_learn(report, diagnoses, tuneLog) {
+function step4_learn(report, diagnoses, cleaned, tuneLog) {
   log('STEP 4: Learning & patching code...');
   const patches = [];
 
@@ -431,7 +431,7 @@ async function main() {
 
   const report = step2_audit();
   const { cleaned, diagnoses } = step3_clean(report);
-  const patches = step4_learn(report, diagnoses, tuneLog);
+  const patches = step4_learn(report, diagnoses, cleaned, tuneLog);
   step5_deploy(patches);
 
   // Final summary
