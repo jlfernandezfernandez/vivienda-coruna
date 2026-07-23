@@ -12,6 +12,7 @@
     "refresh": "node scripts/fetch-rss.mjs",
     "enrich": "node scripts/enrich-firecrawl.mjs",
     "refresh:all": "node scripts/fetch-rss.mjs && node scripts/enrich-firecrawl.mjs",
+    "tune": "node scripts/daily-tune.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },
