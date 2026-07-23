@@ -128,5 +128,8 @@ export function extractWithRegex(text) {
 function parseNumber(str) {
   const cleaned = String(str).replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.');
   const n = parseFloat(cleaned);
-  return Number.isNaN(n) ? null : Math.round(n);
+  if (Number.isNaN(n)) return null;
+  const rounded = Math.round(n);
+  // Filter out garbage prices: no real housing in this area is under 100k
+  return rounded >= 100000 ? rounded : null;
 }
