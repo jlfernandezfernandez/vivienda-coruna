@@ -43,6 +43,27 @@
       ],
       "cleaned": 12,
       "patches": []
+    },
+    {
+      "date": "2026-07-25T08:08:49.612Z",
+      "total": 62,
+      "enriched": 49,
+      "noStatus": 36,
+      "badPriceCount": 0,
+      "duplicates": 0,
+      "knownGarbage": {
+        "listados portales": 11
+      },
+      "suspiciousCount": 0,
+      "gestorasNoContact": [
+        "Promociones Casabriz (Grupo Casado) y Taboada y Ramos"
+      ],
+      "gestorasNoPromos": [
+        "Galivivienda",
+        "Promociones Casado"
+      ],
+      "cleaned": 11,
+      "patches": []
     }
   ],
   "patches": []
