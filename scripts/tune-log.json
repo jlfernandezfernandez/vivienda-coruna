@@ -64,6 +64,28 @@
       ],
       "cleaned": 11,
       "patches": []
+    },
+    {
+      "date": "2026-07-26T08:13:35.210Z",
+      "total": 62,
+      "enriched": 49,
+      "noStatus": 36,
+      "badPriceCount": 0,
+      "duplicates": 0,
+      "knownGarbage": {
+        "trámites ayuntamiento": 1,
+        "listados portales": 8
+      },
+      "suspiciousCount": 0,
+      "gestorasNoContact": [
+        "Promociones Casabriz (Grupo Casado) y Taboada y Ramos"
+      ],
+      "gestorasNoPromos": [
+        "Galivivienda",
+        "Promociones Casado"
+      ],
+      "cleaned": 9,
+      "patches": []
     }
   ],
   "patches": []
