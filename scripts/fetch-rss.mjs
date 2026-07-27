@@ -19,6 +19,7 @@ import {
   saveGestora,
   saveGestoraPromotion,
   saveCooperative,
+  finalizeRegistryImport,
 } from './lib/db.mjs';
 
 // Rexistro de Cooperativas da Xunta (datos abertos, CC BY-SA, actualización ~bimestral).
@@ -135,9 +136,11 @@ async function main() {
       // Fuente muerta en silencio: 0 ítems, o un RSS oficial cuyo ítem más reciente
       // tiene >45 días (el feed de taxonomía del DOG llevaba 3 años congelado dando
       // ok:true). Prensa no: una query de nicho sin novedades recientes es normal.
-      const newest = Math.max(0, ...items.map((i) => Date.parse(i.isoDate || '')).filter(Number.isFinite));
+      const newest = Math.max(0, ...items.map((i) => Date.parse(i.isoDate || i.pubDate || '')).filter(Number.isFinite));
+      // Prensa (market-alert) con 0 ítems no es fallo: una query de nicho sin
+      // novedades es normal y no debe contar para el abort global.
       const dead =
-        items.length === 0 ||
+        (items.length === 0 && feed.kind !== 'market-alert') ||
         (feed.kind !== 'market-alert' && newest > 0 && Date.now() - newest > 45 * 24 * 60 * 60 * 1000);
       if (dead) {
         const source = { name: feed.name, url: feed.url, kind: feed.kind || 'official', ok: false, scanned: 0 };
@@ -285,11 +288,17 @@ async function main() {
   try {
     const response = await fetch(COOP_REGISTRY_CSV_URL, { signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const registryRows = parseCooperativeRegistryCsv(await response.text());
+    // La Xunta a veces exporta en ISO-8859-1: decodificar UTF-8 y, si aparecen
+    // caracteres de reemplazo (U+FFFD), reintentar como latin1.
+    const buffer = Buffer.from(await response.arrayBuffer());
+    let csvText = buffer.toString('utf8');
+    if (csvText.includes('�')) csvText = buffer.toString('latin1');
+    const registryRows = parseCooperativeRegistryCsv(csvText);
     const seenAt = new Date().toISOString();
     for (const row of registryRows) {
       saveCooperative(db, { ...row, firstSeenAt: seenAt, lastSeenAt: seenAt });
     }
+    finalizeRegistryImport(db, seenAt);
     console.log(`  [Rexistro] ${registryRows.length} cooperativas de vivienda activas en el área.`);
   } catch (error) {
     console.error(`  [Rexistro] Fallo al importar el CSV (se conservan los datos anteriores): ${error.message}`);

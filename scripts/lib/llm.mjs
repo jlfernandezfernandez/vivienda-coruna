@@ -78,6 +78,7 @@ async function askLLM(name, schema, systemPrompt, userPrompt, temperature = 0) {
   if (!config.llm.apiKey) return null;
   const response = await fetch(`${config.llm.baseUrl}/chat/completions`, {
     method: 'POST',
+    signal: AbortSignal.timeout(60_000),
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${config.llm.apiKey}`,
@@ -95,7 +96,7 @@ async function askLLM(name, schema, systemPrompt, userPrompt, temperature = 0) {
       },
     }),
   });
-  if (!response.ok) throw new Error(`LLM HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`LLM HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
   const content = (await response.json()).choices?.[0]?.message?.content;
   return content ? JSON.parse(content) : null;
 }

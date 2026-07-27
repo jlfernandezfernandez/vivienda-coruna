@@ -126,10 +126,21 @@ export function getDatabase() {
     // históricos "gestora:slug" y "site:gestora:slug" pasan a "promo:gestora:slug".
     const promoIds = dbInstance.prepare(`SELECT id FROM gestora_promotions WHERE id NOT LIKE 'promo:%'`).all();
     if (promoIds.length > 0) {
-      dbInstance.exec(`DELETE FROM gestora_promotions WHERE id LIKE 'site:%' AND 'promo:' || substr(id, 6) IN (SELECT id FROM gestora_promotions)`);
-      dbInstance.exec(`DELETE FROM gestora_promotions WHERE id NOT LIKE 'promo:%' AND id NOT LIKE 'site:%' AND 'promo:' || id IN (SELECT id FROM gestora_promotions)`);
-      dbInstance.exec(`UPDATE gestora_promotions SET id = 'promo:' || substr(id, 6) WHERE id LIKE 'site:%'`);
-      dbInstance.exec(`UPDATE gestora_promotions SET id = 'promo:' || id WHERE id NOT LIKE 'promo:%'`);
+      // Transacción: si algo falla a mitad, no dejar ids a medio migrar.
+      dbInstance.exec('BEGIN');
+      try {
+        dbInstance.exec(`DELETE FROM gestora_promotions WHERE id LIKE 'site:%' AND 'promo:' || substr(id, 6) IN (SELECT id FROM gestora_promotions)`);
+        dbInstance.exec(`DELETE FROM gestora_promotions WHERE id NOT LIKE 'promo:%' AND id NOT LIKE 'site:%' AND 'promo:' || id IN (SELECT id FROM gestora_promotions)`);
+        // Si "site:G:S" y "G:S" coexisten, ambos UPDATEs producirían "promo:G:S"
+        // (UNIQUE crash): quedarse con el gemelo sin prefijo y borrar el de site.
+        dbInstance.exec(`DELETE FROM gestora_promotions WHERE id LIKE 'site:%' AND substr(id, 6) IN (SELECT id FROM gestora_promotions WHERE id NOT LIKE 'promo:%' AND id NOT LIKE 'site:%')`);
+        dbInstance.exec(`UPDATE gestora_promotions SET id = 'promo:' || substr(id, 6) WHERE id LIKE 'site:%'`);
+        dbInstance.exec(`UPDATE gestora_promotions SET id = 'promo:' || id WHERE id NOT LIKE 'promo:%'`);
+        dbInstance.exec('COMMIT');
+      } catch (error) {
+        dbInstance.exec('ROLLBACK');
+        throw error;
+      }
     }
   }
   return dbInstance;
@@ -396,9 +407,11 @@ export function saveGestoraPromotion(db, p) {
     ON CONFLICT(id) DO UPDATE SET
       gestoraId = excluded.gestoraId,
       name = excluded.name,
-      location = excluded.location,
-      status = excluded.status,
-      details = excluded.details,
+      -- Prensa escribe placeholders ('' / 'Sin confirmar') que no deben pisar
+      -- datos reales del catálogo de la gestora.
+      location = COALESCE(NULLIF(excluded.location, ''), location),
+      status = COALESCE(NULLIF(excluded.status, 'Sin confirmar'), status),
+      details = COALESCE(NULLIF(excluded.details, ''), details),
       link = excluded.link,
       entregaEstimada = COALESCE(excluded.entregaEstimada, entregaEstimada),
       buscaSocios = COALESCE(excluded.buscaSocios, buscaSocios),
@@ -432,7 +445,12 @@ export function saveCooperative(db, c) {
     INSERT INTO cooperatives (cif, numRegistro, name, foundedAt, foundingPartners, address, postalCode, municipality, email, phone, firstSeenAt, lastSeenAt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(cif) DO UPDATE SET
+      numRegistro = excluded.numRegistro,
       name = excluded.name,
+      foundedAt = excluded.foundedAt,
+      foundingPartners = excluded.foundingPartners,
+      address = excluded.address,
+      postalCode = excluded.postalCode,
       municipality = excluded.municipality,
       email = excluded.email,
       phone = excluded.phone,
@@ -451,6 +469,22 @@ export function saveCooperative(db, c) {
     c.firstSeenAt,
     c.lastSeenAt
   );
+}
+
+/**
+ * Tras una importación del rexistro: las cooperativas cuyo lastSeenAt es anterior
+ * a esta corrida ya no están en el CSV → evento 'disappeared'. Además, poda los
+ * eventos con más de 90 días para que la tabla no crezca sin límite.
+ *
+ * @param {DatabaseSync} db
+ * @param {string} seenAt - ISO timestamp de la corrida actual
+ */
+export function finalizeRegistryImport(db, seenAt) {
+  const disappeared = db.prepare('SELECT cif, name, municipality FROM cooperatives WHERE lastSeenAt < ?').all(seenAt);
+  for (const c of disappeared) {
+    logEvent(db, 'cooperative', c.cif, 'disappeared', c.name, c.municipality || null, null);
+  }
+  db.exec(`DELETE FROM events WHERE detectedAt < date('now', '-90 days')`);
 }
 
 /**

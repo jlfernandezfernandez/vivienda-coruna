@@ -4,10 +4,13 @@ import { env, cwd, loadEnvFile } from 'node:process';
 // breaks here because Vite bundles this file into dist/.prerender/chunks/.
 // .env is optional (CI injects env vars directly); Node 22 loads it natively.
 const rootDir = cwd();
-try {
-  loadEnvFile(`${rootDir}/.env`);
-} catch {
-  // No .env file; rely on real environment variables.
+// loadEnvFile no existe en Node <20.12: guardarlo para no tragar el TypeError.
+if (loadEnvFile) {
+  try {
+    loadEnvFile(`${rootDir}/.env`);
+  } catch {
+    // No .env file; rely on real environment variables.
+  }
 }
 
 // Canonical list of metropolitan area municipalities (monitored zone)

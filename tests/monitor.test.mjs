@@ -90,7 +90,7 @@ test('normaliza el nombre de una promotora al mismo id pese a variaciones de red
 test('filtra del rexistro solo cooperativas de vivienda del área metropolitana', () => {
   const csv = `Rexistro das cooperativas activas en Galicia
 cif;numRegistro;denominacion;actividadEconomica/codigo;tipoCooperativa;claseCooperativa;fechaPrimeraInscripcion;capitalSocialMinimo;numSociosFundadores;datosDireccion/tipoVia/codigo;datosDireccion/nombreVia;datosDireccion/lugar;datosDireccion/parroquia;datosDireccion/codigoPostal;datosDireccion/municipio/codigo;datosDireccion/localidad;datosDireccion/provincia/codigo;datosDireccion/correoElectronico;datosDireccion/telefono
-F11111111;1-C;RESIDENCIAL ALBORADA ARTEIXO, S. COOP. GALEGA;;COOPERATIVA;VIVIENDAS;2026-03-02T00:00:00+01:00;3000.0;2;CL;RÚA X;;;15001;15005;ARTEIXO;15;a@b.gal;981000000
+ F11111111;1-C;RESIDENCIAL ALBORADA ARTEIXO, S. COOP. GALEGA;;COOPERATIVA;VIVIENDAS;2026-03-02T00:00:00+01:00;3000.0;2;CL;RÚA X;;;15401;15005;ARTEIXO;15;a@b.gal;981000000
 F22222222;2-C;TALLERES PEPA, S.COOP;;COOPERATIVA;TRABAJO_ASOCIADO;2026-01-01T00:00:00+01:00;3000.0;3;CL;X;;;15001;15030;A CORUÑA;15;;
 F33333333;3-PO;COOP VIGO, S.COOP;;COOPERATIVA;VIVIENDAS;2026-01-01T00:00:00+01:00;3000.0;3;CL;X;;;36001;36057;VIGO;36;;
 `;
@@ -100,6 +100,9 @@ F33333333;3-PO;COOP VIGO, S.COOP;;COOPERATIVA;VIVIENDAS;2026-01-01T00:00:00+01:0
   assert.equal(rows[0].municipality, 'Arteixo');
   assert.equal(rows[0].foundedAt, '2026-03-02');
   assert.equal(rows[0].foundingPartners, 2);
+  // codigoPostal (col 13) y municipio/codigo INE (col 14) son columnas distintas.
+  assert.equal(rows[0].postalCode, '15401');
+  assert.equal(rows[0].address, 'RÚA X, ARTEIXO');
 });
 
 test('detecta relevancia oficial por la descripción aunque el título no nombre el municipio', () => {

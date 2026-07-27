@@ -177,6 +177,8 @@ export function parseCooperativeRegistryCsv(csvText) {
   for (const line of lines.slice(headerIndex + 1)) {
     if (!line.trim()) continue;
     const cols = line.split(';').map((col) => col.replace(/^"|"$/g, '').trim());
+    // Fila truncada o corrupta: el parser espera 19 columnas (índices 0-18).
+    if (cols.length < 19) continue;
     if (cols[5] !== 'VIVIENDAS') continue;
     const municipality = AREA_INE_NAMES[cols[14]];
     if (!municipality) continue;
