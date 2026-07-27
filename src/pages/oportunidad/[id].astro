@@ -51,9 +51,10 @@ const pageDescription = item.summary || `${item.type || 'Oportunidad'} en ${item
 
 <Layout title={pageTitle} description={pageDescription} jsonLd={jsonLd}>
   <div class="mx-auto max-w-3xl px-4 sm:px-6">
-    <!-- Back link -->
+    <!-- Back link: vuelve atrás en el historial si venimos de la propia web -->
     <a
       href={base}
+      onclick="if (document.referrer && new URL(document.referrer).origin === location.origin && history.length > 1) { history.back(); return false; }"
       class="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted hover:text-brand-green transition-colors mb-5"
     >
       <svg class="h-3.5 w-3.5 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">

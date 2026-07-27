@@ -1,5 +1,6 @@
 ---
 import fs from 'node:fs';
+import { resolveMunicipality, webBase } from '../../scripts/lib/municipios.mjs';
 
 export interface Props {
   items?: Array<{
@@ -12,8 +13,7 @@ export interface Props {
 }
 
 const { items = [] } = Astro.props;
-// ponytail: BASE_URL may lack trailing slash depending on config; normalize once.
-const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const base = webBase(import.meta.env.BASE_URL);
 
 // Centroid per municipality from the same geojson the map renders (build time).
 const geojson = JSON.parse(fs.readFileSync(process.cwd() + '/public/coverage.geojson', 'utf8'));
@@ -33,22 +33,16 @@ for (const feature of geojson.features) {
   if (n > 0) centroids[feature.properties.name] = [sumLat / n, sumLng / n];
 }
 
-const normalizeLocation = (loc: string | null): string | null => {
-  if (!loc) return null;
-  if (loc === 'Oleiros' || loc.includes('Perillo') || loc.includes('Santa Cruz')) return 'Oleiros';
-  if (loc === 'Culleredo' || loc.includes('O Burgo')) return 'Culleredo';
-  return loc;
-};
-
 // Deterministic spiral jitter so same-municipality markers don't stack.
 const counters: Record<string, number> = {};
 const markers = items.flatMap((item) => {
-  const municipality = normalizeLocation(item.location);
+  const municipality = resolveMunicipality(item.location);
   if (!municipality || !centroids[municipality]) return [];
   const idx = counters[municipality] ?? 0;
   counters[municipality] = idx + 1;
   const angle = idx * 2.39996; // golden angle
-  const radius = 0.008 * idx;
+  // ponytail: espiral acotada a 12 posiciones; con más items los marcadores se solapan
+  const radius = 0.008 * (idx % 12);
   const [cLat, cLng] = centroids[municipality];
   return [{
     lat: cLat + radius * Math.cos(angle),

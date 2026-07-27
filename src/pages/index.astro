@@ -3,18 +3,17 @@ import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
 import CoverageMap from '../components/CoverageMap.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
-import { config, AREA_LABELS } from '../../scripts/lib/config.mjs';
+import { config } from '../../scripts/lib/config.mjs';
+import { MUNICIPALITIES, webBase } from '../../scripts/lib/municipios.mjs';
 import { getDatabase, getAllOpportunities, getAllSources, getAllGestoras, getAllCooperatives, getRecentEvents } from '../../scripts/lib/db.mjs';
 
-// ponytail: BASE_URL may lack trailing slash depending on config; normalize once.
-const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+const base = webBase(import.meta.env.BASE_URL);
 const db = getDatabase();
 const items = getAllOpportunities(db, 150);
 const sources = getAllSources(db);
 const gestoras = getAllGestoras(db);
 const cooperatives = getAllCooperatives(db);
 const recentEvents = getRecentEvents(db, 12);
-const monitor = { area: AREA_LABELS };
 const healthySources = sources.filter((source) => source.ok).length;
 const checkedAt = items.length ? new Date(Math.max(...items.map(i => new Date(i.lastSeenAt).getTime()))) : null;
 const checkedLabel = checkedAt
@@ -54,8 +53,8 @@ const siteTitle = config.site.title;
 const siteDescription = config.site.description;
 const headerTitle = config.site.headerTitle;
 const headerSubtitle = config.site.headerSubtitle;
-// Chips individuales: AREA_LABELS agrupa algunos municipios con ' · '.
-const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
+// Chips de municipio: solo los 9 municipios reales (las sub-localidades resuelven a su municipio).
+const municipalities = MUNICIPALITIES;
 
 const shortDate = (d: string) =>
   new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' });
@@ -105,35 +104,12 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
             <strong class="text-ink font-semibold">{healthySources} de {sources.length}</strong>
           </div>
           <div class="flex justify-between">
-            <span>Cooperativas en rexistro:</span>
+            <span>Cooperativas en el registro:</span>
             <strong class="text-ink font-semibold">{cooperatives.length}</strong>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Section navigation -->
-    <nav class="mb-8 flex flex-wrap gap-2" aria-label="Secciones">
-      <a
-        href={base}
-        aria-current="page"
-        class="rounded-full bg-brand-green px-4 py-2 text-sm font-bold text-surface shadow-sm"
-      >
-        Novedades
-      </a>
-      <a
-        href={`${base}cooperativas`}
-        class="rounded-full border border-border-soft bg-surface px-4 py-2 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
-      >
-        Cooperativas
-      </a>
-      <a
-        href={`${base}gestoras`}
-        class="rounded-full border border-border-soft bg-surface px-4 py-2 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
-      >
-        Gestoras
-      </a>
-    </nav>
 
     <!-- Cooperativas activas ahora -->
     <section class="mb-10" aria-labelledby="coop-activas-title">
@@ -151,10 +127,10 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
 
       {activeCoopCount === 0 ? (
         <div class="rounded-2xl border border-border-soft bg-surface p-5 text-sm text-ink-muted shadow-premium">
-          Ahora mismo no hay captación abierta detectada. O rexistro oficial recoge
+          Ahora mismo no hay captación abierta detectada. El registro oficial recoge
           <strong class="text-ink font-semibold"> {cooperatives.length} </strong>
-          cooperativas na zona.
-          <a href={`${base}cooperativas`} class="font-bold text-brand-green hover:underline">Consultar o rexistro →</a>
+          cooperativas en la zona.
+          <a href={`${base}cooperativas`} class="font-bold text-brand-green hover:underline">Consultar el registro →</a>
         </div>
       ) : (
         <div class="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
@@ -212,6 +188,7 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
             <input
               type="text"
               id="search-input"
+              aria-label="Buscar promociones"
               placeholder="Buscar promoción, promotora, calle, tipo..."
               class="w-full pl-10 pr-4 h-full rounded-xl border border-border-soft bg-canvas text-sm text-ink placeholder-ink-light focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all"
             />
@@ -225,21 +202,21 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
             <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Tipo de señal</span>
             <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center max-w-md">
               <button
-                class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer"
+                class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer"
                 data-filter-source="all"
                 aria-pressed="true"
               >
                 Todas
               </button>
               <button
-                class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
+                class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-source="official"
                 aria-pressed="false"
               >
                 Oficiales
               </button>
               <button
-                class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
+                class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-source="market-alert"
                 aria-pressed="false"
               >
@@ -253,35 +230,35 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
             <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Categoría</span>
             <div class="flex flex-wrap gap-1.5 items-center min-h-10">
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
+                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
                 data-filter-category="all"
                 aria-pressed="true"
               >
                 Todas
               </button>
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-category="Promoción nueva"
                 aria-pressed="false"
               >
                 Obra Nueva
               </button>
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-category="Cooperativa"
                 aria-pressed="false"
               >
                 Cooperativas
               </button>
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-category="Suelo"
                 aria-pressed="false"
               >
                 Suelo
               </button>
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-category="Vivienda protegida"
                 aria-pressed="false"
               >
@@ -295,7 +272,7 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
             <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Municipio</span>
             <div class="flex flex-wrap gap-1.5 items-center min-h-10">
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
+                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
                 data-filter-location="all"
                 aria-pressed="true"
               >
@@ -303,7 +280,7 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
               </button>
               {municipalities.map(loc => (
                 <button
-                  class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                  class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                   data-filter-location={loc}
                   aria-pressed="false"
                 >
@@ -349,10 +326,10 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
               <div class="flex flex-col gap-2">
                 <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Dormitorios</span>
                 <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center">
-                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer" data-filter-rooms="0">Todos</button>
-                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="1">1+</button>
-                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="2">2+</button>
-                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="3">3+</button>
+                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer" data-filter-rooms="0">Todos</button>
+                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="1">1+</button>
+                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="2">2+</button>
+                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="3">3+</button>
                 </div>
               </div>
 
@@ -360,10 +337,10 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
               <div class="flex flex-col gap-2">
                 <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Baños</span>
                 <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center">
-                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer" data-filter-baths="0">Todos</button>
-                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="1">1+</button>
-                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="2">2+</button>
-                  <button class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="3">3+</button>
+                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer" data-filter-baths="0">Todos</button>
+                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="1">1+</button>
+                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="2">2+</button>
+                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="3">3+</button>
                 </div>
               </div>
             </div>
@@ -443,7 +420,7 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
           <div class="flex items-center justify-between mb-4">
             <h2 id="coverage-title" class="text-base font-bold text-ink">Área de Seguimiento</h2>
             <span class="inline-flex items-center rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10">
-              {monitor.area.length} municipios
+              {municipalities.length} municipios
             </span>
           </div>
           <CoverageMap items={mapItems} />
@@ -528,7 +505,6 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
   const filterStorage = document.getElementById('filter-storage') as HTMLInputElement;
   const filterTerrace = document.getElementById('filter-terrace') as HTMLInputElement;
 
-  const opportunityCards = document.querySelectorAll('.opportunity-card') as NodeListOf<HTMLElement>;
   const dateGroups = document.querySelectorAll('.date-group') as NodeListOf<HTMLElement>;
   const activeCountEl = document.getElementById('active-count');
   const emptyStateEl = document.getElementById('empty-search-state');
@@ -586,14 +562,14 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
           }
         }
 
-        // Price Filter
-        const matchesPrice = maxPrice === 600000 || cardPrice === null || cardPrice <= maxPrice;
+        // Price Filter: con filtro activo, las tarjetas sin precio quedan excluidas
+        const matchesPrice = maxPrice === 600000 || (cardPrice !== null && cardPrice <= maxPrice);
 
         // Rooms Filter
-        const matchesRooms = minRooms === 0 || cardRooms === null || cardRooms >= minRooms;
+        const matchesRooms = minRooms === 0 || (cardRooms !== null && cardRooms >= minRooms);
 
         // Baths Filter
-        const matchesBaths = minBaths === 0 || cardBaths === null || cardBaths >= minBaths;
+        const matchesBaths = minBaths === 0 || (cardBaths !== null && cardBaths >= minBaths);
 
         // Features Filters
         const matchesGarage = !needGarage || hasGarageAttr;
@@ -709,7 +685,7 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
       const val = parseInt((e.target as HTMLInputElement).value, 10);
       maxPrice = val;
       if (val === 600000) {
-        priceDisplay.textContent = '<' + (val / 1000).toFixed(0) + 'k €';
+        priceDisplay.textContent = 'Sin límite';
       } else {
         priceDisplay.textContent = `\u003c ${val.toLocaleString('es-ES')} €`;
       }

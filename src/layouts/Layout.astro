@@ -4,9 +4,21 @@ export interface Props {
   description?: string;
   jsonLd?: Record<string, unknown>;
 }
+import { webBase } from '../../scripts/lib/municipios.mjs';
+
 const { title, description, jsonLd } = Astro.props;
-const base = import.meta.env.BASE_URL;
+const base = webBase(import.meta.env.BASE_URL);
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+
+// Sección activa a partir de la ruta (quitando el base path del despliegue).
+const rawPath = Astro.url.pathname;
+const relPath = rawPath.startsWith(base) ? `/${rawPath.slice(base.length)}` : rawPath;
+const activeSection = relPath.split('/')[1];
+const sections = [
+  { href: base, label: 'Novedades', id: '' },
+  { href: `${base}cooperativas`, label: 'Cooperativas', id: 'cooperativas' },
+  { href: `${base}gestoras`, label: 'Gestoras', id: 'gestoras' },
+];
 ---
 
 <!doctype html>
@@ -25,7 +37,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalUrl} />
     <meta name="twitter:card" content="summary" />
-    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')} />}
     
     <!-- Favicon declarations to ensure browser compatibility -->
     <link rel="icon" type="image/x-icon" href={`${base}favicon.ico`} />
@@ -42,7 +54,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     <header class="w-full border-b border-border-soft bg-surface py-4" role="banner" aria-label="Cabecera del sitio">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6">
         <!-- Logo Brand (Clean, simple, no "Monitor Metropolitano" subtitle) -->
-        <a class="group flex items-center gap-2.5 text-decoration-none" href={base}>
+        <a class="group flex items-center gap-2.5 no-underline" href={base}>
           <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-green text-surface transition-transform group-hover:scale-105 duration-250 shadow-sm">
             <svg class="h-5 w-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
               <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
@@ -76,6 +88,29 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     </header>
     
     <main class="py-6 sm:py-8">
+      <!-- Section navigation (compartida por todas las páginas) -->
+      <div class="mx-auto max-w-6xl px-4 sm:px-6">
+        <nav class="mb-8 flex flex-wrap gap-2" aria-label="Secciones">
+          {sections.map((section) =>
+            section.id === activeSection ? (
+              <a
+                href={section.href}
+                aria-current="page"
+                class="rounded-full bg-brand-green px-4 py-2 text-sm font-bold text-surface shadow-sm"
+              >
+                {section.label}
+              </a>
+            ) : (
+              <a
+                href={section.href}
+                class="rounded-full border border-border-soft bg-surface px-4 py-2 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
+              >
+                {section.label}
+              </a>
+            )
+          )}
+        </nav>
+      </div>
       <slot />
     </main>
   </body>

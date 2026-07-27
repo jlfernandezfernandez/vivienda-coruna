@@ -1,36 +1,25 @@
 ---
 import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
-import { AREA_LABELS } from '../../../scripts/lib/config.mjs';
+import { MUNICIPALITIES, resolveMunicipality, slugify, webBase } from '../../../scripts/lib/municipios.mjs';
 import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives } from '../../../scripts/lib/db.mjs';
 
 export function getStaticPaths() {
-  const slugify = (s: string) =>
-    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  // ponytail: above char class is U+0300–U+036F combining diacritics, written literally
-
-  // 'Perillo'/'Santa Cruz' pertenecen a Oleiros; 'O Burgo' a Culleredo.
-  const matchesMunicipality = (location: string | null, m: string) =>
-    location === m ||
-    (m === 'Oleiros' && !!location && ['Perillo', 'Santa Cruz'].includes(location)) ||
-    (m === 'Culleredo' && location === 'O Burgo');
-
   const db = getDatabase();
   const opportunities = getAllOpportunities(db, 150);
   const cooperatives = getAllCooperatives(db);
   const gestoras = getAllGestoras(db);
 
-  const municipalities = AREA_LABELS.flatMap((l) => l.split(' · '));
-
-  return municipalities.map((municipality) => ({
+  // Solo páginas para los 9 municipios; las sub-localidades resuelven a su municipio.
+  return MUNICIPALITIES.map((municipality) => ({
     params: { slug: slugify(municipality) },
     props: {
       municipality,
-      opportunities: opportunities.filter((o) => matchesMunicipality(o.location, municipality)),
+      opportunities: opportunities.filter((o) => resolveMunicipality(o.location) === municipality),
       cooperatives: cooperatives.filter((c) => c.municipality === municipality),
       promotions: gestoras.flatMap((g) =>
         g.promotions
-          .filter((p) => p.location && p.location.toLowerCase().includes(municipality.toLowerCase()))
+          .filter((p) => resolveMunicipality(p.location) === municipality)
           .map((p) => ({ gestora: g, promo: p }))
       ),
     },
@@ -38,8 +27,7 @@ export function getStaticPaths() {
 }
 
 const { municipality, opportunities, cooperatives, promotions } = Astro.props;
-const rawBase = import.meta.env.BASE_URL;
-const base = rawBase.endsWith("/") ? rawBase : rawBase + "/"; // build strips trailing slash
+const base = webBase(import.meta.env.BASE_URL);
 const total = opportunities.length + cooperatives.length + promotions.length;
 
 const pageTitle = `Cooperativas y obra nueva en ${municipality} | Vivienda Coruña`;

@@ -47,18 +47,13 @@ const {
   enriched = false
 } = Astro.props;
 
-// ponytail: BASE_URL may lack trailing slash depending on config; normalize once.
-const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+import { municipalitySlug, webBase } from '../../scripts/lib/municipios.mjs';
+import { statusColors } from '../../scripts/lib/statuses.mjs';
 
-// Link badge to /municipio/<slug> when location maps to a monitored municipality.
-// Sub-locations alias to their municipality (matches municipio/[slug].astro).
-import { AREA_LABELS } from '../../scripts/lib/config.mjs';
-const slugify = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-const MUNI_SLUGS = new Set(AREA_LABELS.flatMap((l) => l.split(' · ')).map(slugify));
-const MUNI_ALIASES: Record<string, string> = { 'perillo': 'oleiros', 'santa-cruz': 'oleiros', 'o-burgo': 'culleredo' };
-const locSlug = slugify(location);
-const muniSlug = MUNI_SLUGS.has(locSlug) ? locSlug : MUNI_ALIASES[locSlug];
+const base = webBase(import.meta.env.BASE_URL);
+
+// Link badge a /municipio/<slug> cuando la location mapea a un municipio monitorizado.
+const muniSlug = municipalitySlug(location);
 const isMarket = sourceKind === 'market-alert';
 const sourceLabel = isMarket ? 'Prensa local' : source;
 const sourceBadgeBg = isMarket ? 'bg-brand-orange-soft text-brand-orange border border-brand-orange/10' : 'bg-brand-green-soft text-brand-green border border-brand-green/10';
@@ -66,13 +61,13 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
   day: 'numeric',
   month: 'short',
   year: 'numeric',
+  timeZone: 'Europe/Madrid',
 });
 const firstSeenDate = new Date(firstSeenAt).toLocaleDateString('es-ES', {
   day: 'numeric',
   month: 'short',
+  timeZone: 'Europe/Madrid',
 });
-
-import { statusColors } from '../../scripts/lib/statuses.mjs';
 
 const mapsQuery = encodeURIComponent(location + ' A Coruña España');
 const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
@@ -81,6 +76,7 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 <article
   class="opportunity-card group relative flex flex-col justify-between rounded-2xl border border-border-soft bg-surface p-5 shadow-premium transition-all duration-300 hover:shadow-hover hover:border-border-medium"
   data-location={location}
+  data-source-kind={sourceKind}
   data-type={type}
   data-precio-min={precioMin || ''}
   data-habitaciones-min={habitacionesMin || ''}

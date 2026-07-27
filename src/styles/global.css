@@ -12,7 +12,7 @@
   /* Typography: Ink & Slate */
   --color-ink: #161c19;
   --color-ink-muted: #536057;
-  --color-ink-light: #839287;
+  --color-ink-light: #6b7a6f;
 
   /* Brand and Signal Colors */
   --color-brand-green: #1f4d36;
@@ -128,6 +128,20 @@
 
 .pulse-indicator-warning {
   animation: pulse-glowing-orange 2s infinite;
+}
+
+/* Reduced motion: desactiva pulsos (pulse-indicator-*, animate-spin) y transiciones hover-translate */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Leaflet UI Overrides (Elegant Rounded Styles) */

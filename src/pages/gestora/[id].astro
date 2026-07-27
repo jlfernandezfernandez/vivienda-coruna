@@ -2,6 +2,7 @@
 import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
 import { getDatabase, getAllGestoras, getAllOpportunities } from '../../../scripts/lib/db.mjs';
+import { statusColors } from '../../../scripts/lib/statuses.mjs';
 
 export function getStaticPaths() {
   const db = getDatabase();
@@ -21,15 +22,6 @@ export function getStaticPaths() {
 const { gestora, prensa } = Astro.props;
 const rawBase = import.meta.env.BASE_URL;
 const base = rawBase.endsWith("/") ? rawBase : rawBase + "/"; // build strips trailing slash
-
-const statusBadge = (status: string) =>
-  status === 'Comercialización'
-    ? 'bg-status-ok/10 text-brand-green border-status-ok/25'
-    : status === 'En construcción'
-    ? 'bg-amber-500/10 text-amber-600 border-amber-500/25'
-    : status === 'Entregada'
-    ? 'bg-blue-500/10 text-blue-600 border-blue-500/25'
-    : 'bg-ink-muted/10 text-ink-muted border-border-soft';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -129,7 +121,7 @@ const pageDescription = gestora.description || `Promociones y cooperativas gesti
                         Captación abierta
                       </span>
                     )}
-                    <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusBadge(promo.status)}`}>
+                    <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusColors(promo.status)}`}>
                       {promo.status}
                     </span>
                   </div>
