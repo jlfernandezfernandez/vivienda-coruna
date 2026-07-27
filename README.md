@@ -32,9 +32,7 @@ Fuentes RSS / IGVS / Prensa Local
               ↓ [OpenRouter LLM (Structured Output)]
       src/data/monitor.db  ← [Base de Datos SQLite (Histórico Completo)]
               ↓
-    src/data/monitor.json  ← [Exportación Estática (Últimas 150 Novedades)]
-              ↓
-        Astro Build        ← [Compilación Estática]
+        Astro Build        ← [Compilación Estática (lee SQLite en build time)]
               ↓
        GitHub Pages        ← [Hosting Gratuito y sin Servidores]
 ```
