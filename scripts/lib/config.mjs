@@ -34,8 +34,8 @@ const feeds = [
   // 3. Official Housing Ministry Department RSS (Galicia)
   { name: 'Consellería de Vivenda', url: 'https://www.contratosdegalicia.gal/rss/perfil-515.rss', format: 'rss' },
   
-  // 4. Official Galician Gazette RSS (Housing and Territory Regulations/Decisions)
-  { name: 'DOG · Vivienda y territorio', url: 'https://www.xunta.gal/diario-oficial-galicia/rss/Taxonomia22008_es.rss', format: 'rss' },
+  // 4. Official Galician Gazette daily summary (Taxonomia22008_es.rss is dead since 2023; _gl variants stay fresh)
+  { name: 'DOG · Sumario diario', url: 'https://www.xunta.gal/diario-oficial-galicia/rss/Sumario_gl.rss', format: 'rss' },
   
   // 5. Official Public Contracts Portal RSS (Galicia)
   { name: 'Contratos Públicos de Galicia', url: 'https://www.contratosdegalicia.gal/rss/ultimas-publicacions.rss', format: 'rss', kind: 'official' },
@@ -78,9 +78,9 @@ export const config = {
 
   // Frontend Configuration for high customization
   site: {
-    title: 'Vivienda Coruña — Monitor de cooperativas y obra nueva',
-    description: 'Monitor de cooperativas, promociones nuevas y vivienda protegida en el área metropolitana de A Coruña.',
-    headerTitle: 'Vivienda Protegida y Obra Nueva en A Coruña',
+    title: 'Cooperativas de vivienda en A Coruña — alertas y obra nueva | Vivienda Coruña',
+    description: 'Todas las cooperativas de vivienda y promociones de obra nueva del área metropolitana de A Coruña: captación de socios, plazas, licencias y vivienda protegida, detectadas a diario.',
+    headerTitle: 'Cooperativas y Obra Nueva en A Coruña',
     headerSubtitle: 'Detecta señales tempranas de cooperativas de viviendas, búsqueda de socios, licencias y promociones públicas o privadas en el área metropolitana.',
   },
 

@@ -111,11 +111,16 @@ function parsePublicationDate(value = '') {
 
 export function toOpportunity(item, source, now = new Date().toISOString()) {
   const title = cleanText(item.title);
-  if (!isRelevantTitle(title)) return null;
-
   const details = cleanText(item.contentSnippet || item.content || item.description || '');
   const parsedDate = parsePublicationDate(item.isoDate || item.pubDate || '');
   const sourceKind = source && source.startsWith('Prensa') ? 'market-alert' : 'official';
+
+  // Los anuncios oficiales (DOG, contratos) no siempre nombran el municipio en el
+  // título, pero sí en el sumario: para ellos buscamos en título + descripción.
+  const relevant =
+    isRelevantTitle(title) ||
+    (sourceKind === 'official' && isRelevantTitle(`${title} ${details}`));
+  if (!relevant) return null;
 
   return {
     id: itemId(item),
@@ -125,7 +130,7 @@ export function toOpportunity(item, source, now = new Date().toISOString()) {
     publishedAt: Number.isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString(),
     firstSeenAt: now,
     lastSeenAt: now,
-    location: detectLocation(title),
+    location: detectLocation(title) ?? detectLocation(details),
     type: detectType(title, sourceKind),
     status: detectStatus(details),
     summary: details.slice(0, 260),
@@ -140,4 +145,55 @@ export function isFreshMarketAlert(item, now = new Date()) {
 
 export function isActionableMarketAlert(item, now = new Date()) {
   return isFreshMarketAlert(item, now) && !MARKET_CONTEXT_NOISE_PATTERN.test(cleanText(item.title));
+}
+
+// Códigos INE de municipio del área (columna datosDireccion/municipio/codigo del CSV).
+const AREA_INE_NAMES = {
+  '15001': 'Abegondo',
+  '15005': 'Arteixo',
+  '15008': 'Bergondo',
+  '15016': 'Cambre',
+  '15017': 'Carral',
+  '15026': 'Culleredo',
+  '15030': 'A Coruña',
+  '15058': 'Oleiros',
+  '15075': 'Sada',
+};
+
+/**
+ * Parses the Xunta cooperative registry CSV (semicolon-delimited, title row before
+ * the header) and returns active VIVIENDAS cooperatives domiciled in the monitored
+ * area. ponytail: naive ';' split — quoted fields exist but none contain ';'.
+ *
+ * @param {string} csvText - Raw CSV download
+ * @returns {Array<Object>} Cooperative rows ready for saveCooperative
+ */
+export function parseCooperativeRegistryCsv(csvText) {
+  const lines = csvText.split(/\r?\n/);
+  const headerIndex = lines.findIndex((line) => line.startsWith('cif;'));
+  if (headerIndex === -1) return [];
+
+  const rows = [];
+  for (const line of lines.slice(headerIndex + 1)) {
+    if (!line.trim()) continue;
+    const cols = line.split(';').map((col) => col.replace(/^"|"$/g, '').trim());
+    if (cols[5] !== 'VIVIENDAS') continue;
+    const municipality = AREA_INE_NAMES[cols[14]];
+    if (!municipality) continue;
+    rows.push({
+      cif: cols[0],
+      numRegistro: cols[1] || null,
+      name: cols[2],
+      foundedAt: (cols[6] || '').slice(0, 10) || null,
+      foundingPartners: Number.parseInt(cols[8], 10) || null,
+      // La localidad (col 15) suele ser el barrio/parroquia: más informativa que el
+      // municipio y a veces vacía — va a la dirección, no al agrupado por municipio.
+      address: [cols[10], cols[12], cols[15]].filter(Boolean).join(', ') || null,
+      postalCode: cols[13] || null,
+      municipality,
+      email: cols[17] || null,
+      phone: cols[18] || null,
+    });
+  }
+  return rows;
 }

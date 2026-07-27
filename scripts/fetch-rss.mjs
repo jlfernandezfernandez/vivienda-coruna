@@ -3,12 +3,13 @@ import { config, AREA_LABELS } from './lib/config.mjs';
 import {
   isActionableMarketAlert,
   normalizeGestoraId,
+  parseCooperativeRegistryCsv,
   slugify,
   toOpportunity,
 } from './lib/monitor.mjs';
 import { extractHousingData, extractGestoraContactFromText, pickOfficialWebsite, extractPromotionsFromText, discoverGestoraNames } from './lib/llm.mjs';
 import { extractWithRegex } from './lib/regex-extractor.mjs';
-import { scrapeUrl, searchWeb, mapSite } from './lib/scraper.mjs';
+import { scrapeUrl, searchWeb, mapSite, fetchText } from './lib/scraper.mjs';
 import {
   getDatabase,
   saveOpportunity,
@@ -17,7 +18,12 @@ import {
   saveSource,
   saveGestora,
   saveGestoraPromotion,
+  saveCooperative,
 } from './lib/db.mjs';
+
+// Rexistro de Cooperativas da Xunta (datos abertos, CC BY-SA, actualización ~bimestral).
+const COOP_REGISTRY_CSV_URL =
+  'https://abertos.xunta.gal/catalogo/economia-empresa-emprego/-/dataset/0606/rexistro-cooperativas-galicia/001/descarga-directa-ficheiro.csv';
 
 const parser = new Parser({ customFields: { item: ['description'] } });
 const feeds = config.feeds;
@@ -125,17 +131,33 @@ async function main() {
   results.forEach((result, index) => {
     const feed = feeds[index];
     if (result.status === 'fulfilled') {
-      const relevant = result.value
+      const items = result.value;
+      // Fuente muerta en silencio: 0 ítems, o un RSS oficial cuyo ítem más reciente
+      // tiene >45 días (el feed de taxonomía del DOG llevaba 3 años congelado dando
+      // ok:true). Prensa no: una query de nicho sin novedades recientes es normal.
+      const newest = Math.max(0, ...items.map((i) => Date.parse(i.isoDate || '')).filter(Number.isFinite));
+      const dead =
+        items.length === 0 ||
+        (feed.kind !== 'market-alert' && newest > 0 && Date.now() - newest > 45 * 24 * 60 * 60 * 1000);
+      if (dead) {
+        const source = { name: feed.name, url: feed.url, kind: feed.kind || 'official', ok: false, scanned: 0 };
+        sources.push(source);
+        saveSource(db, source);
+        console.error(`✗ ${feed.name}: ${items.length === 0 ? '0 ítems (¿fuente rota?)' : 'feed congelado (>45 días sin ítems nuevos)'}`);
+        return;
+      }
+
+      const relevant = items
         .map((item) => toOpportunity(item, feed.name, checkedAt))
         .filter(Boolean)
         .map((item) => ({ ...item, sourceKind: feed.kind || 'official' }))
         .filter((item) => feed.kind !== 'market-alert' || isActionableMarketAlert(item, new Date(checkedAt)));
       candidates.push(...relevant);
-      
-      const source = { name: feed.name, url: feed.url, kind: feed.kind || 'official', ok: true, scanned: result.value.length };
+
+      const source = { name: feed.name, url: feed.url, kind: feed.kind || 'official', ok: true, scanned: items.length };
       sources.push(source);
       saveSource(db, source);
-      console.log(`✓ ${feed.name}: ${result.value.length} revisados, ${relevant.length} relevantes`);
+      console.log(`✓ ${feed.name}: ${items.length} revisados, ${relevant.length} relevantes`);
       return;
     }
 
@@ -167,6 +189,10 @@ async function main() {
         trastero: old.trastero,
         terraza: old.terraza,
         nombrePromocion: old.nombrePromocion,
+        promotionId:
+          old.promotora && old.nombrePromocion
+            ? `promo:${normalizeGestoraId(old.promotora)}:${slugify(old.nombrePromocion)}`
+            : null,
         enriched: true,
       });
     } else {
@@ -181,6 +207,10 @@ async function main() {
         } else {
           console.log(`  [Scrape] Inactivo o fallido. Usando snippet de prensa.`);
         }
+      } else if (item.url) {
+        // Fuentes oficiales (DOG, contratos): HTML estático, sin cuota Firecrawl.
+        const text = await fetchText(item.url);
+        if (text) contentToAnalyze = text.slice(0, 10000);
       }
 
       // ── Fase 1: Regex (gratis, captura ~80% de los casos) ──
@@ -198,6 +228,16 @@ async function main() {
         console.log(`  [Regex] ${regexFields} campos extraídos sin LLM (ahorro ~500 tokens)`);
       }
 
+      // Id de promoción compartido con el catálogo de la gestora: prensa y web
+      // colisionan en la misma fila en vez de duplicar la promoción.
+      let gestoraId = null;
+      let promotionId = null;
+      const promoName = llmData.nombrePromocion || item.title.slice(0, 80);
+      if (llmData.promotora) {
+        gestoraId = await ensureGestora(db, llmData.promotora);
+        promotionId = `promo:${gestoraId}:${slugify(promoName)}`;
+      }
+
       const enrichedItem = {
         ...item,
         precioMin: llmData.precioMin,
@@ -211,20 +251,19 @@ async function main() {
         terraza: llmData.terraza,
         status: llmData.estado || item.status,
         nombrePromocion: llmData.nombrePromocion,
+        promotionId,
+        // Si el LLM falló (cuota, red), no marcar enriched: reintentar en la próxima corrida.
         enriched: !llmData.llmCallFailed,
       };
 
       saveOpportunity(db, enrichedItem);
 
-      if (enrichedItem.promotora) {
-        const gestoraId = await ensureGestora(db, enrichedItem.promotora);
-        const promoName = enrichedItem.nombrePromocion || enrichedItem.title.slice(0, 80);
+      if (gestoraId) {
         saveGestoraPromotion(db, {
-          // Id por nombre para que dos noticias del mismo proyecto no dupliquen la promoción.
-          id: `${gestoraId}:${slugify(promoName)}`,
+          id: promotionId,
           gestoraId,
           name: promoName,
-          location: enrichedItem.location || 'A Coruña',
+          location: enrichedItem.location || '',
           status: enrichedItem.status || 'Sin confirmar',
           details: enrichedItem.summary,
           link: enrichedItem.url
@@ -239,6 +278,22 @@ async function main() {
 
   const items = getAllOpportunities(db, 150);
   console.log(`\n${items.length} oportunidades guardadas en SQLite.`);
+
+  // Rexistro de Cooperativas da Xunta: la verdad oficial de qué cooperativas existen.
+  // Diff por CIF entre corridas → detecta constituciones semanas antes que la prensa.
+  console.log('\n[Rexistro] Importando cooperativas de vivienda del rexistro oficial...');
+  try {
+    const response = await fetch(COOP_REGISTRY_CSV_URL, { signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const registryRows = parseCooperativeRegistryCsv(await response.text());
+    const seenAt = new Date().toISOString();
+    for (const row of registryRows) {
+      saveCooperative(db, { ...row, firstSeenAt: seenAt, lastSeenAt: seenAt });
+    }
+    console.log(`  [Rexistro] ${registryRows.length} cooperativas de vivienda activas en el área.`);
+  } catch (error) {
+    console.error(`  [Rexistro] Fallo al importar el CSV (se conservan los datos anteriores): ${error.message}`);
+  }
 
   // Descubrimiento autónomo: sin lista fija, buscamos quién opera en la zona y registramos.
   // Varias queries y más resultados por query: una sola búsqueda superficial encontraba
@@ -313,14 +368,18 @@ async function main() {
         seenNames.add(key);
         added++;
         saveGestoraPromotion(db, {
-          // Id estable por nombre para no duplicar entre corridas ni pisar las de prensa.
-          id: `site:${gestora.id}:${key}`,
+          // Mismo id que el de prensa: una promoción real = una fila.
+          id: `promo:${gestora.id}:${key}`,
           gestoraId: gestora.id,
           name: promo.nombre,
-          location: promo.location || 'A Coruña',
+          // Sin ubicación literal, vacío: no asumir A Coruña (corrompe el mapa de zona).
+          location: promo.location || '',
           status: promo.estado || 'Sin confirmar',
           details: promo.totalViviendas ? `${promo.totalViviendas} viviendas` : '',
           link: gestora.website,
+          entregaEstimada: promo.entregaEstimada,
+          buscaSocios: promo.buscaSocios,
+          aportacionInicial: promo.aportacionInicial,
         });
       }
       console.log(`  [Catálogo] ${gestora.name}: ${added} promociones nuevas desde ${pagesToScrape.length} páginas de su web.`);

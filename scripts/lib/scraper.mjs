@@ -74,3 +74,24 @@ export async function searchWeb(query, limit = 3) {
     return [];
   }
 }
+
+/**
+ * Plain fetch + tag stripping for static official pages (DOG anuncios are plain
+ * HTML): no Firecrawl quota spent. Returns visible text, or null.
+ */
+export async function fetchText(url, timeoutMs = 20_000) {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) return null;
+    const html = await response.text();
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}

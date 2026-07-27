@@ -8,6 +8,7 @@ import {
   isRelevantTitle,
   normalizeGestoraId,
   normalizeUrl,
+  parseCooperativeRegistryCsv,
   toOpportunity,
 } from '../scripts/lib/monitor.mjs';
 
@@ -84,4 +85,38 @@ test('normaliza el nombre de una promotora al mismo id pese a variaciones de red
   assert.equal(normalizeGestoraId('grupo Nozar'), normalizeGestoraId('Nozar'));
   assert.equal(normalizeGestoraId('Nozar S.A.'), normalizeGestoraId('Nozar'));
   assert.equal(normalizeGestoraId('Promociones Casabriz'), normalizeGestoraId('Casabriz'));
+});
+
+test('filtra del rexistro solo cooperativas de vivienda del área metropolitana', () => {
+  const csv = `Rexistro das cooperativas activas en Galicia
+cif;numRegistro;denominacion;actividadEconomica/codigo;tipoCooperativa;claseCooperativa;fechaPrimeraInscripcion;capitalSocialMinimo;numSociosFundadores;datosDireccion/tipoVia/codigo;datosDireccion/nombreVia;datosDireccion/lugar;datosDireccion/parroquia;datosDireccion/codigoPostal;datosDireccion/municipio/codigo;datosDireccion/localidad;datosDireccion/provincia/codigo;datosDireccion/correoElectronico;datosDireccion/telefono
+F11111111;1-C;RESIDENCIAL ALBORADA ARTEIXO, S. COOP. GALEGA;;COOPERATIVA;VIVIENDAS;2026-03-02T00:00:00+01:00;3000.0;2;CL;RÚA X;;;15001;15005;ARTEIXO;15;a@b.gal;981000000
+F22222222;2-C;TALLERES PEPA, S.COOP;;COOPERATIVA;TRABAJO_ASOCIADO;2026-01-01T00:00:00+01:00;3000.0;3;CL;X;;;15001;15030;A CORUÑA;15;;
+F33333333;3-PO;COOP VIGO, S.COOP;;COOPERATIVA;VIVIENDAS;2026-01-01T00:00:00+01:00;3000.0;3;CL;X;;;36001;36057;VIGO;36;;
+`;
+  const rows = parseCooperativeRegistryCsv(csv);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].cif, 'F11111111');
+  assert.equal(rows[0].municipality, 'Arteixo');
+  assert.equal(rows[0].foundedAt, '2026-03-02');
+  assert.equal(rows[0].foundingPartners, 2);
+});
+
+test('detecta relevancia oficial por la descripción aunque el título no nombre el municipio', () => {
+  const dogItem = toOpportunity(
+    {
+      title: 'ANUNCIO de aprobación do proxecto de urbanización para vivenda protexida',
+      link: 'https://www.xunta.gal/dog/anuncio-1',
+      pubDate: '2026-07-20T00:00:00Z',
+      contentSnippet: 'b) Administración local. Concello de Oleiros',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(dogItem?.location, 'Oleiros');
+  // Prensa: la descripción no se usa (los snippets de Google News son ruido).
+  const pressItem = toOpportunity(
+    { title: 'El mercado inmobiliario gallego', link: 'https://x.gal/2', pubDate: '2026-07-20T00:00:00Z', contentSnippet: 'Cooperativa de viviendas en Oleiros' },
+    'Prensa · Cooperativas y Gestoras',
+  );
+  assert.equal(pressItem, null);
 });

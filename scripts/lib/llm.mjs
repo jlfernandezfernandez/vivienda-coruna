@@ -259,12 +259,13 @@ Usa ÚNICAMENTE lo que aparece literalmente en el texto proporcionado. No invent
  *
  * @param {string} name - Developer/Gestora name
  * @param {string} pageMarkdown - Scraped markdown of the gestora's site (or a projects page)
- * @returns {Promise<Array<{nombre: string, estado: string|null, location: string|null, totalViviendas: number|null}>>}
+ * @returns {Promise<Array<{nombre: string, estado: string|null, location: string|null, totalViviendas: number|null, entregaEstimada: string|null, buscaSocios: boolean|null, aportacionInicial: number|null}>>}
  */
 export async function extractPromotionsFromText(name, pageMarkdown) {
   const systemPrompt = `Eres un asistente que extrae, de una página web ya rastreada de la empresa española '${name}', la lista de promociones/proyectos/cooperativas de vivienda que aparecen mencionados con nombre propio.
 Usa ÚNICAMENTE lo que aparece literalmente en el texto. No inventes proyectos ni completes con conocimiento propio. Si el texto no lista ninguna promoción con nombre propio, devuelve una lista vacía.
 No incluyas viviendas individuales sueltas en venta (pisos concretos de reventa), solo promociones/edificios/cooperativas con nombre de proyecto.
+"buscaSocios" es true solo si el texto indica activamente que la promoción está en captación de socios o compradores ("inscríbete", "plazo abierto", "únete a la cooperativa", "venta en curso"); false si dice que está completa/adjudicada; null si no se dice.
 IMPORTANTE: esta empresa puede operar en toda España. Incluye SOLO promociones cuya ubicación esté en A Coruña ciudad o su área metropolitana inmediata (${AREA_LABELS.join(', ')}). Si la ubicación de una promoción no aparece o no es claramente una de esas zonas, NO la incluyas.`;
 
   const userPrompt = `Contenido de la página (markdown):\n${pageMarkdown.slice(0, 8000)}`;
@@ -278,16 +279,19 @@ IMPORTANTE: esta empresa puede operar en toda España. Incluye SOLO promociones 
         items: {
           type: 'object',
           properties: {
-            nombre: { type: 'string', description: 'Nombre propio de la promoción tal como aparece en el texto' },
-            estado: {
-              type: ['string', 'null'],
-              enum: COMMERCIAL_STATUS,
-              description: 'Estado deducido literalmente del texto. null si no se indica.'
-            },
-            location: { type: ['string', 'null'], description: 'Ubicación literal del texto. null si no aparece.' },
-            totalViviendas: { type: ['number', 'null'], description: 'Total de viviendas si aparece en el texto. null si no aparece.' }
-          },
-          required: ['nombre', 'estado', 'location', 'totalViviendas'],
+                    nombre: { type: 'string', description: 'Nombre propio de la promoción tal como aparece en el texto' },
+                    estado: {
+                      type: ['string', 'null'],
+                      enum: COMMERCIAL_STATUS,
+                      description: 'Estado deducido literalmente del texto. null si no se indica.'
+                    },
+                    location: { type: ['string', 'null'], description: 'Ubicación literal del texto. null si no aparece.' },
+                    totalViviendas: { type: ['number', 'null'], description: 'Total de viviendas si aparece en el texto. null si no aparece.' },
+                    entregaEstimada: { type: ['string', 'null'], description: 'Fecha o año estimado de entrega tal como aparece ("2027", "primer trimestre de 2026"). null si no aparece.' },
+                    buscaSocios: { type: ['boolean', 'null'], description: 'true si el texto indica captación abierta de socios/compradores, false si completa/adjudicada, null si no se dice.' },
+                    aportacionInicial: { type: ['number', 'null'], description: 'Aportación inicial en euros si aparece en el texto. null si no aparece.' }
+                  },
+                  required: ['nombre', 'estado', 'location', 'totalViviendas', 'entregaEstimada', 'buscaSocios', 'aportacionInicial'],
           additionalProperties: false
         }
       }

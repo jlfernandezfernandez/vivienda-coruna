@@ -3,6 +3,8 @@ name: Refresh housing data
 on:
   schedule:
     - cron: '17 8 * * *'
+    # Segunda pasada para prensa (Google News es casi real-time): lag máx ~3h.
+    - cron: '17 11 * * *'
   workflow_dispatch:
 
 permissions:
