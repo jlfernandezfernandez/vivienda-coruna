@@ -101,18 +101,19 @@ export function saveOpportunity(db, op) {
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     ) ON CONFLICT(id) DO UPDATE SET
       lastSeenAt = excluded.lastSeenAt,
-      status = CASE WHEN excluded.status IS NOT NULL THEN excluded.status ELSE status END,
-      precioMin = CASE WHEN excluded.precioMin IS NOT NULL THEN excluded.precioMin ELSE precioMin END,
-      precioMax = CASE WHEN excluded.precioMax IS NOT NULL THEN excluded.precioMax ELSE precioMax END,
-      habitacionesMin = CASE WHEN excluded.habitacionesMin IS NOT NULL THEN excluded.habitacionesMin ELSE habitacionesMin END,
-      banosMin = CASE WHEN excluded.banosMin IS NOT NULL THEN excluded.banosMin ELSE banosMin END,
-      promotora = CASE WHEN excluded.promotora IS NOT NULL THEN excluded.promotora ELSE promotora END,
-      totalViviendas = CASE WHEN excluded.totalViviendas IS NOT NULL THEN excluded.totalViviendas ELSE totalViviendas END,
-      garaje = CASE WHEN excluded.garaje IS NOT NULL THEN excluded.garaje ELSE garaje END,
-      trastero = CASE WHEN excluded.trastero IS NOT NULL THEN excluded.trastero ELSE trastero END,
-      terraza = CASE WHEN excluded.terraza IS NOT NULL THEN excluded.terraza ELSE terraza END,
+      status = COALESCE(excluded.status, status),
+      precioMin = COALESCE(excluded.precioMin, precioMin),
+      precioMax = COALESCE(excluded.precioMax, precioMax),
+      habitacionesMin = COALESCE(excluded.habitacionesMin, habitacionesMin),
+      banosMin = COALESCE(excluded.banosMin, banosMin),
+      promotora = COALESCE(excluded.promotora, promotora),
+      totalViviendas = COALESCE(excluded.totalViviendas, totalViviendas),
+      garaje = COALESCE(excluded.garaje, garaje),
+      trastero = COALESCE(excluded.trastero, trastero),
+      terraza = COALESCE(excluded.terraza, terraza),
+      -- Sticky flag: una vez enriquecido por el LLM, no vuelve a 0.
       enriched = CASE WHEN excluded.enriched = 1 THEN 1 ELSE enriched END,
-      nombrePromocion = CASE WHEN excluded.nombrePromocion IS NOT NULL THEN excluded.nombrePromocion ELSE nombrePromocion END
+      nombrePromocion = COALESCE(excluded.nombrePromocion, nombrePromocion)
   `);
 
   stmt.run(

@@ -1,11 +1,14 @@
-import { join } from 'node:path';
-import { env, cwd } from 'node:process';
-import dotenv from 'dotenv';
+import { env, cwd, loadEnvFile } from 'node:process';
 
 // Root dir is the cwd both scripts and `astro build` run from; import.meta.url
 // breaks here because Vite bundles this file into dist/.prerender/chunks/.
+// .env is optional (CI injects env vars directly); Node 22 loads it natively.
 const rootDir = cwd();
-dotenv.config({ path: join(rootDir, '.env') });
+try {
+  loadEnvFile(`${rootDir}/.env`);
+} catch {
+  // No .env file; rely on real environment variables.
+}
 
 // Canonical list of metropolitan area municipalities (monitored zone)
 export const AREA_LABELS = [
@@ -79,17 +82,6 @@ export const config = {
     description: 'Monitor de cooperativas, promociones nuevas y vivienda protegida en el área metropolitana de A Coruña.',
     headerTitle: 'Vivienda Protegida y Obra Nueva en A Coruña',
     headerSubtitle: 'Detecta señales tempranas de cooperativas de viviendas, búsqueda de socios, licencias y promociones públicas o privadas en el área metropolitana.',
-    municipalities: [
-      'A Coruña',
-      'Oleiros',
-      'Arteixo',
-      'Culleredo',
-      'Cambre',
-      'Sada',
-      'Bergondo',
-      'Carral',
-      'Abegondo',
-    ],
   },
 
   feeds,

@@ -18,9 +18,7 @@
   },
   "dependencies": {
     "astro": "^7.1.1",
-    "dotenv": "^17.4.2",
     "leaflet": "^1.9.4",
-    "openai": "^6.48.0",
     "rss-parser": "^3.13.0"
   },
   "devDependencies": {

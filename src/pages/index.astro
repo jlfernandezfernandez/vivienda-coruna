@@ -41,7 +41,8 @@ const siteTitle = config.site.title;
 const siteDescription = config.site.description;
 const headerTitle = config.site.headerTitle;
 const headerSubtitle = config.site.headerSubtitle;
-const municipalities = config.site.municipalities;
+// Chips individuales: AREA_LABELS agrupa algunos municipios con ' · '.
+const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
 ---
 
 <Layout
