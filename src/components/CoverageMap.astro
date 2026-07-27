@@ -1,12 +1,71 @@
 ---
-const base = import.meta.env.BASE_URL;
+import fs from 'node:fs';
+
+export interface Props {
+  items?: Array<{
+    id: string;
+    title: string;
+    location: string | null;
+    type: string | null;
+    precioMin?: number | null;
+  }>;
+}
+
+const { items = [] } = Astro.props;
+// ponytail: BASE_URL may lack trailing slash depending on config; normalize once.
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+
+// Centroid per municipality from the same geojson the map renders (build time).
+const geojson = JSON.parse(fs.readFileSync(process.cwd() + '/public/coverage.geojson', 'utf8'));
+const centroids: Record<string, [number, number]> = {};
+for (const feature of geojson.features) {
+  const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+  let sumLat = 0;
+  let sumLng = 0;
+  let n = 0;
+  for (const polygon of polygons) {
+    for (const [lng, lat] of polygon[0]) {
+      sumLng += lng;
+      sumLat += lat;
+      n++;
+    }
+  }
+  if (n > 0) centroids[feature.properties.name] = [sumLat / n, sumLng / n];
+}
+
+const normalizeLocation = (loc: string | null): string | null => {
+  if (!loc) return null;
+  if (loc === 'Oleiros' || loc.includes('Perillo') || loc.includes('Santa Cruz')) return 'Oleiros';
+  if (loc === 'Culleredo' || loc.includes('O Burgo')) return 'Culleredo';
+  return loc;
+};
+
+// Deterministic spiral jitter so same-municipality markers don't stack.
+const counters: Record<string, number> = {};
+const markers = items.flatMap((item) => {
+  const municipality = normalizeLocation(item.location);
+  if (!municipality || !centroids[municipality]) return [];
+  const idx = counters[municipality] ?? 0;
+  counters[municipality] = idx + 1;
+  const angle = idx * 2.39996; // golden angle
+  const radius = 0.008 * idx;
+  const [cLat, cLng] = centroids[municipality];
+  return [{
+    lat: cLat + radius * Math.cos(angle),
+    lng: cLng + radius * Math.sin(angle),
+    title: item.title + (item.precioMin ? ` · Desde ${item.precioMin.toLocaleString('es-ES')} €` : ''),
+    url: `${base}oportunidad/${item.id}`,
+    color: item.type === 'Cooperativa' ? '#1f4d36' : '#0369a1',
+  }];
+});
 ---
 
 <div class="relative w-full overflow-hidden rounded-2xl border border-border-soft shadow-premium">
-  <div 
-    id="coverage-map" 
-    class="h-[320px] w-full bg-[#eef3f0]" 
-    data-geojson-url={`${base}/coverage.geojson`} 
+  <div
+    id="coverage-map"
+    class="h-[320px] w-full bg-[#eef3f0]"
+    data-geojson-url={`${base}coverage.geojson`}
+    data-markers={JSON.stringify(markers)}
     aria-label="Mapa interactivo de los municipios cubiertos"
   >
     <div class="absolute inset-0 flex items-center justify-center bg-surface/50 backdrop-blur-sm z-10 pointer-events-none transition-opacity duration-300" id="map-loader">
@@ -40,6 +99,15 @@ const base = import.meta.env.BASE_URL;
       maxZoom: 18,
     }).addTo(map);
 
+    interface MapMarker {
+      lat: number;
+      lng: number;
+      title: string;
+      url: string;
+      color: string;
+    }
+    const markers: MapMarker[] = JSON.parse(element.dataset.markers || '[]');
+
     fetch(element.dataset.geojsonUrl || '')
       .then((response) => response.json())
       .then((data) => {
@@ -51,12 +119,12 @@ const base = import.meta.env.BASE_URL;
             weight: 2.5,
           },
           onEachFeature(feature, layer) {
-            layer.bindTooltip(feature.properties.name, { 
+            layer.bindTooltip(feature.properties.name, {
               sticky: true,
               direction: 'top',
               className: 'custom-map-tooltip'
             });
-            
+
             // Subtle hover styling for map areas
             layer.on({
               mouseover: (e) => {
@@ -77,8 +145,25 @@ const base = import.meta.env.BASE_URL;
           },
         }).addTo(map);
 
+        markers.forEach((m) => {
+          const marker = L.circleMarker([m.lat, m.lng], {
+            radius: 7,
+            color: m.color,
+            fillColor: m.color,
+            fillOpacity: 0.85,
+            weight: 1.5,
+          }).addTo(map);
+          marker.bindTooltip(m.title, {
+            direction: 'top',
+            className: 'custom-map-tooltip'
+          });
+          marker.on('click', () => {
+            window.location.href = m.url;
+          });
+        });
+
         map.fitBounds(boundaries.getBounds(), { padding: [20, 20] });
-        
+
         // Hide loader once loaded
         if (loader instanceof HTMLElement) {
           loader.classList.add('opacity-0');

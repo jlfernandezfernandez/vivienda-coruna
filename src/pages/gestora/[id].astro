@@ -1,0 +1,186 @@
+---
+import '../../styles/global.css';
+import Layout from '../../layouts/Layout.astro';
+import { getDatabase, getAllGestoras, getAllOpportunities } from '../../../scripts/lib/db.mjs';
+
+export function getStaticPaths() {
+  const db = getDatabase();
+  const opportunities = getAllOpportunities(db, 150);
+  return getAllGestoras(db).map((gestora) => ({
+    params: { id: gestora.id },
+    props: {
+      gestora,
+      // ponytail: substring match on promotora, same heuristic as spec
+      prensa: opportunities.filter(
+        (o) => o.promotora && o.promotora.toLowerCase().includes(gestora.name.toLowerCase())
+      ),
+    },
+  }));
+}
+
+const { gestora, prensa } = Astro.props;
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith("/") ? rawBase : rawBase + "/"; // build strips trailing slash
+
+const statusBadge = (status: string) =>
+  status === 'Comercialización'
+    ? 'bg-status-ok/10 text-brand-green border-status-ok/25'
+    : status === 'En construcción'
+    ? 'bg-amber-500/10 text-amber-600 border-amber-500/25'
+    : status === 'Entregada'
+    ? 'bg-blue-500/10 text-blue-600 border-blue-500/25'
+    : 'bg-ink-muted/10 text-ink-muted border-border-soft';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: gestora.name,
+  ...(gestora.website && { url: gestora.website }),
+  ...(gestora.phone && { telephone: gestora.phone }),
+  ...(gestora.email && { email: gestora.email }),
+  ...(gestora.address && {
+    address: { '@type': 'PostalAddress', streetAddress: gestora.address, addressRegion: 'A Coruña', addressCountry: 'ES' },
+  }),
+};
+
+const pageTitle = `${gestora.name} — promociones y cooperativas | Vivienda Coruña`;
+const pageDescription = gestora.description || `Promociones y cooperativas gestionadas por ${gestora.name} en el área de A Coruña.`;
+---
+
+<Layout title={pageTitle} description={pageDescription} jsonLd={jsonLd}>
+  <div class="mx-auto max-w-3xl px-4 sm:px-6">
+    <a
+      href={`${base}gestoras`}
+      class="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted hover:text-brand-green transition-colors mb-5"
+    >
+      <svg class="h-3.5 w-3.5 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+      Todas las gestoras
+    </a>
+
+    <article class="border border-border-soft bg-surface p-6 sm:p-8 rounded-2xl shadow-premium">
+      <!-- Header -->
+      <div class="flex items-center gap-4 border-b border-border-soft pb-4 mb-4">
+        <div class="flex h-14 w-14 items-center justify-center rounded-xl bg-brand-green-soft text-brand-green font-extrabold text-lg border border-brand-green/10 shadow-sm flex-shrink-0">
+          {gestora.logo}
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-2xl font-extrabold tracking-tight text-ink leading-tight">{gestora.name}</h1>
+          {gestora.website && (
+            <a
+              href={gestora.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-xs text-brand-green hover:underline inline-flex items-center gap-1 mt-1"
+            >
+              <span>{gestora.website.replace('https://', '').replace('http://', '')}</span>
+              <svg class="h-3 w-3 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+              </svg>
+            </a>
+          )}
+        </div>
+      </div>
+
+      <!-- Description -->
+      {gestora.description && (
+        <p class="text-sm text-ink-muted leading-relaxed mb-5">{gestora.description}</p>
+      )}
+
+      <!-- Contact -->
+      {(gestora.address || gestora.phone || gestora.email) && (
+        <div class="space-y-2 mb-6">
+          {gestora.address && (
+            <div class="flex items-center gap-2.5 text-xs text-ink-muted">
+              <span class="text-base">📍</span>
+              <span>{gestora.address}</span>
+            </div>
+          )}
+          {gestora.phone && (
+            <div class="flex items-center gap-2.5 text-xs text-ink-muted">
+              <span class="text-base">📞</span>
+              <a href={`tel:${gestora.phone.replace(/\s+/g, '')}`} class="hover:text-brand-green transition-colors">{gestora.phone}</a>
+            </div>
+          )}
+          {gestora.email && (
+            <div class="flex items-center gap-2.5 text-xs text-ink-muted">
+              <span class="text-base">✉️</span>
+              <a href={`mailto:${gestora.email}`} class="hover:text-brand-green transition-colors">{gestora.email}</a>
+            </div>
+          )}
+        </div>
+      )}
+
+      <!-- Promotions -->
+      {gestora.promotions.length > 0 && (
+        <div class="border-t border-border-soft pt-5">
+          <h2 class="text-xs font-bold text-ink uppercase tracking-wider mb-3">
+            Cooperativas y promociones en la zona
+          </h2>
+          <div class="space-y-3">
+            {gestora.promotions.map((promo) => (
+              <div class="bg-canvas border border-border-soft p-3 rounded-xl flex flex-col gap-1.5">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <span class="text-sm font-bold text-ink">{promo.name}</span>
+                  <div class="flex gap-1.5 flex-wrap">
+                    {promo.buscaSocios === true && (
+                      <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-status-ok/10 text-brand-green border-status-ok/25">
+                        Captación abierta
+                      </span>
+                    )}
+                    <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusBadge(promo.status)}`}>
+                      {promo.status}
+                    </span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-center text-xs text-ink-muted mt-0.5 gap-2">
+                  <span>📍 {promo.location || '—'}</span>
+                  {promo.details && <span class="text-right max-w-[60%] truncate">{promo.details}</span>}
+                </div>
+                {(promo.entregaEstimada || promo.aportacionInicial) && (
+                  <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-muted mt-1">
+                    {promo.entregaEstimada && <span>Entrega estimada: <strong class="text-ink">{promo.entregaEstimada}</strong></span>}
+                    {promo.aportacionInicial && <span>Aportación inicial: <strong class="text-ink">{promo.aportacionInicial.toLocaleString('es-ES')} €</strong></span>}
+                  </div>
+                )}
+                {promo.link && (
+                  <a
+                    href={promo.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-[11px] font-semibold text-brand-green hover:underline mt-2 self-start flex items-center gap-1"
+                  >
+                    Ver detalles de la promoción
+                    <svg class="h-3 w-3 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                    </svg>
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <!-- En prensa -->
+      {prensa.length > 0 && (
+        <div class="border-t border-border-soft pt-5 mt-6">
+          <h2 class="text-xs font-bold text-ink uppercase tracking-wider mb-3">En prensa</h2>
+          <ul class="divide-y divide-border-soft">
+            {prensa.map((o) => (
+              <li class="py-2.5 first:pt-0 last:pb-0">
+                <a href={`${base}oportunidad/${o.id}`} class="group flex items-center justify-between gap-3">
+                  <span class="text-xs font-bold text-ink group-hover:text-brand-green transition-colors truncate">{o.title}</span>
+                  <span class="text-[11px] text-ink-light flex-shrink-0">
+                    {new Date(o.publishedAt || o.firstSeenAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Madrid' })}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </article>
+  </div>
+</Layout>

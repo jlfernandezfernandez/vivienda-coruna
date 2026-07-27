@@ -1,0 +1,172 @@
+---
+import '../../styles/global.css';
+import Layout from '../../layouts/Layout.astro';
+import { AREA_LABELS } from '../../../scripts/lib/config.mjs';
+import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives } from '../../../scripts/lib/db.mjs';
+
+export function getStaticPaths() {
+  const slugify = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  // ponytail: above char class is U+0300–U+036F combining diacritics, written literally
+
+  // 'Perillo'/'Santa Cruz' pertenecen a Oleiros; 'O Burgo' a Culleredo.
+  const matchesMunicipality = (location: string | null, m: string) =>
+    location === m ||
+    (m === 'Oleiros' && !!location && ['Perillo', 'Santa Cruz'].includes(location)) ||
+    (m === 'Culleredo' && location === 'O Burgo');
+
+  const db = getDatabase();
+  const opportunities = getAllOpportunities(db, 150);
+  const cooperatives = getAllCooperatives(db);
+  const gestoras = getAllGestoras(db);
+
+  const municipalities = AREA_LABELS.flatMap((l) => l.split(' · '));
+
+  return municipalities.map((municipality) => ({
+    params: { slug: slugify(municipality) },
+    props: {
+      municipality,
+      opportunities: opportunities.filter((o) => matchesMunicipality(o.location, municipality)),
+      cooperatives: cooperatives.filter((c) => c.municipality === municipality),
+      promotions: gestoras.flatMap((g) =>
+        g.promotions
+          .filter((p) => p.location && p.location.toLowerCase().includes(municipality.toLowerCase()))
+          .map((p) => ({ gestora: g, promo: p }))
+      ),
+    },
+  }));
+}
+
+const { municipality, opportunities, cooperatives, promotions } = Astro.props;
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith("/") ? rawBase : rawBase + "/"; // build strips trailing slash
+const total = opportunities.length + cooperatives.length + promotions.length;
+
+const pageTitle = `Cooperativas y obra nueva en ${municipality} | Vivienda Coruña`;
+const pageDescription = `Actividad detectada en ${municipality}: cooperativas del Rexistro oficial, promociones de obra nueva y señales en prensa y fuentes oficiales.`;
+---
+
+<Layout title={pageTitle} description={pageDescription}>
+  <div class="mx-auto max-w-4xl px-4 sm:px-6">
+    <a
+      href={base}
+      class="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted hover:text-brand-green transition-colors mb-5"
+    >
+      <svg class="h-3.5 w-3.5 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+      Volver a novedades
+    </a>
+
+    <!-- Header -->
+    <div class="mb-8 border-b border-border-soft pb-6">
+      <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
+        Cooperativas y obra nueva en {municipality}
+      </h1>
+      <p class="text-sm text-ink-muted mt-3">
+        {total} {total === 1 ? 'registro' : 'registros'}: {cooperatives.length} cooperativas · {promotions.length} promociones · {opportunities.length} señales
+      </p>
+    </div>
+
+    {total === 0 ? (
+      <div class="p-10 text-center rounded-2xl border border-border-soft text-ink-muted bg-surface text-sm">
+        Sin actividad detectada todavía en {municipality}.
+      </div>
+    ) : (
+      <div class="flex flex-col gap-10">
+        <!-- Registry cooperatives -->
+        {cooperatives.length > 0 && (
+          <section aria-labelledby="registro-title">
+            <h2 id="registro-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
+              Cooperativas constituidas
+              <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
+                {cooperatives.length}
+              </span>
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {cooperatives.map((c) => (
+                <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
+                  <h3 class="text-sm font-bold text-ink capitalize leading-snug mb-2">{c.name.toLowerCase()}</h3>
+                  <div class="text-xs text-ink-muted space-y-1">
+                    {c.foundedAt && (
+                      <p>Constituida el <strong class="text-ink">{new Date(`${c.foundedAt}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Madrid' })}</strong></p>
+                    )}
+                    {c.foundingPartners != null && <p>{c.foundingPartners} socios fundadores</p>}
+                    {c.address && <p>📍 {c.address}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <!-- Gestora promotions -->
+        {promotions.length > 0 && (
+          <section aria-labelledby="promos-title">
+            <h2 id="promos-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
+              Promociones en el municipio
+              <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
+                {promotions.length}
+              </span>
+            </h2>
+            <div class="border border-border-soft bg-surface rounded-2xl shadow-premium overflow-hidden">
+              <ul class="divide-y divide-border-soft">
+                {promotions.map(({ gestora, promo }) => (
+                  <li>
+                    <a href={`${base}gestora/${gestora.id}`} class="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-surface-hover transition-colors">
+                      <div class="min-w-0">
+                        <span class="text-sm font-bold text-ink group-hover:text-brand-green transition-colors block truncate">{promo.name}</span>
+                        <span class="text-[11px] text-ink-light">{gestora.name}</span>
+                      </div>
+                      <div class="flex gap-1.5 flex-shrink-0">
+                        {promo.buscaSocios === true && (
+                          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-status-ok/10 text-brand-green border-status-ok/25">
+                            Captación abierta
+                          </span>
+                        )}
+                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-ink-muted/10 text-ink-muted border-border-soft">
+                          {promo.status}
+                        </span>
+                      </div>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        )}
+
+        <!-- Opportunities -->
+        {opportunities.length > 0 && (
+          <section aria-labelledby="senales-title">
+            <h2 id="senales-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
+              Señales en prensa y fuentes oficiales
+              <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
+                {opportunities.length}
+              </span>
+            </h2>
+            <div class="border border-border-soft bg-surface rounded-2xl shadow-premium overflow-hidden">
+              <ul class="divide-y divide-border-soft">
+                {opportunities.map((o) => (
+                  <li>
+                    <a href={`${base}oportunidad/${o.id}`} class="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-surface-hover transition-colors">
+                      <div class="min-w-0">
+                        <span class="text-sm font-bold text-ink group-hover:text-brand-green transition-colors block truncate">{o.title}</span>
+                        <span class="text-[11px] text-ink-light">
+                          {o.type || 'Señal'} · {o.sourceKind === 'market-alert' ? 'Prensa local' : o.source}
+                        </span>
+                      </div>
+                      <span class="text-[11px] text-ink-light flex-shrink-0">
+                        {new Date(o.publishedAt || o.firstSeenAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Madrid' })}
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        )}
+      </div>
+    )}
+  </div>
+</Layout>

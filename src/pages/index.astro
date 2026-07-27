@@ -4,12 +4,16 @@ import Layout from '../layouts/Layout.astro';
 import CoverageMap from '../components/CoverageMap.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
 import { config, AREA_LABELS } from '../../scripts/lib/config.mjs';
-import { getDatabase, getAllOpportunities, getAllSources, getAllGestoras } from '../../scripts/lib/db.mjs';
+import { getDatabase, getAllOpportunities, getAllSources, getAllGestoras, getAllCooperatives, getRecentEvents } from '../../scripts/lib/db.mjs';
 
+// ponytail: BASE_URL may lack trailing slash depending on config; normalize once.
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
 const db = getDatabase();
 const items = getAllOpportunities(db, 150);
 const sources = getAllSources(db);
 const gestoras = getAllGestoras(db);
+const cooperatives = getAllCooperatives(db);
+const recentEvents = getRecentEvents(db, 12);
 const monitor = { area: AREA_LABELS };
 const healthySources = sources.filter((source) => source.ok).length;
 const checkedAt = items.length ? new Date(Math.max(...items.map(i => new Date(i.lastSeenAt).getTime()))) : null;
@@ -36,6 +40,15 @@ const groupedItems = allItems.reduce((acc, item) => {
 
 const groupedEntries = Object.entries(groupedItems);
 
+// Cooperativas activas: oportunidades tipo Cooperativa + promociones de gestoras que buscan socios
+const coopOpportunities = items.filter((i) => i.type === 'Cooperativa');
+const coopPromotions = gestoras.flatMap((g) =>
+  g.promotions
+    .filter((p) => p.buscaSocios === true)
+    .map((p) => ({ ...p, gestoraId: g.id, gestoraName: g.name }))
+);
+const activeCoopCount = coopOpportunities.length + coopPromotions.length;
+
 // Load values from central config to make the whole page highly configurable
 const siteTitle = config.site.title;
 const siteDescription = config.site.description;
@@ -43,6 +56,17 @@ const headerTitle = config.site.headerTitle;
 const headerSubtitle = config.site.headerSubtitle;
 // Chips individuales: AREA_LABELS agrupa algunos municipios con ' · '.
 const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
+
+const shortDate = (d: string) =>
+  new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' });
+const truncate = (s: string, n = 60) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s);
+const eventIcons: Record<string, { icon: string; className: string }> = {
+  new: { icon: '✚', className: 'text-brand-green' },
+  status: { icon: '⇄', className: 'text-brand-blue' },
+  price: { icon: '€', className: 'text-brand-orange' },
+};
+
+const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.location, type: i.type, precioMin: i.precioMin }));
 ---
 
 <Layout
@@ -80,52 +104,115 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
             <span>Fuentes operativas:</span>
             <strong class="text-ink font-semibold">{healthySources} de {sources.length}</strong>
           </div>
+          <div class="flex justify-between">
+            <span>Cooperativas en rexistro:</span>
+            <strong class="text-ink font-semibold">{cooperatives.length}</strong>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <div class="mb-6 flex border-b border-border-soft">
-      <button
-        id="tab-novedades"
-        class="border-b-2 border-brand-green px-4 py-2.5 text-sm font-bold text-brand-green focus:outline-none transition-all flex items-center gap-2"
-        role="tab"
-        aria-selected="true"
+    <!-- Section navigation -->
+    <nav class="mb-8 flex flex-wrap gap-2" aria-label="Secciones">
+      <a
+        href={base}
+        aria-current="page"
+        class="rounded-full bg-brand-green px-4 py-2 text-sm font-bold text-surface shadow-sm"
       >
-        <svg class="h-4 w-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.75c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75A2.25 2.25 0 0 1 4.5 4.5h9a2.25 2.25 0 0 1 2.25 2.25M9 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h9a2.25 2.25 0 0 1 2.25 2.25v11.25m-12 0h12" />
-        </svg>
-        Novedades en Directo
-      </button>
-      <button
-        id="tab-directorio"
-        class="border-b-2 border-transparent px-4 py-2.5 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border focus:outline-none transition-all flex items-center gap-2"
-        role="tab"
-        aria-selected="false"
+        Novedades
+      </a>
+      <a
+        href={`${base}cooperativas`}
+        class="rounded-full border border-border-soft bg-surface px-4 py-2 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
       >
-        <svg class="h-4 w-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21h10.5V3.75c0-.621-.504-1.125-1.125-1.125H7.875c-.621 0-1.125.504-1.125 1.125V21Z" />
-        </svg>
-        Directorio de Gestoras
-      </button>
-    </div>
+        Cooperativas
+      </a>
+      <a
+        href={`${base}gestoras`}
+        class="rounded-full border border-border-soft bg-surface px-4 py-2 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
+      >
+        Gestoras
+      </a>
+    </nav>
 
-    <!-- Novedades Section (Visible by default) -->
-    <div id="novedades-section">
-      <!-- Layout Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      
+    <!-- Cooperativas activas ahora -->
+    <section class="mb-10" aria-labelledby="coop-activas-title">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 id="coop-activas-title" class="text-lg font-bold text-ink flex items-center gap-2">
+          Cooperativas activas ahora
+          <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
+            {activeCoopCount}
+          </span>
+        </h2>
+        <a href={`${base}cooperativas`} class="text-xs font-bold text-brand-green hover:underline">
+          Ver todas las cooperativas →
+        </a>
+      </div>
+
+      {activeCoopCount === 0 ? (
+        <div class="rounded-2xl border border-border-soft bg-surface p-5 text-sm text-ink-muted shadow-premium">
+          Ahora mismo no hay captación abierta detectada. O rexistro oficial recoge
+          <strong class="text-ink font-semibold"> {cooperatives.length} </strong>
+          cooperativas na zona.
+          <a href={`${base}cooperativas`} class="font-bold text-brand-green hover:underline">Consultar o rexistro →</a>
+        </div>
+      ) : (
+        <div class="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+          {coopOpportunities.map((op) => (
+            <a
+              href={`${base}oportunidad/${op.id}`}
+              class="flex min-w-[260px] max-w-[280px] flex-shrink-0 flex-col gap-2 rounded-2xl border border-border-soft bg-surface p-4 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-ink-muted truncate">{op.location || 'Área'}</span>
+                <span class="inline-flex items-center rounded-lg bg-brand-green-soft px-2 py-0.5 text-[10px] font-semibold text-brand-green border border-brand-green/10 flex-shrink-0">
+                  {op.status || 'Captación abierta'}
+                </span>
+              </div>
+              <h3 class="text-sm font-bold text-ink leading-snug line-clamp-2">{op.nombrePromocion || op.title}</h3>
+              <div class="flex flex-wrap items-baseline gap-x-3 text-xs text-ink-muted">
+                {op.precioMin && (
+                  <span class="text-sm font-extrabold text-brand-green">Desde {op.precioMin.toLocaleString('es-ES')} €</span>
+                )}
+                {op.totalViviendas && <span>{op.totalViviendas} vivs.</span>}
+              </div>
+              <span class="text-[11px] text-ink-light mt-auto">Detectado el {shortDate(op.firstSeenAt)}</span>
+            </a>
+          ))}
+          {coopPromotions.map((promo) => (
+            <a
+              href={`${base}gestora/${promo.gestoraId}`}
+              class="flex min-w-[260px] max-w-[280px] flex-shrink-0 flex-col gap-2 rounded-2xl border border-border-soft bg-surface p-4 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-ink-muted truncate">{promo.location || 'Área'}</span>
+                <span class="inline-flex items-center rounded-lg bg-brand-green-soft px-2 py-0.5 text-[10px] font-semibold text-brand-green border border-brand-green/10 flex-shrink-0">
+                  {promo.status || 'Captación abierta'}
+                </span>
+              </div>
+              <h3 class="text-sm font-bold text-ink leading-snug line-clamp-2">{promo.name}</h3>
+              <span class="text-xs text-ink-muted">Gestiona: <span class="font-bold text-ink">{promo.gestoraName}</span></span>
+              <span class="text-[11px] text-brand-green font-semibold mt-auto">Busca socios</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <!-- Layout Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
       <!-- Left Column: Search & Grouped Feed -->
       <div class="lg:col-span-2 flex flex-col gap-6">
-        
+
         <!-- Card 1: Búsqueda y Ubicación -->
         <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col gap-4">
           <!-- Text Search input - Height explicitly 40px (h-10) -->
           <div class="relative flex items-center h-10 w-full">
-            <input 
-              type="text" 
-              id="search-input" 
-              placeholder="Buscar promoción, promotora, calle, tipo..." 
+            <input
+              type="text"
+              id="search-input"
+              placeholder="Buscar promoción, promotora, calle, tipo..."
               class="w-full pl-10 pr-4 h-full rounded-xl border border-border-soft bg-canvas text-sm text-ink placeholder-ink-light focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all"
             />
             <svg class="absolute left-3.5 h-4 w-4 text-ink-light fill-none stroke-current stroke-2" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -137,21 +224,24 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
           <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
             <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Tipo de señal</span>
             <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center max-w-md">
-              <button 
+              <button
                 class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer"
                 data-filter-source="all"
+                aria-pressed="true"
               >
                 Todas
               </button>
-              <button 
+              <button
                 class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-source="official"
+                aria-pressed="false"
               >
                 Oficiales
               </button>
-              <button 
+              <button
                 class="flex-1 text-center h-8 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-source="market-alert"
+                aria-pressed="false"
               >
                 Prensa
               </button>
@@ -162,33 +252,38 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
           <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
             <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Categoría</span>
             <div class="flex flex-wrap gap-1.5 items-center min-h-10">
-              <button 
+              <button
                 class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
                 data-filter-category="all"
+                aria-pressed="true"
               >
                 Todas
               </button>
-              <button 
+              <button
                 class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-category="Promoción nueva"
+                aria-pressed="false"
               >
                 Obra Nueva
               </button>
-              <button 
+              <button
                 class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-category="Cooperativa"
+                aria-pressed="false"
               >
                 Cooperativas
               </button>
-              <button 
+              <button
                 class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-category="Suelo"
+                aria-pressed="false"
               >
                 Suelo
               </button>
-              <button 
+              <button
                 class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                 data-filter-category="Vivienda protegida"
+                aria-pressed="false"
               >
                 VPP / VPA Oficial
               </button>
@@ -199,16 +294,18 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
           <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
             <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Municipio</span>
             <div class="flex flex-wrap gap-1.5 items-center min-h-10">
-              <button 
+              <button
                 class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
                 data-filter-location="all"
+                aria-pressed="true"
               >
                 Todos
               </button>
               {municipalities.map(loc => (
-                <button 
+                <button
                   class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
                   data-filter-location={loc}
+                  aria-pressed="false"
                 >
                   {loc}
                 </button>
@@ -294,8 +391,8 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
         <div class="flex items-center justify-between pb-2 px-1 mt-4">
           <h2 class="text-lg font-bold text-ink flex items-center gap-2">
             Novedades detectadas
-            <span 
-              id="active-count" 
+            <span
+              id="active-count"
               class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold"
             >
               {allItems.length}
@@ -326,8 +423,8 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
         )}
 
         <!-- Search Empty State -->
-        <div 
-          id="empty-search-state" 
+        <div
+          id="empty-search-state"
           class="hidden p-12 text-center rounded-2xl border border-border-soft bg-surface"
         >
           <svg class="mx-auto h-10 w-10 text-ink-light fill-none stroke-current stroke-2" viewBox="0 0 24 24" width="40" height="40">
@@ -340,7 +437,7 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
 
       <!-- Right Column: Sidebar -->
       <aside class="flex flex-col gap-6">
-        
+
         <!-- Coverage Map Section -->
         <section class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium" aria-labelledby="coverage-title">
           <div class="flex items-center justify-between mb-4">
@@ -349,10 +446,36 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
               {monitor.area.length} municipios
             </span>
           </div>
-          <CoverageMap />
+          <CoverageMap items={mapItems} />
           <p class="text-xs text-ink-muted mt-3 leading-relaxed">
             Área de monitorización restringida a A Coruña y su corona metropolitana inmediata.
           </p>
+        </section>
+
+        <!-- Recent Changes Section -->
+        <section class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium" aria-labelledby="changes-title">
+          <h2 id="changes-title" class="text-base font-bold text-ink mb-4">Últimos cambios</h2>
+          {recentEvents.length === 0 ? (
+            <p class="text-xs text-ink-light italic">Sin cambios detectados todavía.</p>
+          ) : (
+            <ul class="divide-y divide-border-soft">
+              {recentEvents.map((ev) => {
+                const meta = eventIcons[ev.kind] || eventIcons.new;
+                return (
+                  <li class="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">
+                    <span class={`font-bold text-xs leading-5 flex-shrink-0 ${meta.className}`} aria-hidden="true">{meta.icon}</span>
+                    <div class="min-w-0">
+                      <p class="text-xs font-semibold text-ink truncate" title={ev.label}>{truncate(ev.label || ev.entityId)}</p>
+                      <p class="text-[11px] text-ink-light">
+                        {ev.newValue && <span>{ev.newValue} · </span>}
+                        {shortDate(ev.detectedAt)}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
 
         <!-- Sources Log Section -->
@@ -362,15 +485,15 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
             {sources.map((source) => (
               <li class="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
                 <div class="flex items-center gap-2.5 min-w-0">
-                  <span 
-                    class={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${source.ok ? 'bg-status-ok pulse-indicator-ok' : 'bg-status-error pulse-indicator-warning'}`} 
+                  <span
+                    class={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${source.ok ? 'bg-status-ok pulse-indicator-ok' : 'bg-status-error pulse-indicator-warning'}`}
                     aria-hidden="true"
                     title={source.ok ? 'Fuente operativa' : 'Problema de conexión'}
                   ></span>
-                  <a 
-                    href={source.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     class="text-xs font-bold text-ink hover:text-brand-green hover:underline truncate"
                   >
                     {source.name}
@@ -387,128 +510,6 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
       </aside>
     </div>
   </div>
-
-  <!-- Directorio de Gestoras Section (Hidden by default) -->
-  <div id="directorio-section" class="hidden">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {gestoras.map((gestora) => (
-        <div class="border border-border-soft bg-surface p-6 rounded-2xl shadow-premium flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-200 animate-fade-in">
-          <div>
-            <!-- Header -->
-            <div class="flex items-center gap-4 border-b border-border-soft pb-4 mb-4">
-              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green-soft text-brand-green font-extrabold text-base border border-brand-green/10 shadow-sm">
-                {gestora.logo}
-              </div>
-              <div>
-                <h3 class="text-lg font-bold text-ink">{gestora.name}</h3>
-                <a 
-                  href={gestora.website} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  class="text-xs text-brand-green hover:underline flex items-center gap-1 mt-0.5"
-                >
-                  <span>{gestora.website.replace('https://', '').replace('http://', '')}</span>
-                  <svg class="h-3 w-3 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                  </svg>
-                </a>
-              </div>
-            </div>
-
-            <!-- Description -->
-            <p class="text-sm text-ink-muted leading-relaxed mb-4">
-              {gestora.description}
-            </p>
-
-            <!-- Contacts (solo se muestran los datos verificados; vacío se omite) -->
-            <div class="space-y-2 mb-6">
-              {gestora.address && (
-                <div class="flex items-center gap-2.5 text-xs text-ink-muted">
-                  <span class="text-base">📍</span>
-                  <span>{gestora.address}</span>
-                </div>
-              )}
-              {gestora.phone && (
-                <div class="flex items-center gap-2.5 text-xs text-ink-muted">
-                  <span class="text-base">📞</span>
-                  <a href={`tel:${gestora.phone.replace(/\s+/g, '')}`} class="hover:text-brand-green transition-colors">{gestora.phone}</a>
-                </div>
-              )}
-              {gestora.email && (
-                <div class="flex items-center gap-2.5 text-xs text-ink-muted">
-                  <span class="text-base">✉️</span>
-                  <a href={`mailto:${gestora.email}`} class="hover:text-brand-green transition-colors">{gestora.email}</a>
-                </div>
-              )}
-              {!gestora.address && !gestora.phone && !gestora.email && (
-                <p class="text-xs text-ink-light italic">Contacto no verificado todavía.</p>
-              )}
-            </div>
-
-            <!-- Promotions in area -->
-            <div class="border-t border-border-soft pt-4 mt-4">
-              <span class="text-xs font-bold text-ink uppercase tracking-wider block mb-3">
-                Cooperativas y promociones en la zona
-              </span>
-              <div class="space-y-3">
-                {gestora.promotions.map((promo) => (
-                  <div class="bg-canvas border border-border-soft p-3 rounded-xl flex flex-col gap-1.5 relative overflow-hidden">
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-sm font-bold text-ink">{promo.name}</span>
-                      <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                        promo.status === 'Comercialización' 
-                          ? 'bg-status-ok/10 text-brand-green border-status-ok/25' 
-                          : promo.status === 'En construcción'
-                          ? 'bg-amber-500/10 text-amber-600 border-amber-500/25'
-                          : promo.status === 'Entregada'
-                          ? 'bg-blue-500/10 text-blue-600 border-blue-500/25'
-                          : 'bg-ink-muted/10 text-ink-muted border-border-soft'
-                      }`}>
-                        {promo.status}
-                      </span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs text-ink-muted mt-0.5">
-                      <span>📍 {promo.location}</span>
-                      <span class="text-right max-w-[60%] truncate">{promo.details}</span>
-                    </div>
-                    {promo.link && (
-                      <a 
-                        href={promo.link} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        class="text-[11px] font-semibold text-brand-green hover:underline mt-2 self-start flex items-center gap-1"
-                      >
-                        Ver detalles de la promoción
-                        <svg class="h-3 w-3 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                        </svg>
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <!-- Call to action -->
-          <div class="mt-6 pt-4 border-t border-border-soft">
-            <a 
-              href={gestora.website} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              class="w-full bg-brand-green text-surface text-center font-bold py-2.5 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover hover:-translate-y-[1px] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
-            >
-              <span>Visitar Web Oficial de la Gestora</span>
-              <svg class="h-4 w-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-              </svg>
-            </a>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-  </div>
 </Layout>
 
 <!-- Client Filtering Javascript -->
@@ -521,7 +522,7 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
   const bathFilters = document.querySelectorAll('[data-filter-baths]');
   const priceRange = document.getElementById('price-range') as HTMLInputElement;
   const priceDisplay = document.getElementById('price-display');
-  
+
   // New features checkboxes
   const filterGarage = document.getElementById('filter-garage') as HTMLInputElement;
   const filterStorage = document.getElementById('filter-storage') as HTMLInputElement;
@@ -532,50 +533,12 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
   const activeCountEl = document.getElementById('active-count');
   const emptyStateEl = document.getElementById('empty-search-state');
 
-  // Tab navigation toggling
-  const tabNovedades = document.getElementById('tab-novedades');
-  const tabDirectorio = document.getElementById('tab-directorio');
-  const novedadesSection = document.getElementById('novedades-section');
-  const directorioSection = document.getElementById('directorio-section');
-
-  if (tabNovedades && tabDirectorio && novedadesSection && directorioSection) {
-    tabNovedades.addEventListener('click', () => {
-      // Toggle tabs styling
-      tabNovedades.classList.add('border-brand-green', 'text-brand-green');
-      tabNovedades.classList.remove('border-transparent', 'text-ink-muted');
-      tabNovedades.setAttribute('aria-selected', 'true');
-
-      tabDirectorio.classList.remove('border-brand-green', 'text-brand-green');
-      tabDirectorio.classList.add('border-transparent', 'text-ink-muted');
-      tabDirectorio.setAttribute('aria-selected', 'false');
-
-      // Toggle views visibility
-      novedadesSection.classList.remove('hidden');
-      directorioSection.classList.add('hidden');
-    });
-
-    tabDirectorio.addEventListener('click', () => {
-      // Toggle tabs styling
-      tabDirectorio.classList.add('border-brand-green', 'text-brand-green');
-      tabDirectorio.classList.remove('border-transparent', 'text-ink-muted');
-      tabDirectorio.setAttribute('aria-selected', 'true');
-
-      tabNovedades.classList.remove('border-brand-green', 'text-brand-green');
-      tabNovedades.classList.add('border-transparent', 'text-ink-muted');
-      tabNovedades.setAttribute('aria-selected', 'false');
-
-      // Toggle views visibility
-      directorioSection.classList.remove('hidden');
-      novedadesSection.classList.add('hidden');
-    });
-  }
-
   let searchVal = '';
   let activeSource = 'all';
   let activeCategory = 'all';
   let activeLocation = 'all';
-  let maxPrice = 600000; 
-  let minRooms = 0; 
+  let maxPrice = 600000;
+  let minRooms = 0;
   let minBaths = 0;
   let needGarage = false;
   let needStorage = false;
@@ -593,7 +556,7 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
         const location = card.getAttribute('data-location') || '';
         const sourceKind = card.getAttribute('data-source-kind') || '';
         const type = card.getAttribute('data-type') || '';
-        
+
         // LLM data attributes
         const cardPriceAttr = card.getAttribute('data-precio-min');
         const cardRoomsAttr = card.getAttribute('data-habitaciones-min');
@@ -609,7 +572,7 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
         const matchesSearch = text.includes(searchVal.toLowerCase());
         const matchesSource = activeSource === 'all' || sourceKind === activeSource;
         const matchesCategory = activeCategory === 'all' || type === activeCategory;
-        
+
         let matchesLocation = false;
         if (activeLocation === 'all') {
           matchesLocation = true;
@@ -638,11 +601,11 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
         const matchesTerrace = !needTerrace || hasTerraceAttr;
 
         if (
-          matchesSearch && 
-          matchesSource && 
+          matchesSearch &&
+          matchesSource &&
           matchesCategory &&
-          matchesLocation && 
-          matchesPrice && 
+          matchesLocation &&
+          matchesPrice &&
           matchesRooms &&
           matchesBaths &&
           matchesGarage &&
@@ -692,11 +655,13 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
       sourceFilters.forEach(b => {
         b.classList.remove('bg-brand-green', 'text-surface');
         b.classList.add('text-ink-muted', 'hover:bg-surface-hover');
+        b.setAttribute('aria-pressed', 'false');
       });
-      
+
       btn.classList.remove('text-ink-muted', 'hover:bg-surface-hover');
       btn.classList.add('bg-brand-green', 'text-surface');
-      
+      btn.setAttribute('aria-pressed', 'true');
+
       activeSource = btn.getAttribute('data-filter-source') || 'all';
       updateFilters();
     });
@@ -708,11 +673,13 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
       categoryFilters.forEach(b => {
         b.classList.remove('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/20');
         b.classList.add('bg-surface', 'text-ink-muted', 'border-border-soft', 'hover:border-border-strong');
+        b.setAttribute('aria-pressed', 'false');
       });
-      
+
       btn.classList.remove('bg-surface', 'text-ink-muted', 'border-border-soft', 'hover:border-border-strong');
       btn.classList.add('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/20');
-      
+      btn.setAttribute('aria-pressed', 'true');
+
       activeCategory = btn.getAttribute('data-filter-category') || 'all';
       updateFilters();
     });
@@ -724,11 +691,13 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
       locationFilters.forEach(b => {
         b.classList.remove('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/20');
         b.classList.add('bg-surface', 'text-ink-muted', 'border-border-soft', 'hover:border-border-strong');
+        b.setAttribute('aria-pressed', 'false');
       });
-      
+
       btn.classList.remove('bg-surface', 'text-ink-muted', 'border-border-soft', 'hover:border-border-strong');
       btn.classList.add('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/20');
-      
+      btn.setAttribute('aria-pressed', 'true');
+
       activeLocation = btn.getAttribute('data-filter-location') || 'all';
       updateFilters();
     });
@@ -754,11 +723,13 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
       roomFilters.forEach(b => {
         b.classList.remove('bg-brand-green', 'text-surface');
         b.classList.add('text-ink-muted', 'hover:bg-surface-hover');
+        b.setAttribute('aria-pressed', 'false');
       });
-      
+
       btn.classList.remove('text-ink-muted', 'hover:bg-surface-hover');
       btn.classList.add('bg-brand-green', 'text-surface');
-      
+      btn.setAttribute('aria-pressed', 'true');
+
       minRooms = parseInt(btn.getAttribute('data-filter-rooms') || '0', 10);
       updateFilters();
     });
@@ -770,11 +741,13 @@ const municipalities = AREA_LABELS.flatMap((label) => label.split(' · '));
       bathFilters.forEach(b => {
         b.classList.remove('bg-brand-green', 'text-surface');
         b.classList.add('text-ink-muted', 'hover:bg-surface-hover');
+        b.setAttribute('aria-pressed', 'false');
       });
-      
+
       btn.classList.remove('text-ink-muted', 'hover:bg-surface-hover');
       btn.classList.add('bg-brand-green', 'text-surface');
-      
+      btn.setAttribute('aria-pressed', 'true');
+
       minBaths = parseInt(btn.getAttribute('data-filter-baths') || '0', 10);
       updateFilters();
     });

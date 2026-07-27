@@ -1,5 +1,6 @@
 ---
 export interface Props {
+  id: string;
   title: string;
   url: string;
   source: string;
@@ -19,16 +20,20 @@ export interface Props {
   garaje?: boolean | null;
   trastero?: boolean | null;
   terraza?: boolean | null;
+  enriched?: boolean;
 }
 
-const { 
-  title, 
-  url, 
-  publishedAt, 
-  firstSeenAt, 
-  location, 
-  type, 
-  status, 
+const {
+  id,
+  title,
+  url,
+  source,
+  sourceKind = 'official',
+  publishedAt,
+  firstSeenAt,
+  location,
+  type,
+  status,
   summary,
   precioMin = null,
   precioMax = null,
@@ -38,13 +43,33 @@ const {
   totalViviendas = null,
   garaje = null,
   trastero = null,
-  terraza = null
+  terraza = null,
+  enriched = false
 } = Astro.props;
 
+// ponytail: BASE_URL may lack trailing slash depending on config; normalize once.
+const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+
+// Link badge to /municipio/<slug> when location maps to a monitored municipality.
+// Sub-locations alias to their municipality (matches municipio/[slug].astro).
+import { AREA_LABELS } from '../../scripts/lib/config.mjs';
+const slugify = (s: string) =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+const MUNI_SLUGS = new Set(AREA_LABELS.flatMap((l) => l.split(' · ')).map(slugify));
+const MUNI_ALIASES: Record<string, string> = { 'perillo': 'oleiros', 'santa-cruz': 'oleiros', 'o-burgo': 'culleredo' };
+const locSlug = slugify(location);
+const muniSlug = MUNI_SLUGS.has(locSlug) ? locSlug : MUNI_ALIASES[locSlug];
+const isMarket = sourceKind === 'market-alert';
+const sourceLabel = isMarket ? 'Prensa local' : source;
+const sourceBadgeBg = isMarket ? 'bg-brand-orange-soft text-brand-orange border border-brand-orange/10' : 'bg-brand-green-soft text-brand-green border border-brand-green/10';
 const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
   day: 'numeric',
   month: 'short',
   year: 'numeric',
+});
+const firstSeenDate = new Date(firstSeenAt).toLocaleDateString('es-ES', {
+  day: 'numeric',
+  month: 'short',
 });
 
 import { statusColors } from '../../scripts/lib/statuses.mjs';
@@ -53,7 +78,7 @@ const mapsQuery = encodeURIComponent(location + ' A Coruña España');
 const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 ---
 
-<article 
+<article
   class="opportunity-card group relative flex flex-col justify-between rounded-2xl border border-border-soft bg-surface p-5 shadow-premium transition-all duration-300 hover:shadow-hover hover:border-border-medium"
   data-location={location}
   data-type={type}
@@ -72,21 +97,27 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
         </svg>
-        <a href={mapsUrl} target="_blank" rel="noopener noreferrer" class="text-xs font-bold tracking-wider text-ink-muted uppercase hover:text-brand-green transition-colors relative z-20" title="Abrir en Google Maps">
-          {location}
-        </a>
+        {muniSlug ? (
+          <a href={`${base}municipio/${muniSlug}`} class="relative z-20 text-xs font-bold tracking-wider text-ink-muted uppercase hover:text-brand-green transition-colors">{location}</a>
+        ) : (
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" class="text-xs font-bold tracking-wider text-ink-muted uppercase hover:text-brand-green transition-colors relative z-20" title="Abrir en Google Maps">
+            {location}
+          </a>
+        )}
       </div>
       <time class="text-xs font-medium text-ink-light" datetime={publishedAt || firstSeenAt}>
         {date}
       </time>
     </div>
 
-    <h3 class="text-base font-bold leading-snug tracking-tight text-ink group-hover:text-brand-green transition-colors duration-200 mb-2 md:text-lg">
-      <a href={url} target="_blank" rel="noopener noreferrer" class="focus:outline-none">
+    <!-- Title -->
+    <h3 class="text-base font-bold leading-snug tracking-tight text-ink group-hover:text-brand-green transition-colors duration-200 mb-1 md:text-lg">
+      <a href={`${base}oportunidad/${id}`} aria-label={title} class="focus:outline-none">
         <span class="absolute inset-0 rounded-2xl cursor-pointer" aria-hidden="true"></span>
         {title}
       </a>
     </h3>
+    <p class="text-[11px] text-ink-light mb-2">Detectado el {firstSeenDate}</p>
 
     {(precioMin || promotora || habitacionesMin || banosMin || garaje || trastero || terraza) && (
       <div class="mb-3.5 relative z-10 pointer-events-none">
@@ -96,18 +127,18 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
               Desde {precioMin.toLocaleString('es-ES')} €
             </span>
           )}
-          
+
           {(habitacionesMin || banosMin) && (
             <span class="text-xs font-semibold text-ink-muted flex items-center gap-1.5 bg-canvas/60 px-2 py-0.5 rounded border border-border-soft">
-              {habitacionesMin && <span>🛏️ {habitacionesMin} {habitacionesMin === 1 ? 'hab' : 'habs'}</span>}
+              {habitacionesMin && <span><span aria-hidden="true">🛏️</span> {habitacionesMin} {habitacionesMin === 1 ? 'hab' : 'habs'}</span>}
               {habitacionesMin && banosMin && <span class="text-ink-light/40">|</span>}
-              {banosMin && <span>🛁 {banosMin} {banosMin === 1 ? 'baño' : 'baños'}</span>}
+              {banosMin && <span><span aria-hidden="true">🛁</span> {banosMin} {banosMin === 1 ? 'baño' : 'baños'}</span>}
             </span>
           )}
 
           {totalViviendas && (
             <span class="text-xs font-medium text-ink-light">
-              🏢 {totalViviendas} vivs.
+              <span aria-hidden="true">🏢</span> {totalViviendas} vivs.
             </span>
           )}
         </div>
@@ -122,9 +153,9 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
           {(garaje || trastero || terraza) && (
             <span class="text-ink-light flex flex-wrap items-center gap-1.5">
               {promotora && <span class="text-ink-light/40">·</span>}
-              {garaje && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]">🚗 Garaje</span>}
-              {trastero && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]">📦 Trastero</span>}
-              {terraza && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]">☀️ Terraza</span>}
+              {garaje && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]"><span aria-hidden="true">🚗</span> Garaje</span>}
+              {trastero && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]"><span aria-hidden="true">📦</span> Trastero</span>}
+              {terraza && <span class="bg-canvas border border-border-soft/60 px-1.5 py-0.5 rounded text-[11px]"><span aria-hidden="true">☀️</span> Terraza</span>}
             </span>
           )}
         </div>
@@ -138,24 +169,44 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
     )}
   </div>
 
-  <div class="flex flex-wrap items-center justify-between gap-3 mt-4 pt-3 border-t border-border-soft relative z-10">
-    <div class="flex flex-wrap gap-1.5">
-      <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-muted whitespace-nowrap">
-        {type}
-      </span>
-      
-      {status && (
-        <span class={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap ${statusColors(status)}`}>
-          {status}
+  <!-- Card Footer: Unified Badges & CTA -->
+  <div class="relative z-10">
+    <div class="flex flex-wrap items-center justify-between gap-3 mt-4 pt-3 border-t border-border-soft">
+      <div class="flex flex-wrap gap-1.5">
+        <!-- Housing Type Badge -->
+        <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-muted">
+          {type}
         </span>
-      )}
+
+        <!-- Status Badge -->
+        {status && (
+          <span class={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap ${statusColors(status)}`}>
+            {status}
+          </span>
+        )}
+
+        <!-- Source Badge -->
+        <span class="inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold" class:list={[sourceBadgeBg]}>
+          {sourceLabel}
+        </span>
+      </div>
+
+      <!-- External Source Link -->
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="relative z-10 inline-flex items-center gap-1 text-xs font-bold text-brand-green hover:underline"
+      >
+        <span>Fuente original</span>
+        <svg class="h-4.5 w-4.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" />
+        </svg>
+      </a>
     </div>
 
-    <div class="inline-flex items-center gap-1 text-xs font-bold text-brand-green group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200">
-      <span>Abrir</span>
-      <svg class="h-4.5 w-4.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
-        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" />
-      </svg>
-    </div>
+    {enriched && (
+      <p class="mt-2 text-[11px] text-ink-light">Datos extraídos por IA · verifica en la fuente</p>
+    )}
   </div>
 </article>
