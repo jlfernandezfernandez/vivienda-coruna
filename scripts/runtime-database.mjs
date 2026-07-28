@@ -1,6 +1,6 @@
 import { renameSync, rmSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import { ensureSchema, getRunById, transitionRun } from './lib/db.mjs';
+import { ensureSchema, getRunById, transitionRun, purgeStaleData } from './lib/db.mjs';
 
 const [command, databasePath, runId, extra] = process.argv.slice(2);
 
@@ -45,6 +45,7 @@ try {
     if (!getRunById(db, runId) || !transitionRun(db, runId, 'queued', 'running')) process.exitCode = 65;
   } else if (command === 'succeed') {
     if (!transitionRun(db, runId, 'running', 'succeeded')) process.exitCode = 65;
+    else purgeStaleData(db);
   } else if (command === 'fail') {
     const failed = transitionRun(db, runId, 'running', 'failed');
     if (failed && extra) {

@@ -6,6 +6,15 @@ import { classifyPromotionLocation, municipalitySlug, MUNICIPALITIES, slugify } 
 
 let dbInstance = null;
 
+// Module-level flag: when a pipeline run transitions to succeeded the dashboard
+// cache should be invalidated. Each repository instance holds its own cache
+// object and checks this counter to detect invalidation.
+let dashboardCacheVersion = 0;
+
+export function invalidateDashboardCache() {
+  dashboardCacheVersion += 1;
+}
+
 /**
  * Open and initialize the native SQLite database file.
  * 
@@ -17,6 +26,11 @@ export function getDatabase(options = {}) {
     const readOnly = options.readOnly ?? false;
     dbInstance = new DatabaseSync(dbPath, { readOnly });
     dbInstance.exec('PRAGMA foreign_keys = ON;');
+    if (!readOnly) {
+      dbInstance.exec('PRAGMA journal_mode = WAL;');
+      dbInstance.exec('PRAGMA synchronous = NORMAL;');
+      dbInstance.exec('PRAGMA busy_timeout = 5000;');
+    }
     if (readOnly) return dbInstance;
     
     // Create tables schema
@@ -387,27 +401,36 @@ export function getAllSources(db) {
  * @returns {Array<Object>} List of gestoras with promotions
  */
 export function getAllGestoras(db) {
-  const gestorasRows = db.prepare('SELECT * FROM gestoras').all();
-  const promotionsRows = db.prepare("SELECT * FROM gestora_promotions WHERE scopeStatus = 'in_scope'").all();
+  const rows = db.prepare(`
+    SELECT g.*,
+      COALESCE(
+        (SELECT json_group_array(
+          json_object(
+            'id', p.id,
+            'name', p.name,
+            'location', p.location,
+            'status', p.status,
+            'details', p.details,
+            'link', p.link,
+            'entregaEstimada', p.entregaEstimada,
+            'buscaSocios', p.buscaSocios,
+            'aportacionInicial', p.aportacionInicial
+          )
+        )
+        FROM gestora_promotions p
+        WHERE p.gestoraId = g.id AND p.scopeStatus = 'in_scope'),
+        '[]'
+      ) AS promotionsJson
+    FROM gestoras g
+  `).all();
 
-  return gestorasRows.map(g => {
-    const promotions = promotionsRows
-      .filter(p => p.gestoraId === g.id)
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        location: p.location,
-        status: p.status,
-        details: p.details,
-        link: p.link,
-        entregaEstimada: p.entregaEstimada,
-        buscaSocios: p.buscaSocios === 1 ? true : (p.buscaSocios === 0 ? false : null),
-        aportacionInicial: p.aportacionInicial,
-      }));
-    return {
-      ...g,
-      promotions
-    };
+  return rows.map(g => {
+    const promotions = JSON.parse(g.promotionsJson).map(p => ({
+      ...p,
+      buscaSocios: p.buscaSocios === 1 ? true : (p.buscaSocios === 0 ? false : null),
+    }));
+    const { promotionsJson: _promotionsJson, ...gestora } = g;
+    return { ...gestora, promotions };
   });
 }
 
@@ -565,6 +588,27 @@ export function finalizeRegistryImport(db, seenAt) {
 }
 
 /**
+ * Purga datos obsoletos: oportunidades no vistas en 180 días, eventos > 90 días
+ * y pipeline_runs completados > 30 días. Pensada para ejecutarse al final de
+ * cada corrida exitosa del pipeline.
+ *
+ * @param {DatabaseSync} db
+ * @returns {{ opportunities: number, events: number, pipelineRuns: number }}
+ */
+export function purgeStaleData(db) {
+  const opportunities = db.prepare(
+    `DELETE FROM opportunities WHERE lastSeenAt < date('now', '-180 days')`
+  ).run().changes;
+  const events = db.prepare(
+    `DELETE FROM events WHERE detectedAt < date('now', '-90 days')`
+  ).run().changes;
+  const pipelineRuns = db.prepare(
+    `DELETE FROM pipeline_runs WHERE status IN ('succeeded', 'failed', 'interrupted') AND completedAt < date('now', '-30 days')`
+  ).run().changes;
+  return { opportunities, events, pipelineRuns };
+}
+
+/**
  * All registry cooperatives in the monitored area, newest first.
  *
  * @param {DatabaseSync} db
@@ -694,6 +738,14 @@ export function ensureSchema(db) {
       ON pipeline_runs(idempotencyKey) WHERE idempotencyKey IS NOT NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_one_running
       ON pipeline_runs((1)) WHERE status = 'running';
+
+    CREATE INDEX IF NOT EXISTS idx_opp_promotionId ON opportunities(promotionId);
+    CREATE INDEX IF NOT EXISTS idx_opp_publishedAt ON opportunities(publishedAt);
+    CREATE INDEX IF NOT EXISTS idx_opp_sourceKind ON opportunities(sourceKind);
+    CREATE INDEX IF NOT EXISTS idx_promo_scopeStatus ON gestora_promotions(scopeStatus);
+    CREATE INDEX IF NOT EXISTS idx_promo_gestoraId ON gestora_promotions(gestoraId);
+    CREATE INDEX IF NOT EXISTS idx_events_detectedAt ON events(detectedAt DESC);
+    CREATE INDEX IF NOT EXISTS idx_coop_municipality_active ON cooperatives(municipality, active);
   `);
 }
 
@@ -738,6 +790,7 @@ export function transitionRun(db, id, fromStatus, toStatus) {
   ).run(...params);
 
   if (result.changes === 0) return null;
+  if (toStatus === 'succeeded') invalidateDashboardCache();
   return getRunById(db, id);
 }
 
@@ -814,28 +867,48 @@ export function createRepository(dbOrFactory, options = {}) {
   };
   const municipalities = MUNICIPALITIES.map((name) => ({ name, slug: slugify(name) }));
 
+  // Instance-level TTL cache for dashboard() — 60 s, invalidated on successful
+  // pipeline runs via the module-level version counter.
+  const DASHBOARD_CACHE_TTL_MS = 60_000;
+  let dashboardCache = null; // { result, timestamp, version }
+
   return {
     health: () => withDb((db) => {
       const integrity = db.prepare('PRAGMA integrity_check').get();
       return { database: integrity.integrity_check === 'ok' ? 'ok' : 'corrupt' };
     }),
 
-    dashboard: () => withDb((db) => {
-      const opportunities = getAllOpportunities(db, 150).map(opportunityDto);
-      return {
-        opportunities,
-        sources: getAllSources(db),
-        gestoras: getAllGestoras(db).map(gestoraDto),
-        cooperatives: getAllCooperatives(db),
-        events: getRecentEvents(db, 25),
-        municipalities,
-        coverage: options.coverageBuilder?.(opportunities)
-          ?? options.coverage
-          ?? { boundaries: [], markers: [] },
-      };
-    }),
+    dashboard: () => {
+      const now = Date.now();
+      if (dashboardCache && dashboardCache.version === dashboardCacheVersion && now - dashboardCache.timestamp < DASHBOARD_CACHE_TTL_MS) {
+        return dashboardCache.result;
+      }
+      const result = withDb((db) => {
+        const opportunities = getAllOpportunities(db, 150).map(opportunityDto);
+        return {
+          opportunities,
+          sources: getAllSources(db),
+          gestoras: getAllGestoras(db).map(gestoraDto),
+          cooperatives: getAllCooperatives(db),
+          events: getRecentEvents(db, 25),
+          municipalities,
+          coverage: options.coverageBuilder?.(opportunities)
+            ?? options.coverage
+            ?? { boundaries: [], markers: [] },
+        };
+      });
+      dashboardCache = { result, timestamp: now, version: dashboardCacheVersion };
+      return result;
+    },
 
-    opportunityById: (id) => withDb((db) => opportunityDto(getOpportunity(db, id))),
+    opportunityById: (id) => withDb((db) => {
+      const opportunity = opportunityDto(getOpportunity(db, id));
+      if (!opportunity) return null;
+      const events = db.prepare(
+        `SELECT * FROM events WHERE entityKind = 'opportunity' AND entityId = ? ORDER BY detectedAt DESC LIMIT 20`
+      ).all(id);
+      return { ...opportunity, events };
+    }),
     gestoras: () => withDb((db) => getAllGestoras(db).map(gestoraDto)),
     gestoraById: (id) => withDb((db) => gestoraWithPress(db, id)),
     cooperatives: () => withDb((db) => getAllCooperatives(db)),
@@ -843,9 +916,25 @@ export function createRepository(dbOrFactory, options = {}) {
     municipalityBySlug: (requestedSlug) => withDb((db) => {
       const name = MUNICIPALITIES.find((municipality) => slugify(municipality) === requestedSlug);
       if (!name) return null;
-      const opportunities = getAllOpportunities(db, 150)
-        .filter((row) => classifyPromotionLocation(row.location || '').municipality === name)
-        .map(opportunityDto);
+      const opportunities = db.prepare(`
+        SELECT * FROM (
+          SELECT opportunities.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY COALESCE(promotionId, id)
+              ORDER BY COALESCE(publishedAt, firstSeenAt) DESC, lastSeenAt DESC
+            ) AS canonicalRank
+          FROM opportunities
+          WHERE location LIKE ?
+        )
+        WHERE canonicalRank = 1
+        ORDER BY COALESCE(publishedAt, firstSeenAt) DESC
+      `).all(`%${name}%`).map(({ canonicalRank: _canonicalRank, ...row }) => ({
+        ...row,
+        garaje: row.garaje === 1 ? true : (row.garaje === 0 ? false : null),
+        trastero: row.trastero === 1 ? true : (row.trastero === 0 ? false : null),
+        terraza: row.terraza === 1 ? true : (row.terraza === 0 ? false : null),
+        enriched: row.enriched === 1,
+      })).map(opportunityDto);
       const gestoraPromotions = db.prepare(
         "SELECT * FROM gestora_promotions WHERE municipality = ? AND scopeStatus = 'in_scope'",
       ).all(name).map((promotion) => ({
