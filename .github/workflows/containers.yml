@@ -68,7 +68,7 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/vivienda-coruna-${{ matrix.name }}:sha-${{ github.sha }}
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && vars.COOLIFY_SERVICE_UUID != ''
+    if: false  # Cloudflare WAF blocks GH Actions runners. Deploy manually from Hermes.
     needs: publish
     runs-on: ubuntu-latest
     environment: production
