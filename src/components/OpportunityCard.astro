@@ -20,6 +20,9 @@ export interface Props {
   garaje?: boolean | null;
   trastero?: boolean | null;
   terraza?: boolean | null;
+  municipalitySlug?: string | null;
+  statusLabel?: string | null;
+  statusTone?: string | null;
 }
 
 const {
@@ -45,13 +48,12 @@ const {
   terraza = null
 } = Astro.props;
 
-import { municipalitySlug, webBase } from '../../scripts/lib/municipios.mjs';
-import { statusColors } from '../../scripts/lib/statuses.mjs';
+import { siteBase, statusToneClass } from '../lib/ui.mjs';
 
-const base = webBase(import.meta.env.BASE_URL);
+const base = siteBase(import.meta.env.BASE_URL);
 
 // Link badge a /municipio/<slug> cuando la location mapea a un municipio monitorizado.
-const muniSlug = municipalitySlug(location);
+const muniSlug = Astro.props.municipalitySlug;
 const publicSourceKind = sourceKind === 'firecrawl-search' ? 'web' : sourceKind;
 const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
   day: 'numeric',
@@ -172,8 +174,8 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
         <!-- Status Badge -->
         {status && (
-          <span class={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap ${statusColors(status)}`}>
-            {status}
+          <span class={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap ${statusToneClass(Astro.props.statusTone)}`}>
+            {Astro.props.statusLabel || status}
           </span>
         )}
 

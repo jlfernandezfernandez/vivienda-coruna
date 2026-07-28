@@ -3,17 +3,21 @@ import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
 import CoverageMap from '../components/CoverageMap.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
-import { config } from '../../scripts/lib/config.mjs';
-import { MUNICIPALITIES, webBase } from '../../scripts/lib/municipios.mjs';
-import { getDatabase, getAllOpportunities, getAllSources, getAllGestoras, getAllCooperatives, getRecentEvents } from '../../scripts/lib/db.mjs';
+import { api } from '../lib/api/client.mjs';
+import { applyApiFailure } from '../lib/api/boundary.mjs';
+import { siteBase } from '../lib/ui.mjs';
 
-const base = webBase(import.meta.env.BASE_URL);
-const db = getDatabase();
-const items = getAllOpportunities(db, 150);
-const sources = getAllSources(db);
-const gestoras = getAllGestoras(db);
-const cooperatives = getAllCooperatives(db);
-const recentEvents = getRecentEvents(db, 12);
+const base = siteBase(import.meta.env.BASE_URL);
+let dashboard;
+try {
+  dashboard = await api.dashboard();
+} catch (error) {
+  applyApiFailure(Astro.response, error);
+  dashboard = { opportunities: [], sources: [], gestoras: [], cooperatives: [], events: [], municipalities: [], coverage: { boundaries: [], markers: [] } };
+}
+const { opportunities: items, sources, gestoras, cooperatives, events, coverage } = dashboard;
+const municipalities = dashboard.municipalities.map((municipality) => municipality.name);
+const recentEvents = events.slice(0, 12);
 const publicSourceName = (source: { name: string; kind: string }) =>
   source.kind === 'firecrawl-search' ? source.name.replace(/^Firecrawl/, 'Web') : source.name;
 const healthySources = sources.filter((source) => source.ok).length;
@@ -50,13 +54,10 @@ const coopPromotions = gestoras.flatMap((g) =>
 );
 const activeCoopCount = coopOpportunities.length + coopPromotions.length;
 
-// Load values from central config to make the whole page highly configurable
-const siteTitle = config.site.title;
-const siteDescription = config.site.description;
-const headerTitle = config.site.headerTitle;
-const headerSubtitle = config.site.headerSubtitle;
-// Chips de municipio: solo los 9 municipios reales (las sub-localidades resuelven a su municipio).
-const municipalities = MUNICIPALITIES;
+const siteTitle = 'Cooperativas de vivienda en A Coruña — alertas y obra nueva | Vivienda Coruña';
+const siteDescription = 'Todas las cooperativas de vivienda y promociones de obra nueva del área metropolitana de A Coruña: captación de socios, plazas, licencias y vivienda protegida, detectadas a diario.';
+const headerTitle = 'Cooperativas y Obra Nueva en A Coruña';
+const headerSubtitle = 'Detecta señales tempranas de cooperativas de viviendas, búsqueda de socios, licencias y promociones públicas o privadas en el área metropolitana.';
 
 const shortDate = (d: string) =>
   new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' });
@@ -67,7 +68,6 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
   price: { icon: '€', className: 'text-brand-orange' },
 };
 
-const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.location, type: i.type, precioMin: i.precioMin }));
 ---
 
 <Layout
@@ -425,7 +425,7 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
               {municipalities.length} municipios
             </span>
           </div>
-          <CoverageMap items={mapItems} />
+          <CoverageMap boundaries={coverage.boundaries} markers={coverage.markers.map((marker) => ({ ...marker, url: `${base}${marker.url.replace(/^\//, '')}` }))} />
           <p class="text-xs text-ink-muted mt-3 leading-relaxed">
             Área de monitorización restringida a A Coruña y su corona metropolitana inmediata.
           </p>

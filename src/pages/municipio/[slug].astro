@@ -1,33 +1,23 @@
 ---
 import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
-import { MUNICIPALITIES, resolveMunicipality, slugify, webBase } from '../../../scripts/lib/municipios.mjs';
-import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives } from '../../../scripts/lib/db.mjs';
+import { api } from '../../lib/api/client.mjs';
+import { applyApiFailure } from '../../lib/api/boundary.mjs';
+import { siteBase } from '../../lib/ui.mjs';
 
-export function getStaticPaths() {
-  const db = getDatabase();
-  const opportunities = getAllOpportunities(db, 150);
-  const cooperatives = getAllCooperatives(db);
-  const gestoras = getAllGestoras(db);
-
-  // Solo páginas para los 9 municipios; las sub-localidades resuelven a su municipio.
-  return MUNICIPALITIES.map((municipality) => ({
-    params: { slug: slugify(municipality) },
-    props: {
-      municipality,
-      opportunities: opportunities.filter((o) => resolveMunicipality(o.location) === municipality),
-      cooperatives: cooperatives.filter((c) => c.municipality === municipality),
-      promotions: gestoras.flatMap((g) =>
-        g.promotions
-          .filter((p) => resolveMunicipality(p.location) === municipality)
-          .map((p) => ({ gestora: g, promo: p }))
-      ),
-    },
-  }));
+let municipalityData;
+let gestoras = [];
+try {
+  [municipalityData, gestoras] = await Promise.all([api.municipality(Astro.params.slug), api.gestoras()]);
+} catch (error) {
+  applyApiFailure(Astro.response, error);
+  municipalityData = { name: 'Municipio no disponible', opportunities: [], cooperatives: [], gestoraPromotions: [] };
 }
-
-const { municipality, opportunities, cooperatives, promotions } = Astro.props;
-const base = webBase(import.meta.env.BASE_URL);
+const municipality = municipalityData.name;
+const { opportunities, cooperatives } = municipalityData;
+const gestorasById = new Map(gestoras.map((gestora) => [gestora.id, gestora]));
+const promotions = municipalityData.gestoraPromotions.map((promo) => ({ gestora: gestorasById.get(promo.gestoraId) || { id: promo.gestoraId, name: '' }, promo }));
+const base = siteBase(import.meta.env.BASE_URL);
 const total = opportunities.length + cooperatives.length + promotions.length;
 
 const pageTitle = `Cooperativas y obra nueva en ${municipality} | Vivienda Coruña`;

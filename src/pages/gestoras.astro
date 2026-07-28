@@ -1,13 +1,17 @@
 ---
 import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
-import { getDatabase, getAllGestoras } from '../../scripts/lib/db.mjs';
-import { statusColors } from '../../scripts/lib/statuses.mjs';
+import { api } from '../lib/api/client.mjs';
+import { applyApiFailure } from '../lib/api/boundary.mjs';
+import { siteBase, statusToneClass } from '../lib/ui.mjs';
 
-const db = getDatabase();
-const gestoras = getAllGestoras(db);
-const rawBase = import.meta.env.BASE_URL;
-const base = rawBase.endsWith("/") ? rawBase : rawBase + "/"; // build strips trailing slash
+let gestoras = [];
+try {
+  gestoras = await api.gestoras();
+} catch (error) {
+  applyApiFailure(Astro.response, error);
+}
+const base = siteBase(import.meta.env.BASE_URL);
 
 const pageTitle = 'Gestoras de cooperativas y promotoras en A Coruña | Vivienda Coruña';
 const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y promotoras activas en el área metropolitana de A Coruña: promociones, captación de socios y contacto.';
@@ -108,8 +112,8 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
                               Captación abierta
                             </span>
                           )}
-                          <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColors(promo.status)}`}>
-                            {promo.status}
+                          <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusToneClass(promo.statusTone)}`}>
+                            {promo.statusLabel || promo.status}
                           </span>
                         </div>
                       </div>
