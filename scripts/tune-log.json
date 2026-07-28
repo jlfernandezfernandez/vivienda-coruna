@@ -108,6 +108,32 @@
       ],
       "cleaned": 12,
       "patches": []
+    },
+    {
+      "date": "2026-07-28T08:14:09.137Z",
+      "total": 43,
+      "enriched": 43,
+      "noStatus": 14,
+      "badPriceCount": 0,
+      "duplicates": 0,
+      "knownGarbage": {
+        "listados portales": 11
+      },
+      "suspiciousCount": 0,
+      "gestorasNoContact": [
+        "Promociones Casabriz (Grupo Casado) y Taboada y Ramos",
+        "grupo Nozar",
+        "Galivivienda",
+        "Promociones Casado",
+        "UGACOVI",
+        "NOSOGAR"
+      ],
+      "gestorasNoPromos": [
+        "Aelca",
+        "UGACOVI"
+      ],
+      "cleaned": 11,
+      "patches": []
     }
   ],
   "patches": []
