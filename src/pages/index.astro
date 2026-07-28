@@ -61,27 +61,6 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
   price: { icon: '€', className: 'text-brand-orange' },
 };
 
-// Sparkline data: opportunities detected per week for last ~3 months (13 weeks)
-const now = new Date();
-const weekMs = 7 * 24 * 60 * 60 * 1000;
-const sparklineWeeks: { weekLabel: string; count: number }[] = [];
-for (let w = 12; w >= 0; w--) {
-  const weekStart = new Date(now.getTime() - w * weekMs);
-  const weekEnd = new Date(weekStart.getTime() + weekMs);
-  const count = items.filter(item => {
-    const d = new Date(item.firstSeenAt);
-    return d >= weekStart && d < weekEnd;
-  }).length;
-  const weekLabel = weekStart.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }, );
-  sparklineWeeks.push({ weekLabel, count });
-}
-const sparkMaxCount = Math.max(...sparklineWeeks.map(w => w.count), 1);
-const sparkBarWidth = 100 / sparklineWeeks.length; // percentage
-const sparkMaxBarH = 60; // px, max bar height within 80px tall SVG
-
-// Visit banner SSR data: serialize events with detectedAt for client-side counting
-const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, kind: e.kind })));
-
 ---
 
 <Layout
@@ -95,11 +74,6 @@ const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, k
         <span class="text-ink-muted"> Reintenta en un minuto; no se muestran datos antiguos como si estuvieran actualizados.</span>
       </div>
     )}
-
-    <!-- Visit banner: shows new opportunities / status / price changes since last visit -->
-    <div id="visit-banner" class="visit-banner mb-6 rounded-2xl border border-brand-green/15 bg-brand-green-soft/50 p-4 text-sm hidden" role="status" aria-live="polite" data-events={eventsJson}>
-      <span id="visit-banner-text"></span>
-    </div>
 
     <!-- Page Header -->
     <div class="mb-8 md:mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-soft pb-6">
@@ -203,37 +177,6 @@ const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, k
       )}
     </section>
 
-    <!-- Sparkline: weekly activity over last 3 months -->
-    <section class="mb-10" aria-labelledby="sparkline-title">
-      <h2 id="sparkline-title" class="text-lg font-bold text-ink mb-3 flex items-center gap-2">
-        Actividad semanal
-        <span class="text-xs font-normal text-ink-light">(últimos 3 meses)</span>
-      </h2>
-      <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
-        <svg class="sparkline-svg w-full" viewBox="0 0 100 80" preserveAspectRatio="none" role="img" aria-label="Oportunidades detectadas por semana en los últimos 3 meses" style="max-height: 80px;">
-          {sparklineWeeks.map((week, i) => {
-            const barH = (week.count / sparkMaxCount) * sparkMaxBarH;
-            const barY = 70 - barH;
-            return (
-              <rect
-                x={i * sparkBarWidth + 0.5}
-                y={barY}
-                width={sparkBarWidth - 1}
-                height={barH}
-                rx={1}
-                ry={1}
-                fill="var(--color-brand-green)"
-                opacity={week.count > 0 ? 0.85 : 0.2}
-              />
-            );
-          })}
-          <text x="0" y="78" text-anchor="start">{sparklineWeeks[0]?.weekLabel ?? ''}</text>
-          <text x="100" y="78" text-anchor="end">{sparklineWeeks[sparklineWeeks.length - 1]?.weekLabel ?? ''}</text>
-        </svg>
-        <p class="text-xs text-ink-muted mt-2">Novedades detectadas por semana</p>
-      </div>
-    </section>
-
     <!-- Layout Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8">
 
@@ -324,11 +267,6 @@ const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, k
                 VPP / VPA Oficial
               </button>
             </div>
-            <!-- Exclude VPP checkbox -->
-            <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none mt-1">
-              <input type="checkbox" id="filter-exclude-vpp" class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" />
-              <span>Excluir VPP / Vivienda protegida</span>
-            </label>
           </div>
 
           <!-- Filter 3: Municipio -->
@@ -564,7 +502,6 @@ const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, k
   const filterGarage = document.getElementById('filter-garage') as HTMLInputElement;
   const filterStorage = document.getElementById('filter-storage') as HTMLInputElement;
   const filterTerrace = document.getElementById('filter-terrace') as HTMLInputElement;
-  const filterExcludeVpp = document.getElementById('filter-exclude-vpp') as HTMLInputElement;
 
   const dateGroups = document.querySelectorAll('.date-group') as NodeListOf<HTMLElement>;
   const activeCountEl = document.getElementById('active-count');
@@ -580,7 +517,6 @@ const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, k
   let needGarage = false;
   let needStorage = false;
   let needTerrace = false;
-  let excludeVpp = false;
 
   function updateFilters() {
     let visibleCount = 0;
@@ -638,9 +574,6 @@ const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, k
         const matchesStorage = !needStorage || hasStorageAttr;
         const matchesTerrace = !needTerrace || hasTerraceAttr;
 
-        // VPP exclusion filter
-        const matchesVppExclusion = !excludeVpp || type !== 'Vivienda protegida';
-
         if (
           matchesSearch &&
           matchesSource &&
@@ -651,8 +584,7 @@ const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, k
           matchesBaths &&
           matchesGarage &&
           matchesStorage &&
-          matchesTerrace &&
-          matchesVppExclusion
+          matchesTerrace
         ) {
           card.style.display = 'flex';
           groupHasMatches = true;
@@ -804,38 +736,5 @@ const eventsJson = JSON.stringify(events.map(e => ({ detectedAt: e.detectedAt, k
       updateFilters();
     });
   }
-  if (filterExcludeVpp) {
-    filterExcludeVpp.addEventListener('change', (e) => {
-      excludeVpp = (e.target as HTMLInputElement).checked;
-      updateFilters();
-    });
-  }
 
-  // Visit banner: count events since last visit
-  (function initVisitBanner() {
-    const STORAGE_KEY = 'vpa-last-visit';
-    const visitBanner = document.getElementById('visit-banner');
-    const visitBannerText = document.getElementById('visit-banner-text');
-    if (!visitBanner || !visitBannerText) return;
-
-    const eventsData: { detectedAt: string; kind: string }[] = JSON.parse(visitBanner.getAttribute('data-events') || '[]');
-    const lastVisit = localStorage.getItem(STORAGE_KEY);
-    const now = new Date().toISOString();
-
-    if (lastVisit) {
-      const lastVisitDate = new Date(lastVisit);
-      const dateStr = lastVisitDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-      const recentEvents = eventsData.filter(e => new Date(e.detectedAt) > lastVisitDate);
-      const newCount = recentEvents.filter(e => e.kind === 'new').length;
-      const statusCount = recentEvents.filter(e => e.kind === 'status').length;
-      const priceCount = recentEvents.filter(e => e.kind === 'price').length;
-
-      if (recentEvents.length > 0) {
-        visitBannerText.innerHTML = `<strong>Desde tu última visita (${dateStr}):</strong> ${newCount} ${newCount === 1 ? 'nueva oportunidad' : 'nuevas oportunidades'}, ${statusCount} ${statusCount === 1 ? 'cambio de estado' : 'cambios de estado'}, ${priceCount} ${priceCount === 1 ? 'cambio de precio' : 'cambios de precio'}.`;
-        visitBanner.classList.remove('hidden');
-      }
-    }
-
-    localStorage.setItem(STORAGE_KEY, now);
-  })();
 </script>

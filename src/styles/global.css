@@ -312,35 +312,3 @@ button[data-filter-category]:active {
   opacity: 0.85;
 }
 
-/* Phase indicator dots */
-.phase-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.phase-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background-color: var(--color-border-medium);
-}
-.phase-dot[data-active="true"] {
-  background-color: var(--color-brand-green);
-}
-.phase-dot[data-active="done"] {
-  background-color: var(--color-brand-green);
-  opacity: 0.5;
-}
-
-/* Visit banner */
-.visit-banner {
-  transition: opacity 200ms ease;
-}
-
-/* Sparkline */
-.sparkline-svg text {
-  fill: var(--color-ink-muted);
-  font-size: 9px;
-  font-family: var(--font-sans);
-}
-
