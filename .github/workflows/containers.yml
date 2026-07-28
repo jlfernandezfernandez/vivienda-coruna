@@ -25,6 +25,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Prepare seed database
+        run: |
+          mkdir -p ${{ runner.temp }}
+          DB_PATH=${{ runner.temp }}/monitor.db node -e "import {getDatabase} from './scripts/lib/db.mjs'; const db=getDatabase(); db.close();"
       - name: Quality gate
         run: npm run quality
         env:
