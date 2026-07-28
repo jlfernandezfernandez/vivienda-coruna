@@ -1,11 +1,12 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import node from '@astrojs/node';
 import tailwindcss from '@tailwindcss/vite';
-import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
-  site: 'https://jlfernandezfernandez.github.io',
-  base: '/vivienda-coruna',
-  integrations: [sitemap()],
+  site: 'https://vivienda.jordixlab.com',
+  base: '/',
+  output: 'server',
+  adapter: node({ mode: 'standalone' }),
   vite: { plugins: [tailwindcss()] },
 });

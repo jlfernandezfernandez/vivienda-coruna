@@ -1,3 +1,3 @@
 User-agent: *
 Allow: /
-Sitemap: https://jlfernandezfernandez.github.io/vivienda-coruna/sitemap-index.xml
+Sitemap: https://vivienda.jordixlab.com/sitemap.xml

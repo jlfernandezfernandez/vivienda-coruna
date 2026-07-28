@@ -1,27 +1,19 @@
 ---
 import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
-import { getDatabase, getAllGestoras, getAllOpportunities } from '../../../scripts/lib/db.mjs';
-import { statusColors } from '../../../scripts/lib/statuses.mjs';
+import { api } from '../../lib/api/client.mjs';
+import { applyApiFailure } from '../../lib/api/boundary.mjs';
+import { siteBase, statusToneClass } from '../../lib/ui.mjs';
 
-export function getStaticPaths() {
-  const db = getDatabase();
-  const opportunities = getAllOpportunities(db, 150);
-  return getAllGestoras(db).map((gestora) => ({
-    params: { id: gestora.id },
-    props: {
-      gestora,
-      // ponytail: substring match on promotora, same heuristic as spec
-      prensa: opportunities.filter(
-        (o) => o.promotora && o.promotora.toLowerCase().includes(gestora.name.toLowerCase())
-      ),
-    },
-  }));
+const base = siteBase(import.meta.env.BASE_URL);
+let gestora;
+try {
+  gestora = await api.gestora(Astro.params.id);
+} catch (error) {
+  applyApiFailure(Astro.response, error);
+  gestora = { id: '', name: 'Gestora no disponible', logo: '', website: '', phone: '', email: '', address: '', description: '', promotions: [], press: [] };
 }
-
-const { gestora, prensa } = Astro.props;
-const rawBase = import.meta.env.BASE_URL;
-const base = rawBase.endsWith("/") ? rawBase : rawBase + "/"; // build strips trailing slash
+const prensa = gestora.press || [];
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -121,8 +113,8 @@ const pageDescription = gestora.description || `Promociones y cooperativas gesti
                         Captación abierta
                       </span>
                     )}
-                    <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColors(promo.status)}`}>
-                      {promo.status}
+                    <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusToneClass(promo.statusTone)}`}>
+                      {promo.statusLabel || promo.status}
                     </span>
                   </div>
                 </div>

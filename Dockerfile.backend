@@ -1,0 +1,22 @@
+FROM node:24-alpine AS dependencies
+WORKDIR /app
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+FROM node:24-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=3000 \
+    DB_PATH=/data/monitor.db
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY package.json ./
+COPY backend ./backend
+COPY scripts ./scripts
+COPY public/coverage.geojson ./public/coverage.geojson
+COPY src/data/monitor.db ./seed/monitor.db
+RUN mkdir -p /data /app/tmp && chown -R node:node /app /data
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+CMD ["node", "backend/server.mjs"]

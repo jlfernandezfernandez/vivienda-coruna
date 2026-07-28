@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { config } from './config.mjs';
-import { classifyPromotionLocation } from './municipios.mjs';
+import { classifyPromotionLocation, municipalitySlug, MUNICIPALITIES, slugify } from './municipios.mjs';
 
 let dbInstance = null;
 
@@ -12,7 +13,7 @@ let dbInstance = null;
  */
 export function getDatabase(options = {}) {
   if (!dbInstance) {
-    const dbPath = join(config.paths.root, 'src', 'data', 'monitor.db');
+    const dbPath = process.env.DB_PATH || join(config.paths.root, 'src', 'data', 'monitor.db');
     const readOnly = options.readOnly ?? process.env.DB_READ_ONLY === '1';
     dbInstance = new DatabaseSync(dbPath, { readOnly });
     dbInstance.exec('PRAGMA foreign_keys = ON;');
@@ -571,5 +572,320 @@ export function finalizeRegistryImport(db, seenAt) {
  */
 export function getAllCooperatives(db) {
   return db.prepare('SELECT * FROM cooperatives WHERE active = 1 ORDER BY foundedAt DESC').all();
+}
+
+// ── Pipeline runs ──────────────────────────────────────────────────────────
+
+export function ensureSchema(db) {
+  // Full application schema — idempotent (IF NOT EXISTS)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS opportunities (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      url TEXT NOT NULL,
+      source TEXT NOT NULL,
+      sourceKind TEXT NOT NULL,
+      publishedAt TEXT,
+      firstSeenAt TEXT NOT NULL,
+      lastSeenAt TEXT NOT NULL,
+      location TEXT,
+      type TEXT,
+      status TEXT,
+      summary TEXT,
+      precioMin INTEGER,
+      precioMax INTEGER,
+      habitacionesMin INTEGER,
+      banosMin INTEGER,
+      promotora TEXT,
+      totalViviendas INTEGER,
+      garaje INTEGER,
+      trastero INTEGER,
+      terraza INTEGER,
+      enriched INTEGER,
+      nombrePromocion TEXT,
+      promotionId TEXT,
+      evidenceText TEXT,
+      extractionMethod TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS sources (
+      name TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      ok INTEGER NOT NULL,
+      scanned INTEGER NOT NULL,
+      checkedAt TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS gestoras (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      logo TEXT NOT NULL,
+      website TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      email TEXT NOT NULL,
+      address TEXT NOT NULL,
+      description TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS gestora_promotions (
+      id TEXT PRIMARY KEY,
+      gestoraId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      location TEXT NOT NULL,
+      status TEXT NOT NULL,
+      details TEXT,
+      link TEXT,
+      entregaEstimada TEXT,
+      buscaSocios INTEGER,
+      aportacionInicial INTEGER,
+      municipality TEXT,
+      scopeStatus TEXT NOT NULL DEFAULT 'unverified',
+      FOREIGN KEY(gestoraId) REFERENCES gestoras(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS cooperatives (
+      cif TEXT PRIMARY KEY,
+      numRegistro TEXT,
+      name TEXT NOT NULL,
+      foundedAt TEXT,
+      foundingPartners INTEGER,
+      address TEXT,
+      postalCode TEXT,
+      municipality TEXT,
+      email TEXT,
+      phone TEXT,
+      firstSeenAt TEXT NOT NULL,
+      lastSeenAt TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS entity_aliases (
+      entityKind TEXT NOT NULL,
+      aliasId TEXT NOT NULL,
+      canonicalId TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      PRIMARY KEY(entityKind, aliasId)
+    );
+
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      detectedAt TEXT NOT NULL,
+      entityKind TEXT NOT NULL,
+      entityId TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      label TEXT,
+      oldValue TEXT,
+      newValue TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS pipeline_runs (
+      id TEXT PRIMARY KEY,
+      mode TEXT NOT NULL CHECK(mode IN ('fast','deep')),
+      status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','running','succeeded','failed','interrupted')),
+      idempotencyKey TEXT,
+      createdAt TEXT NOT NULL,
+      startedAt TEXT,
+      completedAt TEXT,
+      error TEXT
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_idempotency
+      ON pipeline_runs(idempotencyKey) WHERE idempotencyKey IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_one_running
+      ON pipeline_runs((1)) WHERE status = 'running';
+  `);
+}
+
+export function createRun(db, mode, idempotencyKey) {
+  if (idempotencyKey) {
+    const existing = getRunByIdempotencyKey(db, idempotencyKey);
+    if (existing) return existing;
+  }
+  const id = `run-${randomUUID()}`;
+  const createdAt = new Date().toISOString();
+  db.prepare(
+    'INSERT INTO pipeline_runs (id, mode, status, idempotencyKey, createdAt) VALUES (?, ?, ?, ?, ?)'
+  ).run(id, mode, 'queued', idempotencyKey, createdAt);
+  return { id, mode, status: 'queued', idempotencyKey, createdAt };
+}
+
+export function getRunById(db, id) {
+  const row = db.prepare('SELECT * FROM pipeline_runs WHERE id = ?').get(id);
+  return row || null;
+}
+
+export function listRuns(db) {
+  return db.prepare('SELECT * FROM pipeline_runs ORDER BY createdAt DESC').all();
+}
+
+export function getRunByIdempotencyKey(db, key) {
+  if (!key) return null;
+  const row = db.prepare('SELECT * FROM pipeline_runs WHERE idempotencyKey = ?').get(key);
+  return row || null;
+}
+
+export function transitionRun(db, id, fromStatus, toStatus) {
+  const now = new Date().toISOString();
+  const setStarted = toStatus === 'running' ? ', startedAt = ?' : '';
+  const setCompleted = (toStatus === 'succeeded' || toStatus === 'failed' || toStatus === 'interrupted') ? ', completedAt = ?' : '';
+  const params = [toStatus, id, fromStatus];
+  if (toStatus === 'running') params.splice(1, 0, now);
+  if (toStatus === 'succeeded' || toStatus === 'failed' || toStatus === 'interrupted') params.splice(1, 0, now);
+
+  const result = db.prepare(
+    `UPDATE pipeline_runs SET status = ?${setStarted}${setCompleted} WHERE id = ? AND status = ?`
+  ).run(...params);
+
+  if (result.changes === 0) return null;
+  return getRunById(db, id);
+}
+
+export function getRunningRun(db) {
+  const row = db.prepare("SELECT * FROM pipeline_runs WHERE status = 'running' LIMIT 1").get();
+  return row || null;
+}
+
+// ── Repository (injectable into buildBackend) ──────────────────────────────
+
+function opportunityDto(row) {
+  if (!row) return null;
+  const scope = classifyPromotionLocation(row.location || '');
+  return {
+    ...row,
+    municipalitySlug: scope.municipality ? slugify(scope.municipality) : municipalitySlug(row.location),
+    statusLabel: row.status || null,
+    statusTone: statusTone(row.status),
+  };
+}
+
+function statusTone(status) {
+  if (status === 'Últimas unidades') return 'warning';
+  if (['Comercialización', 'En construcción', 'En preventa'].includes(status)) return 'positive';
+  return 'neutral';
+}
+
+function gestoraDto(gestora) {
+  return {
+    ...gestora,
+    promotions: (gestora.promotions || []).map((promotion) => ({
+      ...promotion,
+      statusLabel: promotion.status || null,
+      statusTone: statusTone(promotion.status),
+    })),
+  };
+}
+
+/**
+ * Repository over either one caller-owned connection (tests/migrations) or a
+ * connection factory (runtime). Factory connections close after each operation
+ * so atomic database replacement is immediately visible.
+ */
+function normalizedSearchText(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function gestoraWithPress(db, id) {
+  const gestora = getAllGestoras(db).find((item) => item.id === id);
+  if (!gestora) return null;
+  const needle = normalizedSearchText(gestora.name);
+  const press = getAllOpportunities(db, 150)
+    .filter((opportunity) => opportunity.sourceKind === 'market-alert')
+    .filter((opportunity) => normalizedSearchText([
+      opportunity.promotora,
+      opportunity.title,
+      opportunity.summary,
+    ].join(' ')).includes(needle))
+    .map(opportunityDto);
+  return { ...gestoraDto(gestora), press };
+}
+
+export function createRepository(dbOrFactory, options = {}) {
+  const isFactory = typeof dbOrFactory === 'function';
+  const withDb = (operation) => {
+    if (!isFactory) return operation(dbOrFactory);
+    const db = dbOrFactory();
+    try {
+      db.exec?.('PRAGMA foreign_keys = ON;');
+      return operation(db);
+    } finally {
+      db.close();
+    }
+  };
+  const municipalities = MUNICIPALITIES.map((name) => ({ name, slug: slugify(name) }));
+
+  return {
+    health: () => withDb((db) => {
+      const integrity = db.prepare('PRAGMA integrity_check').get();
+      return { database: integrity.integrity_check === 'ok' ? 'ok' : 'corrupt' };
+    }),
+
+    dashboard: () => withDb((db) => {
+      const opportunities = getAllOpportunities(db, 150).map(opportunityDto);
+      return {
+        opportunities,
+        sources: getAllSources(db),
+        gestoras: getAllGestoras(db).map(gestoraDto),
+        cooperatives: getAllCooperatives(db),
+        events: getRecentEvents(db, 25),
+        municipalities,
+        coverage: options.coverageBuilder?.(opportunities)
+          ?? options.coverage
+          ?? { boundaries: [], markers: [] },
+      };
+    }),
+
+    opportunityById: (id) => withDb((db) => opportunityDto(getOpportunity(db, id))),
+    gestoras: () => withDb((db) => getAllGestoras(db).map(gestoraDto)),
+    gestoraById: (id) => withDb((db) => gestoraWithPress(db, id)),
+    cooperatives: () => withDb((db) => getAllCooperatives(db)),
+
+    municipalityBySlug: (requestedSlug) => withDb((db) => {
+      const name = MUNICIPALITIES.find((municipality) => slugify(municipality) === requestedSlug);
+      if (!name) return null;
+      const opportunities = getAllOpportunities(db, 150)
+        .filter((row) => classifyPromotionLocation(row.location || '').municipality === name)
+        .map(opportunityDto);
+      const gestoraPromotions = db.prepare(
+        "SELECT * FROM gestora_promotions WHERE municipality = ? AND scopeStatus = 'in_scope'",
+      ).all(name).map((promotion) => ({
+        ...promotion,
+        buscaSocios: promotion.buscaSocios === 1 ? true : (promotion.buscaSocios === 0 ? false : null),
+        statusLabel: promotion.status || null,
+        statusTone: statusTone(promotion.status),
+      }));
+      const cooperatives = db.prepare(
+        'SELECT * FROM cooperatives WHERE municipality = ? AND active = 1',
+      ).all(name);
+      return { slug: requestedSlug, name, opportunities, gestoraPromotions, cooperatives };
+    }),
+
+    seoRoutes: () => withDb((db) => ({
+      municipalities: municipalities.map(({ slug }) => `/municipio/${slug}`),
+      opportunities: db.prepare('SELECT id FROM opportunities').all().map(({ id }) => `/oportunidad/${id}`),
+      gestoras: db.prepare('SELECT id FROM gestoras').all().map(({ id }) => `/gestora/${id}`),
+    })),
+
+    createRun: (mode, idempotencyKey) => withDb((db) => createRun(db, mode, idempotencyKey)),
+    listRuns: () => withDb((db) => listRuns(db)),
+    runById: (id) => withDb((db) => getRunById(db, id)),
+    runningRun: () => withDb((db) => getRunningRun(db)),
+    nextQueuedRun: () => withDb((db) => db.prepare(
+      "SELECT * FROM pipeline_runs WHERE status = 'queued' ORDER BY createdAt ASC LIMIT 1",
+    ).get() || null),
+    interruptRunningRuns: () => withDb((db) => db.prepare(
+      "UPDATE pipeline_runs SET status = 'interrupted', completedAt = ? WHERE status = 'running'",
+    ).run(new Date().toISOString()).changes),
+    sources: () => withDb((db) => getAllSources(db)),
+
+    diagnostics: () => withDb((db) => ({
+      database: 'ok',
+      opportunities: db.prepare('SELECT COUNT(*) n FROM opportunities').get().n,
+      sources: db.prepare('SELECT COUNT(*) n FROM sources').get().n,
+      gestoras: db.prepare('SELECT COUNT(*) n FROM gestoras').get().n,
+      cooperatives: db.prepare('SELECT COUNT(*) n FROM cooperatives WHERE active = 1').get().n,
+      runs: db.prepare('SELECT COUNT(*) n FROM pipeline_runs').get().n,
+    })),
+  };
 }
 

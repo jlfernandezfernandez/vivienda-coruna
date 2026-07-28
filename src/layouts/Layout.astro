@@ -4,10 +4,10 @@ export interface Props {
   description?: string;
   jsonLd?: Record<string, unknown>;
 }
-import { webBase } from '../../scripts/lib/municipios.mjs';
+import { siteBase } from '../lib/ui.mjs';
 
 const { title, description, jsonLd } = Astro.props;
-const base = webBase(import.meta.env.BASE_URL);
+const base = siteBase(import.meta.env.BASE_URL);
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
 
 // Sección activa a partir de la ruta (quitando el base path del despliegue).
