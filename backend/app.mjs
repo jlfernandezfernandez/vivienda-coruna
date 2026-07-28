@@ -8,8 +8,12 @@ function authorized(header, expectedToken) {
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
+const VALID_MODES = new Set(['fast', 'deep']);
+
 export function buildBackend({ repository, operationsApiKey, logger = false }) {
   const app = Fastify({ logger });
+
+  // ── Public contracts (no auth) ──────────────────────────────────────────
 
   app.get('/health', async () => ({ status: 'ok' }));
 
@@ -28,6 +32,24 @@ export function buildBackend({ repository, operationsApiKey, logger = false }) {
     return opportunity ?? reply.code(404).send({ error: 'not_found' });
   });
 
+  app.get('/gestoras', async () => repository.gestoras());
+
+  app.get('/gestoras/:id', async (request, reply) => {
+    const gestora = repository.gestoraById(request.params.id);
+    return gestora ?? reply.code(404).send({ error: 'not_found' });
+  });
+
+  app.get('/cooperatives', async () => repository.cooperatives());
+
+  app.get('/municipalities/:slug', async (request, reply) => {
+    const municipality = repository.municipalityBySlug(request.params.slug);
+    return municipality ?? reply.code(404).send({ error: 'not_found' });
+  });
+
+  app.get('/seo/routes', async () => repository.seoRoutes());
+
+  // ── Operational endpoints (Bearer auth) ─────────────────────────────────
+
   app.addHook('onRequest', async (request, reply) => {
     if (!request.url.startsWith('/api/v1/operations/')) return;
     if (!authorized(request.headers.authorization, operationsApiKey)) {
@@ -37,8 +59,30 @@ export function buildBackend({ repository, operationsApiKey, logger = false }) {
 
   app.get('/api/v1/operations/diagnostics', async () => ({
     status: 'ok',
-    ...repository.health(),
+    ...repository.diagnostics(),
   }));
+
+  app.post('/api/v1/operations/runs', async (request, reply) => {
+    const { mode } = request.body || {};
+    if (!VALID_MODES.has(mode)) {
+      return reply.code(400).send({ error: 'invalid_mode', valid: [...VALID_MODES] });
+    }
+    const idempotencyKey = request.headers['idempotency-key'] || null;
+    const run = repository.createRun(mode, idempotencyKey);
+    return reply
+      .code(202)
+      .header('location', `/api/v1/operations/runs/${run.id}`)
+      .send(run);
+  });
+
+  app.get('/api/v1/operations/runs', async () => repository.listRuns());
+
+  app.get('/api/v1/operations/runs/:id', async (request, reply) => {
+    const run = repository.runById(request.params.id);
+    return run ?? reply.code(404).send({ error: 'not_found' });
+  });
+
+  app.get('/api/v1/operations/sources', async () => repository.sources());
 
   return app;
 }
