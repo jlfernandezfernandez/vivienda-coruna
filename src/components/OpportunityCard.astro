@@ -52,6 +52,7 @@ const base = webBase(import.meta.env.BASE_URL);
 
 // Link badge a /municipio/<slug> cuando la location mapea a un municipio monitorizado.
 const muniSlug = municipalitySlug(location);
+const publicSourceKind = sourceKind === 'firecrawl-search' ? 'web' : sourceKind;
 const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
   day: 'numeric',
   month: 'short',
@@ -71,7 +72,7 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 <article
   class="opportunity-card group relative flex flex-col justify-between rounded-2xl border border-border-soft bg-surface p-5 shadow-premium transition-all duration-300 hover:shadow-hover hover:border-border-medium"
   data-location={location}
-  data-source-kind={sourceKind}
+  data-source-kind={publicSourceKind}
   data-type={type}
   data-precio-min={precioMin || ''}
   data-habitaciones-min={habitacionesMin || ''}
