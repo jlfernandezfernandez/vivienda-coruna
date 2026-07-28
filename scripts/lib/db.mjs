@@ -727,14 +727,14 @@ export function getRunByIdempotencyKey(db, key) {
 
 export function transitionRun(db, id, fromStatus, toStatus) {
   const now = new Date().toISOString();
-  const setStarted = toStatus === 'running' ? ', startedAt = ?' : '';
-  const setCompleted = (toStatus === 'succeeded' || toStatus === 'failed' || toStatus === 'interrupted') ? ', completedAt = ?' : '';
-  const params = [toStatus, id, fromStatus];
-  if (toStatus === 'running') params.splice(1, 0, now);
-  if (toStatus === 'succeeded' || toStatus === 'failed' || toStatus === 'interrupted') params.splice(1, 0, now);
+  const sets = ['status = ?'];
+  const params = [toStatus];
+  if (toStatus === 'running') { sets.push('startedAt = ?'); params.push(now); }
+  if (['succeeded', 'failed', 'interrupted'].includes(toStatus)) { sets.push('completedAt = ?'); params.push(now); }
+  params.push(id, fromStatus);
 
   const result = db.prepare(
-    `UPDATE pipeline_runs SET status = ?${setStarted}${setCompleted} WHERE id = ? AND status = ?`
+    `UPDATE pipeline_runs SET ${sets.join(', ')} WHERE id = ? AND status = ?`
   ).run(...params);
 
   if (result.changes === 0) return null;

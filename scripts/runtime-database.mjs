@@ -15,7 +15,8 @@ function open(path = databasePath) {
   return db;
 }
 
-function quoteSqlLiteral(value) {
+/** Escapa comillas simples para VACUUM INTO (SQLite no acepta parámetros bind aquí). Solo para rutas internas controladas. */
+function quoteFilePath(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
@@ -24,7 +25,7 @@ if (command === 'snapshot') {
   rmSync(runId, { force: true });
   const db = open();
   try {
-    db.exec(`VACUUM INTO ${quoteSqlLiteral(runId)}`);
+    db.exec(`VACUUM INTO ${quoteFilePath(runId)}`);
   } finally {
     db.close();
   }

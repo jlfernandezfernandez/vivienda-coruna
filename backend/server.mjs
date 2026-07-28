@@ -64,6 +64,7 @@ async function drainRuns() {
     }
   } finally {
     draining = false;
+    if (repository.nextQueuedRun()) void drainRuns();
   }
 }
 

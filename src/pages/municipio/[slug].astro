@@ -2,17 +2,10 @@
 import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
 import { api } from '../../lib/api/client.mjs';
-import { applyApiFailure } from '../../lib/api/boundary.mjs';
+import { apiSafe } from '../../lib/api/boundary.mjs';
 import { siteBase } from '../../lib/ui.mjs';
 
-let municipalityData;
-let gestoras = [];
-try {
-  [municipalityData, gestoras] = await Promise.all([api.municipality(Astro.params.slug), api.gestoras()]);
-} catch (error) {
-  applyApiFailure(Astro.response, error);
-  municipalityData = { name: 'Municipio no disponible', opportunities: [], cooperatives: [], gestoraPromotions: [] };
-}
+const [municipalityData, gestoras] = await apiSafe(Astro.response, () => Promise.all([api.municipality(Astro.params.slug), api.gestoras()]), [{ name: 'Municipio no disponible', opportunities: [], cooperatives: [], gestoraPromotions: [] }, []]);
 const municipality = municipalityData.name;
 const { opportunities, cooperatives } = municipalityData;
 const gestorasById = new Map(gestoras.map((gestora) => [gestora.id, gestora]));

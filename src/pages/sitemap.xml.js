@@ -13,7 +13,8 @@ export async function GET({ url }) {
   try {
     const xml = sitemapXml(new URL(import.meta.env.BASE_URL, import.meta.env.SITE).toString(), await api.seoRoutes());
     return new Response(xml, { headers: { 'content-type': 'application/xml; charset=utf-8' } });
-  } catch {
+  } catch (error) {
+    console.error('sitemap generation failed:', error.message);
     return new Response('', { status: 503, headers: { 'retry-after': '60', 'x-robots-tag': 'noindex' } });
   }
 }

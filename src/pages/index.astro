@@ -4,19 +4,12 @@ import Layout from '../layouts/Layout.astro';
 import CoverageMap from '../components/CoverageMap.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
 import { api } from '../lib/api/client.mjs';
-import { applyApiFailure } from '../lib/api/boundary.mjs';
+import { apiSafe } from '../lib/api/boundary.mjs';
 import { siteBase } from '../lib/ui.mjs';
 
 const base = siteBase(import.meta.env.BASE_URL);
-let dashboard;
-let apiUnavailable = false;
-try {
-  dashboard = await api.dashboard();
-} catch (error) {
-  applyApiFailure(Astro.response, error);
-  apiUnavailable = true;
-  dashboard = { opportunities: [], sources: [], gestoras: [], cooperatives: [], events: [], municipalities: [], coverage: { boundaries: [], markers: [] } };
-}
+const dashboard = await apiSafe(Astro.response, () => api.dashboard(), { opportunities: [], sources: [], gestoras: [], cooperatives: [], events: [], municipalities: [], coverage: { boundaries: [], markers: [] } });
+const apiUnavailable = Astro.response.status >= 400;
 const { opportunities: items, sources, gestoras, cooperatives, events, coverage } = dashboard;
 const municipalities = dashboard.municipalities.map((municipality) => municipality.name);
 const recentEvents = events.slice(0, 12);
@@ -56,10 +49,8 @@ const coopPromotions = gestoras.flatMap((g) =>
 );
 const activeCoopCount = coopOpportunities.length + coopPromotions.length;
 
-const siteTitle = 'Cooperativas de vivienda en A Coruña — alertas y obra nueva | Vivienda Coruña';
-const siteDescription = 'Todas las cooperativas de vivienda y promociones de obra nueva del área metropolitana de A Coruña: captación de socios, plazas, licencias y vivienda protegida, detectadas a diario.';
-const headerTitle = 'Cooperativas y Obra Nueva en A Coruña';
-const headerSubtitle = 'Detecta señales tempranas de cooperativas de viviendas, búsqueda de socios, licencias y promociones públicas o privadas en el área metropolitana.';
+import { config } from '../../scripts/lib/config.mjs';
+const { title: siteTitle, description: siteDescription, headerTitle, headerSubtitle } = config.site;
 
 const shortDate = (d: string) =>
   new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' });

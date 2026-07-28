@@ -19,12 +19,20 @@ export function buildBackend({
 }) {
   const app = Fastify({ logger, bodyLimit: 8 * 1024 });
 
+  app.addHook('onRequest', async (request, reply) => {
+    if (!request.url.startsWith('/api/v1/operations/')) return;
+    if (!authorized(request.headers.authorization, operationsApiKey)) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+  });
+
   app.get('/health', async () => ({ status: 'ok', version: appVersion }));
 
   app.get('/ready', async (_request, reply) => {
     try {
       return { status: 'ready', ...repository.health() };
-    } catch {
+    } catch (error) {
+      console.error('readiness check failed:', error.message);
       return reply.code(503).send({ status: 'unavailable' });
     }
   });
@@ -54,13 +62,6 @@ export function buildBackend({
   });
 
   app.get('/api/v1/seo/routes', async () => repository.seoRoutes());
-
-  app.addHook('onRequest', async (request, reply) => {
-    if (!request.url.startsWith('/api/v1/operations/')) return;
-    if (!authorized(request.headers.authorization, operationsApiKey)) {
-      return reply.code(401).send({ error: 'unauthorized' });
-    }
-  });
 
   app.get('/api/v1/operations/diagnostics', async () => ({
     status: 'ok',

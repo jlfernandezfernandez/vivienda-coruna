@@ -1,3 +1,5 @@
+import { slugify } from '../scripts/lib/municipios.mjs';
+
 function centroid(feature) {
   const polygons = feature.geometry?.type === 'Polygon'
     ? [feature.geometry.coordinates]
@@ -20,14 +22,15 @@ export function createCoverageBuilder(geojson) {
   const centroids = new Map(
     boundaries.map((feature) => [feature.properties?.name, centroid(feature)]),
   );
+  const slugToName = new Map(
+    boundaries.map((feature) => [slugify(feature.properties?.name || ''), feature.properties?.name]),
+  );
 
   return (opportunities) => {
     const counters = new Map();
     const markers = opportunities.flatMap((opportunity) => {
       const municipality = opportunity.municipalitySlug
-        ? boundaries.find((feature) => feature.properties?.slug === opportunity.municipalitySlug)?.properties?.name
-          ?? boundaries.find((feature) => feature.properties?.name
-            ?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') === opportunity.municipalitySlug)?.properties?.name
+        ? slugToName.get(opportunity.municipalitySlug)
         : null;
       const center = centroids.get(municipality);
       if (!center) return [];

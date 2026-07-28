@@ -2,17 +2,11 @@
 import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
 import { api } from '../../lib/api/client.mjs';
-import { applyApiFailure } from '../../lib/api/boundary.mjs';
+import { apiSafe } from '../../lib/api/boundary.mjs';
 import { siteBase } from '../../lib/ui.mjs';
 
 const base = siteBase(import.meta.env.BASE_URL);
-let item;
-try {
-  item = await api.opportunity(Astro.params.id);
-} catch (error) {
-  applyApiFailure(Astro.response, error);
-  item = { id: '', title: 'Oportunidad no disponible', url: base, source: '', sourceKind: '', publishedAt: null, firstSeenAt: new Date(0).toISOString(), location: null, type: null, status: null, summary: '' };
-}
+const item = await apiSafe(Astro.response, () => api.opportunity(Astro.params.id), { id: '', title: 'Oportunidad no disponible', url: base, source: '', sourceKind: '', publishedAt: null, firstSeenAt: new Date(0).toISOString(), location: null, type: null, status: null, summary: '' });
 
 const isMarket = item.sourceKind === 'market-alert';
 const isWebSearch = item.sourceKind === 'firecrawl-search';
