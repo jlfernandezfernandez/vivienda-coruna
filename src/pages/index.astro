@@ -9,10 +9,12 @@ import { siteBase } from '../lib/ui.mjs';
 
 const base = siteBase(import.meta.env.BASE_URL);
 let dashboard;
+let apiUnavailable = false;
 try {
   dashboard = await api.dashboard();
 } catch (error) {
   applyApiFailure(Astro.response, error);
+  apiUnavailable = true;
   dashboard = { opportunities: [], sources: [], gestoras: [], cooperatives: [], events: [], municipalities: [], coverage: { boundaries: [], markers: [] } };
 }
 const { opportunities: items, sources, gestoras, cooperatives, events, coverage } = dashboard;
@@ -75,12 +77,18 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
   description={siteDescription}
 >
   <div class="mx-auto max-w-6xl px-4 sm:px-6">
+    {apiUnavailable && (
+      <div role="alert" class="mb-6 rounded-2xl border border-status-error/30 bg-status-error/10 p-4 text-sm text-ink">
+        <strong class="font-bold">Datos temporalmente no disponibles.</strong>
+        <span class="text-ink-muted"> Reintenta en un minuto; no se muestran datos antiguos como si estuvieran actualizados.</span>
+      </div>
+    )}
     <!-- Page Header -->
     <div class="mb-8 md:mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-soft pb-6">
       <div class="max-w-2xl">
         <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
-          <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
-          Seguimiento en directo
+          <span class:list={['flex h-1.5 w-1.5 rounded-full', apiUnavailable ? 'bg-status-error' : 'bg-brand-green pulse-indicator-ok']}></span>
+          {apiUnavailable ? 'Seguimiento temporalmente no disponible' : 'Seguimiento en directo'}
         </div>
         <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
           {headerTitle}
@@ -94,7 +102,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
       <div class="flex-shrink-0 flex flex-col justify-between border border-border-soft bg-surface p-5 rounded-2xl shadow-premium min-w-[280px]">
         <div class="flex items-center justify-between border-b border-border-soft pb-2.5">
           <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Estado del Rastreador</span>
-          <span class="flex h-2.5 w-2.5 rounded-full bg-status-ok pulse-indicator-ok" aria-hidden="true"></span>
+          <span class:list={['flex h-2.5 w-2.5 rounded-full', apiUnavailable ? 'bg-status-error' : 'bg-status-ok pulse-indicator-ok']} aria-hidden="true"></span>
         </div>
         <div class="text-xs text-ink-muted space-y-1.5 mt-3">
           <div class="flex justify-between">
@@ -103,7 +111,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           </div>
           <div class="flex justify-between">
             <span>Fuentes operativas:</span>
-            <strong class="text-ink font-semibold">{healthySources} de {sources.length}</strong>
+            <strong class="text-ink font-semibold">{apiUnavailable ? 'No disponible' : `${healthySources} de ${sources.length}`}</strong>
           </div>
           <div class="flex justify-between">
             <span>Cooperativas en el registro:</span>

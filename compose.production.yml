@@ -1,0 +1,90 @@
+services:
+  database-init:
+    image: ghcr.io/jlfernandezfernandez/vivienda-coruna-backend:${IMAGE_TAG:?}
+    pull_policy: always
+    user: "0:0"
+    command: ["sh", "-c", "node scripts/init-database.mjs && chown -R node:node /data"]
+    environment:
+      DB_PATH: /data/monitor.db
+      SEED_DATABASE_PATH: /app/seed/monitor.db
+    volumes:
+      - vivienda_database:/data
+    restart: "no"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
+  backend:
+    image: ghcr.io/jlfernandezfernandez/vivienda-coruna-backend:${IMAGE_TAG:?}
+    pull_policy: always
+    restart: unless-stopped
+    expose: ["3000"]
+    environment:
+      NODE_ENV: production
+      APP_VERSION: ${IMAGE_TAG:?}
+      PORT: "3000"
+      DB_PATH: /data/monitor.db
+      OPERATIONS_API_KEY: ${OPERATIONS_API_KEY:?}
+      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-http://192.168.0.74:3002}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      TZ: Europe/Madrid
+    volumes:
+      - vivienda_database:/data
+    depends_on:
+      database-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 512M
+
+  frontend:
+    image: ghcr.io/jlfernandezfernandez/vivienda-coruna-frontend:${IMAGE_TAG:?}
+    pull_policy: always
+    restart: unless-stopped
+    expose: ["4321"]
+    environment:
+      NODE_ENV: production
+      APP_VERSION: ${IMAGE_TAG:?}
+      HOST: 0.0.0.0
+      PORT: "4321"
+      BACKEND_INTERNAL_URL: http://backend:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4321/').then(r=>{if(r.status>=500)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 192M
+
+volumes:
+  vivienda_database:

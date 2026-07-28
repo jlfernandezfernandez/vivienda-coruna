@@ -1,0 +1,79 @@
+services:
+  database-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: vivienda-coruna-backend:dev
+    user: "0:0"
+    command: ["sh", "-c", "node scripts/init-database.mjs && chown -R node:node /data"]
+    environment:
+      DB_PATH: /data/monitor.db
+      SEED_DATABASE_PATH: /app/seed/monitor.db
+    volumes:
+      - vivienda_database:/data
+    restart: "no"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: vivienda-coruna-backend:dev
+    environment:
+      NODE_ENV: development
+      APP_VERSION: development
+      PORT: "3000"
+      DB_PATH: /data/monitor.db
+      OPERATIONS_API_KEY: ${OPERATIONS_API_KEY:-local-development-key-change-me-0001}
+      FIRECRAWL_BASE_URL: ${FIRECRAWL_BASE_URL:-http://192.168.0.74:3002}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      TZ: Europe/Madrid
+    volumes:
+      - vivienda_database:/data
+    depends_on:
+      database-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: vivienda-coruna-frontend:dev
+    environment:
+      NODE_ENV: development
+      APP_VERSION: development
+      HOST: 0.0.0.0
+      PORT: "4321"
+      BACKEND_INTERNAL_URL: http://backend:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4321:4321"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4321/').then(r=>{if(r.status>=500)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+volumes:
+  vivienda_database:

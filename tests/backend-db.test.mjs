@@ -332,3 +332,24 @@ test('schema prevents two pipeline runs from being running simultaneously', () =
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('gestora detail includes matching press opportunities', () => {
+  const { db, dir } = tempDb();
+  try {
+    db.prepare('INSERT INTO gestoras (id, name, logo, website, phone, email, address, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('gestora-demo', 'Gestora Demo', 'GD', '', '', '', '', '');
+    db.prepare(`INSERT INTO opportunities
+      (id, title, url, source, sourceKind, firstSeenAt, lastSeenAt, promotora)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      'press-1', 'Gestora Demo inicia una nueva promoción', 'https://example.test/news',
+      'Prensa local', 'market-alert', '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z', 'Gestora Demo'
+    );
+
+    const detail = createRepository(db).gestoraById('gestora-demo');
+    assert.equal(detail.press.length, 1);
+    assert.equal(detail.press[0].id, 'press-1');
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

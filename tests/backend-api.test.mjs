@@ -22,11 +22,11 @@ function fakeRepository() {
 }
 
 test('GET /health exposes process health without operational secrets', async () => {
-  const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
+  const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key', appVersion: 'sha-test' });
   const response = await app.inject({ method: 'GET', url: '/health' });
 
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), { status: 'ok' });
+  assert.deepEqual(response.json(), { status: 'ok', version: 'sha-test' });
   await app.close();
 });
 

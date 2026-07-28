@@ -60,18 +60,20 @@ const feeds = [
   },
 ];
 
+const llmApiKey = env.LLM_API_KEY || env.OPENAI_API_KEY || env.OPENROUTER_API_KEY || null;
+const llmBaseUrl = env.LLM_BASE_URL || env.OPENAI_BASE_URL || null;
+const llmModel = env.LLM_MODEL || env.OPENAI_MODEL || null;
+
 export const config = {
   paths: {
     root: rootDir,
   },
   
   llm: {
-    // Read OpenRouter or OpenAI keys
-    apiKey: env.LLM_API_KEY || env.OPENAI_API_KEY || null,
-    // Base completions URL, defaults to OpenRouter
-    baseUrl: env.LLM_BASE_URL || env.OPENAI_BASE_URL || 'https://openrouter.ai/api/v1',
-    // Completion model name, defaults to gpt-4o-mini
-    model: env.LLM_MODEL || env.OPENAI_MODEL || 'openai/gpt-4o-mini',
+    // No proveedor implícito en producción: las tres variables deben configurarse juntas.
+    apiKey: llmBaseUrl && llmModel ? llmApiKey : null,
+    baseUrl: llmBaseUrl,
+    model: llmModel,
   },
 
   firecrawl: {

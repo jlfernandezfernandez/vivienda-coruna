@@ -781,6 +781,25 @@ function gestoraDto(gestora) {
  * connection factory (runtime). Factory connections close after each operation
  * so atomic database replacement is immediately visible.
  */
+function normalizedSearchText(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function gestoraWithPress(db, id) {
+  const gestora = getAllGestoras(db).find((item) => item.id === id);
+  if (!gestora) return null;
+  const needle = normalizedSearchText(gestora.name);
+  const press = getAllOpportunities(db, 150)
+    .filter((opportunity) => opportunity.sourceKind === 'market-alert')
+    .filter((opportunity) => normalizedSearchText([
+      opportunity.promotora,
+      opportunity.title,
+      opportunity.summary,
+    ].join(' ')).includes(needle))
+    .map(opportunityDto);
+  return { ...gestoraDto(gestora), press };
+}
+
 export function createRepository(dbOrFactory, options = {}) {
   const isFactory = typeof dbOrFactory === 'function';
   const withDb = (operation) => {
@@ -818,10 +837,7 @@ export function createRepository(dbOrFactory, options = {}) {
 
     opportunityById: (id) => withDb((db) => opportunityDto(getOpportunity(db, id))),
     gestoras: () => withDb((db) => getAllGestoras(db).map(gestoraDto)),
-    gestoraById: (id) => withDb((db) => {
-      const gestora = getAllGestoras(db).find((candidate) => candidate.id === id);
-      return gestora ? gestoraDto(gestora) : null;
-    }),
+    gestoraById: (id) => withDb((db) => gestoraWithPress(db, id)),
     cooperatives: () => withDb((db) => getAllCooperatives(db)),
 
     municipalityBySlug: (requestedSlug) => withDb((db) => {

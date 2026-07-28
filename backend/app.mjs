@@ -14,11 +14,12 @@ export function buildBackend({
   repository,
   operationsApiKey,
   onRunCreated = () => {},
+  appVersion = process.env.APP_VERSION || 'development',
   logger = false,
 }) {
   const app = Fastify({ logger, bodyLimit: 8 * 1024 });
 
-  app.get('/health', async () => ({ status: 'ok' }));
+  app.get('/health', async () => ({ status: 'ok', version: appVersion }));
 
   app.get('/ready', async (_request, reply) => {
     try {

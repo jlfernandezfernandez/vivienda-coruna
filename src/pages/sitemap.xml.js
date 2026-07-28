@@ -11,7 +11,7 @@ export function sitemapXml(base, routes) {
 
 export async function GET({ url }) {
   try {
-    const xml = sitemapXml(new URL(import.meta.env.BASE_URL, 'https://jlfernandezfernandez.github.io').toString(), await api.seoRoutes());
+    const xml = sitemapXml(new URL(import.meta.env.BASE_URL, import.meta.env.SITE).toString(), await api.seoRoutes());
     return new Response(xml, { headers: { 'content-type': 'application/xml; charset=utf-8' } });
   } catch {
     return new Response('', { status: 503, headers: { 'retry-after': '60', 'x-robots-tag': 'noindex' } });

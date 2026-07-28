@@ -35,12 +35,20 @@ function objectContract(value, name) {
   return value;
 }
 
+function seoContract(value) {
+  objectContract(value, 'seo routes');
+  for (const name of ['municipalities', 'opportunities', 'gestoras']) {
+    requiredArray(value[name], `seo routes.${name}`);
+  }
+  return value;
+}
+
 function resolveUrl(baseUrl, path) {
   return new URL(path.replace(/^\//, ''), `${baseUrl.replace(/\/$/, '')}/`).toString();
 }
 
 export function createApiClient({
-  baseUrl = process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:3000',
+  baseUrl = process.env.BACKEND_INTERNAL_URL || 'http://backend:3000',
   timeoutMs = DEFAULT_TIMEOUT_MS,
   fetch: fetchImpl = globalThis.fetch,
 } = {}) {
@@ -83,7 +91,7 @@ export function createApiClient({
     gestora: (id) => get(`gestoras/${encodeURIComponent(id)}`, (value) => objectContract(value, 'gestora')),
     cooperatives: () => get('cooperatives', (value) => arrayContract(value, 'cooperatives')),
     municipality: (slug) => get(`municipalities/${encodeURIComponent(slug)}`, (value) => objectContract(value, 'municipality')),
-    seoRoutes: () => get('seo/routes', (value) => objectContract(value, 'seo routes')),
+    seoRoutes: () => get('seo/routes', seoContract),
   };
 }
 

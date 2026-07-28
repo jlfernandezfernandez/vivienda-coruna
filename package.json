@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "DB_READ_ONLY=1 astro build",
-    "test": "LLM_API_KEY=test node --test tests/*.test.mjs",
+    "test": "LLM_API_KEY=test LLM_BASE_URL=http://llm.invalid LLM_MODEL=test-model node --test tests/*.test.mjs",
     "refresh": "node scripts/fetch-rss.mjs",
     "refresh:fast": "FAST_REFRESH=1 node scripts/fetch-rss.mjs",
     "enrich": "node scripts/enrich-firecrawl.mjs",
