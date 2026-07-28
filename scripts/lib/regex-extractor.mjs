@@ -16,7 +16,9 @@ import { detectStatus } from './statuses.mjs';
  *                   coverage was low and the caller should invoke the LLM.
  */
 export function extractWithRegex(text) {
-  const t = text || '';
+  // Título + inicio del contenido principal. Limitar la ventana evita capturar
+  // cifras y estados de noticias relacionadas, menús o pies de página.
+  const t = String(text || '').slice(0, 1800);
 
   const result = {
     precioMin: null,
@@ -35,19 +37,19 @@ export function extractWithRegex(text) {
   // ── PRECIOS ──────────────────────────────────────────────────────────
   // "desde 180.000 €", "a partir de 195.000 euros", "entre 220.000 y 350.000 €",
   // "precios desde 165.000", "viviendas desde 180.000€"
-  const precioDesde = t.match(/(?:desde|a partir de|precios? desde)\s*[\d.,]+\s*[€euros]*/i);
+  const precioDesde = t.match(/(?:desde|a partir de|precios? desde)\s*([\d.,]+)\s*(?:€|euros?)/i);
   if (precioDesde) {
-    result.precioMin = parseNumber(precioDesde[0]);
+    result.precioMin = parseNumber(precioDesde[1]);
   }
 
-  const precioRango = t.match(/(?:entre|de)\s*([\d.,]+)\s*(?:y|a|-)\s*([\d.,]+)\s*[€euros]*/i);
+  const precioRango = t.match(/(?:entre|de)\s*([\d.,]+)\s*(?:y|a|-)\s*([\d.,]+)\s*(?:€|euros?)/i);
   if (precioRango) {
     result.precioMin = result.precioMin || parseNumber(precioRango[1]);
     result.precioMax = parseNumber(precioRango[2]);
   }
 
   // "hasta 350.000 €", "máximo 400.000"
-  const precioMax = t.match(/(?:hasta|m[aá]ximo)\s*([\d.,]+)\s*[€euros]*/i);
+  const precioMax = t.match(/(?:hasta|m[aá]ximo)\s*([\d.,]+)\s*(?:€|euros?)/i);
   if (precioMax && !result.precioMax) {
     result.precioMax = parseNumber(precioMax[1]);
   }
@@ -73,9 +75,12 @@ export function extractWithRegex(text) {
 
   // ── TOTAL VIVIENDAS ──────────────────────────────────────────────────
   // "241 viviendas", "32 nuevas viviendas", "100 viviendas", "promoción de 64 pisos"
-  const totalViv = t.match(/(\d+)\s*(?:viviendas|pisos|unidades|inmuebles)/i);
+  const numberWords = { una: 1, un: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16, dieciséis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20 };
+  const totalViv = t.match(/(\d+|una?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|diecis[eé]is|diecisiete|dieciocho|diecinueve|veinte)\s*(?:nuevas?\s+)?(?:viviendas|pisos|unidades)/i);
   if (totalViv) {
-    result.totalViviendas = parseInt(totalViv[1], 10);
+    result.totalViviendas = /^\d+$/.test(totalViv[1])
+      ? parseInt(totalViv[1], 10)
+      : numberWords[totalViv[1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')];
   }
 
   // ── GARAJE ───────────────────────────────────────────────────────────
@@ -99,21 +104,14 @@ export function extractWithRegex(text) {
 
   // ── ESTADO ───────────────────────────────────────────────────────────
   result.estado = detectStatus(t);
-
-  // ── NOMBRE PROMOCIÓN ─────────────────────────────────────────────────
-  // "promoción Mirador do Ézaro", "cooperativa As Lavandeiras"
-  const nombreMatch = t.match(/(?:Residencial|Edificio|Torre|Conjunto|Urbanizaci[oó]n|Cooperativa|Promoci[oó]n)\s+([A-ZÁÉÍÓÚÑ][\w\s'’.-]{3,40})/i);
-  if (nombreMatch) {
-    result.nombrePromocion = nombreMatch[0].trim();
+  if (result.estado === 'Agotada/Vendida') {
+    const soldHousing = /(?:viviendas|pisos|unidades|promoci[oó]n).{0,60}(?:agotad[ao]s?|vendid[ao]s?)|(?:agotad[ao]s?|vendid[ao]s?).{0,60}(?:viviendas|pisos|unidades|promoci[oó]n)|no quedan|completamente vendid[ao]/i;
+    if (!soldHousing.test(t)) result.estado = null;
   }
 
-  // ── PROMOTORA ────────────────────────────────────────────────────────
-  // Regex can't reliably extract company names from free text — leave to LLM.
-  // But we can catch obvious patterns like "promotora X" or "gestora Y".
-  const promoMatch = t.match(/(?:promotora|gestora|constructora|inmobiliaria)\s+([A-ZÁÉÍÓÚÑ][\w\s&.,'-]{3,40})/i);
-  if (promoMatch) {
-    result.promotora = promoMatch[1].trim();
-  }
+  // Los nombres propios y empresas no se extraen con regex: en prensa las
+  // expresiones son voraces y producen fragmentos. El LLM propone y el
+  // validador exige evidencia literal antes de persistirlos.
 
   // ── LLM NEEDED? ──────────────────────────────────────────────────────
   // If we got fewer than 3 non-null fields, the text is probably too

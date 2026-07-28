@@ -7,8 +7,9 @@ import {
   slugify,
   toOpportunity,
 } from './lib/monitor.mjs';
-import { extractHousingData, extractGestoraContactFromText, pickOfficialWebsite, extractPromotionsFromText, discoverGestoraNames } from './lib/llm.mjs';
+import { extractHousingData, extractGestoraContactFromText, pickOfficialWebsite, extractPromotionsFromText, discoverGestoraNames, validateExtractedHousingData } from './lib/llm.mjs';
 import { extractWithRegex } from './lib/regex-extractor.mjs';
+import { requirePipelineWriter } from './lib/writer-lock.mjs';
 import { scrapeUrl, searchWeb, mapSite, fetchText } from './lib/scraper.mjs';
 import {
   getDatabase,
@@ -122,6 +123,7 @@ async function parseFeed(feed) {
 }
 
 async function main() {
+  requirePipelineWriter();
   const checkedAt = new Date().toISOString();
   const db = getDatabase();
   
@@ -170,6 +172,15 @@ async function main() {
     console.error(`✗ ${feed.name}: ${result.reason?.message || 'error desconocido'}`);
   });
 
+  // Elimina del estado fuentes que ya no forman parte de la configuración activa;
+  // mantenerlas como "ok" sin volver a consultarlas falsearía la salud del monitor.
+  const activeSourceNames = new Set(feeds.map((feed) => feed.name));
+  const managedSourceKinds = new Set(feeds.map((feed) => feed.kind || 'official'));
+  const deleteSource = db.prepare('DELETE FROM sources WHERE name = ?');
+  for (const row of db.prepare('SELECT name, kind FROM sources').all()) {
+    if (managedSourceKinds.has(row.kind) && !activeSourceNames.has(row.name)) deleteSource.run(row.name);
+  }
+
   if (!sources.some((source) => source.ok)) {
     throw new Error('No se pudo consultar ninguna fuente; se conservan los datos anteriores');
   }
@@ -182,6 +193,7 @@ async function main() {
       // Ya procesado por el LLM (aunque no encontrara datos); no repetir la llamada.
       saveOpportunity(db, {
         ...item,
+        status: old.status || item.status,
         precioMin: old.precioMin,
         precioMax: old.precioMax,
         habitacionesMin: old.habitacionesMin,
@@ -192,10 +204,9 @@ async function main() {
         trastero: old.trastero,
         terraza: old.terraza,
         nombrePromocion: old.nombrePromocion,
-        promotionId:
-          old.promotora && old.nombrePromocion
-            ? `promo:${normalizeGestoraId(old.promotora)}:${slugify(old.nombrePromocion)}`
-            : null,
+        promotionId: old.promotionId,
+        evidenceText: old.evidenceText,
+        extractionMethod: old.extractionMethod,
         enriched: true,
       });
     } else {
@@ -223,12 +234,20 @@ async function main() {
       let llmData;
       if (regexData._llmNeeded) {
         // Regex no pudo sacar suficiente → LLM
-        llmData = await extractHousingData(item.title, contentToAnalyze);
+        const llmResult = await extractHousingData(item.title, contentToAnalyze);
+        const regexValues = Object.fromEntries(Object.entries(regexData).filter(([key, value]) => !key.startsWith('_') && value !== null && value !== undefined));
+        // Regex es evidencia determinista y prevalece; el LLM solo completa huecos.
+        llmData = validateExtractedHousingData({ ...llmResult, ...regexValues, llmCallFailed: llmResult.llmCallFailed }, item.title, contentToAnalyze);
         console.log(`  [Regex→LLM] ${regexFields} campos por regex, ${Object.values(llmData).filter(v => v !== null && v !== undefined).length - 1} por LLM`);
       } else {
         // Regex cubrió todo → sin gasto de LLM
-        llmData = { ...regexData, llmCallFailed: false };
+        llmData = validateExtractedHousingData({ ...regexData, llmCallFailed: false }, item.title, contentToAnalyze);
         console.log(`  [Regex] ${regexFields} campos extraídos sin LLM (ahorro ~500 tokens)`);
+      }
+      if (item.sourceKind === 'market-alert') {
+        llmData.totalViviendas = validateExtractedHousingData(
+          { totalViviendas: llmData.totalViviendas }, item.title, '',
+        ).totalViviendas;
       }
 
       // Id de promoción compartido con el catálogo de la gestora: prensa y web
@@ -255,8 +274,12 @@ async function main() {
         status: llmData.estado || item.status,
         nombrePromocion: llmData.nombrePromocion,
         promotionId,
+        evidenceText: contentToAnalyze.slice(0, 10000),
+        extractionMethod: regexData._llmNeeded
+          ? (llmData.llmCallSkipped ? 'regex-no-llm' : 'regex+llm')
+          : 'regex',
         // Si el LLM falló (cuota, red), no marcar enriched: reintentar en la próxima corrida.
-        enriched: !llmData.llmCallFailed,
+        enriched: llmData.llmCallSkipped || !llmData.llmCallFailed,
       };
 
       saveOpportunity(db, enrichedItem);
@@ -294,6 +317,7 @@ async function main() {
     let csvText = buffer.toString('utf8');
     if (csvText.includes('�')) csvText = buffer.toString('latin1');
     const registryRows = parseCooperativeRegistryCsv(csvText);
+    if (registryRows.length < 5) throw new Error(`CSV anómalo: solo ${registryRows.length} cooperativas válidas`);
     const seenAt = new Date().toISOString();
     for (const row of registryRows) {
       saveCooperative(db, { ...row, firstSeenAt: seenAt, lastSeenAt: seenAt });
@@ -302,6 +326,18 @@ async function main() {
     console.log(`  [Rexistro] ${registryRows.length} cooperativas de vivienda activas en el área.`);
   } catch (error) {
     console.error(`  [Rexistro] Fallo al importar el CSV (se conservan los datos anteriores): ${error.message}`);
+  }
+
+  // En modo rápido terminamos tras feeds + novedades + registro oficial. Evita
+  // remapear y releer catálogos nacionales varias veces al día.
+  if (process.env.FAST_REFRESH === '1') {
+    console.log('\n[Modo rápido] Fuentes, novedades y registro actualizados; catálogo profundo omitido.');
+    return;
+  }
+
+  if (!config.llm.apiKey) {
+    console.log('\n[Modo sin LLM] Descubrimiento y catálogo profundo omitidos; OpenRouter queda preparado para cuando haya clave.');
+    return;
   }
 
   // Descubrimiento autónomo: sin lista fija, buscamos quién opera en la zona y registramos.
@@ -358,24 +394,26 @@ async function main() {
       const pageMarkdown = await scrapeUrl(pageUrl);
       if (!pageMarkdown) continue;
       const promos = await extractPromotionsFromText(gestora.name, pageMarkdown);
-      allPromotions.push(...promos);
+      allPromotions.push(...promos.map((promo) => ({ ...promo, sourceUrl: pageUrl })));
     }
 
     if (allPromotions.length === 0) {
       console.log(`  [Catálogo] ${gestora.name}: no se encontraron promociones verificables en su web.`);
     } else {
-      // Nombres ya presentes (p.ej. de prensa) para no duplicar la misma promoción.
-      const seenNames = new Set(
+      const existingNames = new Set(
         db.prepare('SELECT name FROM gestora_promotions WHERE gestoraId = ?')
           .all(gestora.id)
           .map((row) => slugify(row.name))
       );
+      // Solo evita duplicados dentro de esta corrida. Las promociones existentes
+      // también pasan por el upsert para refrescar estado, enlace y detalles.
+      const seenNames = new Set();
       let added = 0;
       for (const promo of allPromotions) {
         const key = slugify(promo.nombre);
         if (seenNames.has(key)) continue;
         seenNames.add(key);
-        added++;
+        if (!existingNames.has(key)) added++;
         saveGestoraPromotion(db, {
           // Mismo id que el de prensa: una promoción real = una fila.
           id: `promo:${gestora.id}:${key}`,
@@ -385,7 +423,7 @@ async function main() {
           location: promo.location || '',
           status: promo.estado || 'Sin confirmar',
           details: promo.totalViviendas ? `${promo.totalViviendas} viviendas` : '',
-          link: gestora.website,
+          link: promo.sourceUrl,
           entregaEstimada: promo.entregaEstimada,
           buscaSocios: promo.buscaSocios,
           aportacionInicial: promo.aportacionInicial,

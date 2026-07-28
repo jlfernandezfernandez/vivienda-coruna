@@ -67,6 +67,7 @@ export const STATUSES = [
 ];
 
 const DEFAULT_COLORS = 'bg-brand-blue-soft text-brand-blue border border-brand-blue/10';
+const searchableStatusText = (text) => String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 /**
  * Detect the canonical status from free text using regex patterns.
@@ -75,12 +76,20 @@ const DEFAULT_COLORS = 'bg-brand-blue-soft text-brand-blue border border-brand-b
  * @returns {string|null}
  */
 export function detectStatus(text) {
+  const searchable = searchableStatusText(text);
   for (const status of STATUSES) {
     for (const pattern of status.patterns) {
-      if (pattern.test(text)) return status.label;
+      if (pattern.test(searchable)) return status.label;
     }
   }
   return null;
+}
+
+/** True when the text contains evidence for one specific canonical label. */
+export function hasStatusEvidence(label, text) {
+  const status = STATUSES.find((candidate) => candidate.label === label);
+  const searchable = searchableStatusText(text);
+  return Boolean(status?.patterns.some((pattern) => pattern.test(searchable)));
 }
 
 /**

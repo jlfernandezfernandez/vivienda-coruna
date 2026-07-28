@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
 import {
   detectLocation,
   detectStatus,
@@ -11,6 +12,8 @@ import {
   parseCooperativeRegistryCsv,
   toOpportunity,
 } from '../scripts/lib/monitor.mjs';
+import { classifyPromotionLocation } from '../scripts/lib/municipios.mjs';
+import { finalizeRegistryImport, getAllCooperatives, getAllOpportunities, saveCooperative } from '../scripts/lib/db.mjs';
 
 test('acepta únicamente A Coruña ciudad y su entorno inmediato', () => {
   const valid = [
@@ -123,4 +126,44 @@ test('detecta relevancia oficial por la descripción aunque el título no nombre
     'Prensa · Cooperativas y Gestoras',
   );
   assert.equal(pressItem, null);
+});
+
+test('clasifica promociones libres por municipio y pone en cuarentena lo dudoso', () => {
+  assert.deepEqual(classifyPromotionLocation('Rúa Barreira, Oleiros – A Coruña'), { municipality: 'Oleiros', scopeStatus: 'in_scope' });
+  assert.deepEqual(classifyPromotionLocation('Plaza de Vigo, A Coruña'), { municipality: 'A Coruña', scopeStatus: 'in_scope' });
+  assert.deepEqual(classifyPromotionLocation('Avenida de Arteixo, 123 – A Coruña'), { municipality: 'A Coruña', scopeStatus: 'in_scope' });
+  assert.deepEqual(classifyPromotionLocation('Ares, A Coruña'), { municipality: null, scopeStatus: 'out_of_scope' });
+  assert.deepEqual(classifyPromotionLocation('Canido, Ferrol, A Coruña'), { municipality: null, scopeStatus: 'out_of_scope' });
+  assert.deepEqual(classifyPromotionLocation('San Pedro de Visma'), { municipality: 'A Coruña', scopeStatus: 'in_scope' });
+  assert.deepEqual(classifyPromotionLocation('Novo Mesoiro'), { municipality: 'A Coruña', scopeStatus: 'in_scope' });
+  assert.deepEqual(classifyPromotionLocation('Castiñeiriño, Santiago de Compostela'), { municipality: null, scopeStatus: 'out_of_scope' });
+  assert.deepEqual(classifyPromotionLocation(''), { municipality: null, scopeStatus: 'unverified' });
+});
+
+test('presenta una sola señal por promoción canónica sin borrar el histórico', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE opportunities (
+    id TEXT PRIMARY KEY, promotionId TEXT, publishedAt TEXT, firstSeenAt TEXT,
+    lastSeenAt TEXT, garaje INTEGER, trastero INTEGER, terraza INTEGER, enriched INTEGER
+  )`);
+  const insert = db.prepare('INSERT INTO opportunities VALUES (?,?,?,?,?,?,?,?,?)');
+  insert.run('noticia-antigua', 'promo:caleida', '2026-01-01', '2026-01-01', '2026-01-01', null, null, null, 1);
+  insert.run('noticia-reciente', 'promo:caleida', '2026-02-01', '2026-02-01', '2026-02-01', null, null, null, 1);
+  insert.run('senal-independiente', null, '2026-01-15', '2026-01-15', '2026-01-15', null, null, null, 1);
+  const visible = getAllOpportunities(db);
+  assert.deepEqual(visible.map((row) => row.id), ['noticia-reciente', 'senal-independiente']);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM opportunities').get().n, 3);
+});
+
+test('una baja del registro oficial se publica una vez y es idempotente', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`
+    CREATE TABLE cooperatives (cif TEXT PRIMARY KEY, numRegistro TEXT, name TEXT NOT NULL, foundedAt TEXT, foundingPartners INTEGER, address TEXT, postalCode TEXT, municipality TEXT, email TEXT, phone TEXT, firstSeenAt TEXT NOT NULL, lastSeenAt TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);
+    CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, detectedAt TEXT NOT NULL, entityKind TEXT NOT NULL, entityId TEXT NOT NULL, kind TEXT NOT NULL, label TEXT, oldValue TEXT, newValue TEXT);
+  `);
+  saveCooperative(db, { cif: 'F00000001', name: 'Cooperativa Test', municipality: 'Oleiros', firstSeenAt: '2026-01-01', lastSeenAt: '2026-01-01' });
+  finalizeRegistryImport(db, '2026-02-01');
+  finalizeRegistryImport(db, '2026-02-01');
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM events WHERE kind='disappeared'").get().n, 1);
+  assert.equal(getAllCooperatives(db).length, 0);
 });

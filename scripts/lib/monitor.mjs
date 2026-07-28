@@ -110,11 +110,24 @@ function parsePublicationDate(value = '') {
   return new Date(value);
 }
 
+const BLOCKED_OPPORTUNITY_HOSTS = /(?:^|\.)(?:estatenearme\.com|idealista\.com|fotocasa\.es|habitaclia\.com|yaencontre\.com|nestoria\.es)$/i;
+
+export function isTrustedOpportunityUrl(value = '') {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return !BLOCKED_OPPORTUNITY_HOSTS.test(host);
+  } catch {
+    return false;
+  }
+}
+
 export function toOpportunity(item, source, now = new Date().toISOString()) {
   const title = cleanText(item.title);
   const details = cleanText(item.contentSnippet || item.content || item.description || '');
   const parsedDate = parsePublicationDate(item.isoDate || item.pubDate || '');
   const sourceKind = source && source.startsWith('Prensa') ? 'market-alert' : 'official';
+  const url = normalizeUrl(item.link || '');
+  if (!isTrustedOpportunityUrl(url)) return null;
 
   // Los anuncios oficiales (DOG, contratos) no siempre nombran el municipio en el
   // título, pero sí en el sumario: para ellos buscamos en título + descripción.
@@ -126,7 +139,7 @@ export function toOpportunity(item, source, now = new Date().toISOString()) {
   return {
     id: itemId(item),
     title,
-    url: normalizeUrl(item.link || ''),
+    url,
     source,
     publishedAt: Number.isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString(),
     firstSeenAt: now,

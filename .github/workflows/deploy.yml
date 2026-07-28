@@ -4,11 +4,7 @@ on:
   push:
     branches: [master]
   workflow_dispatch:
-  # El push del bot de refresco no dispara deploy (GITHUB_TOKEN no crea runs);
-  # lo enganchamos a la finalización del workflow de refresco.
-  workflow_run:
-    workflows: ["Refresh housing data"]
-    types: [completed]
+
 
 permissions:
   contents: read

@@ -64,30 +64,32 @@ cp .env.example .env
 ```
 Rellena tus credenciales en el archivo `.env`:
 * **`LLM_API_KEY`**: Tu API Key de OpenRouter.
-* **`FIRECRAWL_API_KEY`**: API Key de tu instancia de Firecrawl (necesaria para scrape/map/search).
+* **`FIRECRAWL_API_KEY`**: Token opcional; puede omitirse en una instancia self-hosted sin autenticación.
 * **`FIRECRAWL_BASE_URL`**: URL de tu Firecrawl self-hosted (opcional, por defecto la API oficial `https://api.firecrawl.dev`).
 
 ### Comandos de desarrollo
 ```bash
-npm test          # Ejecuta los tests de clasificación y reglas geográficas
-npm run refresh   # Ejecuta el rastreador, consulta la IA y actualiza la base de datos SQLite
-npm run dev       # Arranca el servidor de desarrollo local (Astro)
-npm run build     # Compila el HTML estático final en /dist
+npm test                         # Tests de clasificación, grounding y deduplicación
+npm run dev                      # Servidor local de Astro (solo lectura)
+npm run build                    # Compila el HTML estático final en /dist
+scripts/run-pipeline.sh fast     # Refresco rápido serializado
+scripts/run-pipeline.sh deep     # Refresco completo, validación y publicación
 ```
+
+Los scripts que escriben en SQLite son internos y rechazan ejecuciones directas. Usa siempre `run-pipeline.sh`: adquiere el mutex, restaura una ejecución interrumpida, valida, prueba, construye y publica.
 
 ---
 
-## 🤖 Configuración en Producción (GitHub Actions)
+## Automatización en producción
 
-Para que el monitor se ejecute solo y se actualice automáticamente en internet todos los días (a las 10:17 CET), debes configurar las credenciales en tu repositorio de GitHub:
+La captura se agenda exclusivamente mediante dos cron jobs de Hermes Agent:
 
-1. Ve a tu repositorio en GitHub.
-2. Navega a **Settings** (Configuración) -> **Secrets and variables** -> **Actions**.
-3. Añade los siguientes dos **Repository Secrets**:
-   * **`LLM_API_KEY`**: Tu API Key de OpenRouter.
-   * **`FIRECRAWL_API_KEY`**: Tu API Key de Firecrawl.
+- **Profundo:** 08:30, una vez al día.
+- **Rápido:** 12:30, 16:30 y 20:30.
 
-El flujo de trabajo [.github/workflows/refresh-data.yml](.github/workflows/refresh-data.yml) se encargará de realizar las consultas diarias, guardar los nuevos datos en el archivo SQLite, confirmar los cambios mediante un commit automático en Git y redesplegar el frontal en tu página de GitHub Pages de forma transparente.
+Ambos ejecutan `scripts/run-pipeline.sh` y comparten el mismo mutex. OpenRouter es opcional: sin `LLM_API_KEY` el pipeline conserva extracción regex validada y marca `regex-no-llm`; al añadir la clave, esas señales se enriquecen automáticamente una vez.
+
+GitHub Actions no captura ni modifica datos. El único workflow, `.github/workflows/deploy.yml`, construye y despliega GitHub Pages después de cada push a `master`.
 
 ---
 

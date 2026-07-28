@@ -1,5 +1,6 @@
 import { config, AREA_LABELS } from './config.mjs';
-import { statusLabels, statusDescription } from './statuses.mjs';
+import { classifyPromotionLocation } from './municipios.mjs';
+import { hasStatusEvidence, statusLabels, statusDescription } from './statuses.mjs';
 
 const COMMERCIAL_STATUS = [...statusLabels(), null];
 
@@ -101,6 +102,95 @@ async function askLLM(name, schema, systemPrompt, userPrompt, temperature = 0) {
   return content ? JSON.parse(content) : null;
 }
 
+const normalizeEvidence = (value) => String(value || '')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  .replace(/\s+/g, ' ').trim();
+
+function observedNumbers(source) {
+  return [...String(source || '').matchAll(/\b\d[\d.,]*\b/g)].map(([raw]) => {
+    const cleaned = raw.replace(/\s/g, '');
+    if (/^\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(cleaned)) return Number(cleaned.replace(/\./g, '').replace(',', '.'));
+    if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(cleaned)) return Number(cleaned.replace(/,/g, ''));
+    return Number(cleaned.replace(',', '.'));
+  }).filter(Number.isFinite);
+}
+
+const NUMBER_WORDS = new Map([
+  ['uno', 1], ['una', 1], ['dos', 2], ['tres', 3], ['cuatro', 4], ['cinco', 5],
+  ['seis', 6], ['siete', 7], ['ocho', 8], ['nueve', 9], ['diez', 10],
+  ['once', 11], ['doce', 12], ['trece', 13], ['catorce', 14], ['quince', 15],
+]);
+
+function numericEvidenceWindows(value, source) {
+  if (!Number.isFinite(value)) return [];
+  const normalized = normalizeEvidence(source);
+  const windows = [];
+  for (const match of normalized.matchAll(/\b\d[\d.,]*\b/g)) {
+    const seen = observedNumbers(match[0])[0];
+    if (Math.abs(seen - value) < 0.01) {
+      const start = Math.max(0, match.index - 80);
+      windows.push(`${normalized.slice(start, match.index)} # ${normalized.slice(match.index + match[0].length, match.index + match[0].length + 80)}`);
+    }
+  }
+  for (const [word, seen] of NUMBER_WORDS) {
+    if (seen !== value) continue;
+    for (const match of normalized.matchAll(new RegExp(`\\b${word}\\b`, 'g'))) {
+      const start = Math.max(0, match.index - 80);
+      windows.push(`${normalized.slice(start, match.index)} # ${normalized.slice(match.index + word.length, match.index + word.length + 80)}`);
+    }
+  }
+  return windows;
+}
+
+const fieldNumber = (value, min, max, source, predicate) => Number.isFinite(value)
+  && value >= min && value <= max
+  && numericEvidenceWindows(value, source).some(predicate) ? value : null;
+
+export function isGroundedEntityName(value, source, kind = 'company') {
+  if (!value || typeof value !== 'string') return null;
+  const clean = value.trim();
+  if (clean.length < 2 || clean.length > 100 || clean.split(/\s+/).length > 10) return null;
+  if (!normalizeEvidence(source).includes(normalizeEvidence(clean))) return null;
+  if (/^(?:el pasado|de las|de los|la empresa del|promoci[oó]n en|residencial para|reactiva|construir[aá]|promueve|desarrolla|gestiona)\b/i.test(clean)) return null;
+  if (/\s+-\s+(?:la|el)\s+(?:opini[oó]n|espa[nñ]ol|voz|ideal)\b/i.test(clean)) return null;
+  if (kind === 'promotion' && /^(?:cooperativa (?:de la promoci[oó]n|de|en|para)\b|edificio de (?:\d+\s+)?(?:viviendas|pisos)\b|promoci[oó]n de obra nueva\b|promoci[oó]n residencial\s*$|promoci[oó]n en\b)/i.test(clean)) return null;
+  return clean;
+}
+
+export function validateExtractedHousingData(parsed, title, summary) {
+  const source = `${title}\n${summary}`;
+  const normalizedSource = normalizeEvidence(source);
+  const priceContext = (window) => /(?:€|euros?\b)/.test(window) && /\b(?:precio|precios|desde|a partir|cuesta|coste|importe|valor de venta)\b/.test(window);
+  const roomContext = (window) => /#.{0,30}\b(?:dormitorios?|habitaciones?|hab\.)\b|\b(?:dormitorios?|habitaciones?)\b.{0,20}#/.test(window);
+  const bathContext = (window) => /#.{0,20}\b(?:banos?|cuartos? de bano)\b|\b(?:banos?|cuartos? de bano)\b.{0,20}#/.test(window);
+  const totalContext = (window) => /#\s*(?:nuevas?\s+)?(?:viviendas?|pisos?|unidades)\b/.test(window);
+  const precioMin = fieldNumber(parsed.precioMin, 100000, 2_000_000, source, priceContext);
+  const precioMax = fieldNumber(parsed.precioMax, 100000, 3_000_000, source, priceContext);
+  const amenity = (value, positive, negative) => {
+    const hasNegative = negative.test(normalizedSource);
+    const positiveSource = normalizedSource.replace(negative, ' ');
+    if (value === true) return !hasNegative && positive.test(positiveSource) ? true : null;
+    if (value === false) return hasNegative ? false : null;
+    return null;
+  };
+  let estado = parsed.estado && hasStatusEvidence(parsed.estado, source) ? parsed.estado : null;
+  if (estado === 'Agotada/Vendida' && !/(?:viviendas|unidades|promocion).{0,60}(?:agotad|vendid)|(?:agotad|vendid).{0,60}(?:viviendas|unidades|promocion)|no quedan/i.test(normalizedSource)) estado = null;
+  return {
+    ...parsed,
+    precioMin,
+    precioMax: precioMax && (!precioMin || precioMax >= precioMin) ? precioMax : null,
+    habitacionesMin: fieldNumber(parsed.habitacionesMin, 1, 8, source, roomContext),
+    banosMin: fieldNumber(parsed.banosMin, 1, 6, source, bathContext),
+    totalViviendas: fieldNumber(parsed.totalViviendas, 2, 2000, source, totalContext),
+    garaje: amenity(parsed.garaje, /\b(?:garaje|aparcamiento|parking)\b/i, /\bsin (?:garaje|aparcamiento|parking)\b/i),
+    trastero: amenity(parsed.trastero, /\b(?:trastero|bodega)\b/i, /\bsin (?:trastero|bodega)\b/i),
+    terraza: amenity(parsed.terraza, /\b(?:terraza|balcon|porche|jardin)\b/i, /\bsin (?:terraza|balcon|porche|jardin)\b/i),
+    estado,
+    promotora: isGroundedEntityName(parsed.promotora, source, 'company'),
+    nombrePromocion: isGroundedEntityName(parsed.nombrePromocion, source, 'promotion'),
+  };
+}
+
 /**
  * Extracts structured housing details from a news alert title and summary.
  *
@@ -132,9 +222,11 @@ Para "estado", deduce el estado real de comercialización a partir del texto (no
 Título: ${title}
 Resumen: ${summary}`;
 
+  if (!config.llm.apiKey) return { ...defaultData, llmCallSkipped: true, llmCallFailed: false };
+
   try {
     const parsed = await askLLM('extract_housing_details', HOUSING_SCHEMA, systemPrompt, userPrompt, 0.1);
-    return parsed ?? defaultData;
+    return parsed ? validateExtractedHousingData(parsed, title, summary) : { ...defaultData, llmCallFailed: true };
   } catch (error) {
     console.warn(`[llm] Fallo al extraer datos con LLM (Structured Output): ${error.message}`);
     // Marca el fallo como transitorio (cuota, red, etc.) para que el pipeline NO cachee este
@@ -175,7 +267,8 @@ Devuelve SOLO nombres de empresas reales que aparezcan en los resultados. No inv
 
   try {
     const parsed = await askLLM('discover_gestoras', schema, systemPrompt, userPrompt);
-    return parsed?.nombres ?? [];
+    const evidence = results.map((result) => `${result.title} ${result.url}`).join('\n');
+    return (parsed?.nombres ?? []).filter((candidate) => isGroundedEntityName(candidate, evidence, 'company'));
   } catch (error) {
     console.warn(`[llm] Fallo al descubrir gestoras: ${error.message}`);
     return [];
@@ -238,15 +331,23 @@ Usa ÚNICAMENTE lo que aparece literalmente en el texto proporcionado. No invent
       website: { type: 'string', description: 'URL oficial de la empresa tal como aparece en el texto. Cadena vacía si no aparece.' },
       phone: { type: 'string', description: 'Teléfono de contacto literal del texto. Cadena vacía si no aparece.' },
       email: { type: 'string', description: 'Email de contacto literal del texto. Cadena vacía si no aparece.' },
-      address: { type: 'string', description: 'Dirección física literal del texto. Cadena vacía si no aparece.' },
-      description: { type: 'string', description: 'Síntesis de 2-3 frases de lo que dice el texto sobre la empresa. Cadena vacía si no hay suficiente información.' }
+      address: { type: 'string', description: 'Dirección física literal del texto. Cadena vacía si no aparece.' }
     },
-    required: ['website', 'phone', 'email', 'address', 'description'],
+    required: ['website', 'phone', 'email', 'address'],
     additionalProperties: false
   };
 
   try {
-    return await askLLM('extract_gestora_contact', schema, systemPrompt, userPrompt);
+    const parsed = await askLLM('extract_gestora_contact', schema, systemPrompt, userPrompt);
+    if (!parsed) return null;
+    const literal = (value) => value && normalizeEvidence(pageMarkdown).includes(normalizeEvidence(value)) ? value : '';
+    return {
+      website: literal(parsed.website),
+      phone: literal(parsed.phone),
+      email: literal(parsed.email),
+      address: literal(parsed.address),
+      description: '',
+    };
   } catch (error) {
     console.warn(`[llm] Fallo al extraer contacto real para ${name}: ${error.message}`);
     return null;
@@ -303,7 +404,45 @@ IMPORTANTE: esta empresa puede operar en toda España. Incluye SOLO promociones 
 
   try {
     const parsed = await askLLM('extract_gestora_catalog', schema, systemPrompt, userPrompt);
-    return parsed?.promociones ?? [];
+    const normalize = (value) => String(value || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/\s+/g, ' ').trim();
+    const haystack = normalize(pageMarkdown);
+
+    // Divide de forma determinista por el siguiente nombre detectado. Así, la
+    // ubicación o las cifras de una tarjeta no contaminan la anterior.
+    const candidates = parsed?.promociones ?? [];
+    const positions = candidates
+      .map((promo) => ({ promo, index: haystack.indexOf(normalize(promo.nombre)) }))
+      .filter(({ index }) => index >= 0)
+      .sort((a, b) => a.index - b.index);
+
+    return positions.flatMap(({ promo, index }, position) => {
+      if (!promo.nombre || !promo.location) return [];
+      if (!isGroundedEntityName(promo.nombre, pageMarkdown, 'promotion')) return [];
+      if (classifyPromotionLocation(promo.location).scopeStatus !== 'in_scope') return [];
+      const name = normalize(promo.nombre);
+      const location = normalize(promo.location);
+      const nextIndex = positions[position + 1]?.index ?? Math.min(haystack.length, index + name.length + 1500);
+      const block = haystack.slice(Math.max(0, index - 250), nextIndex);
+      const projectBlock = block.split(/\b(?:oficina|contacto|direccion social|sede)\s*:/i)[0];
+      if (!projectBlock.includes(location)) return [];
+      const literal = (value) => value && block.includes(normalize(value)) ? value : null;
+      const catalogTotalContext = (window) => /#\s*(?:nuevas?\s+)?(?:viviendas?|pisos?|unidades)\b/.test(window);
+      const contributionContext = (window) => /(?:€|euros?\b)/.test(window) && /\b(?:aportacion|entrada|desembolso inicial)\b/.test(window);
+      return [{
+        ...promo,
+        estado: promo.estado && hasStatusEvidence(promo.estado, block) ? promo.estado : null,
+        totalViviendas: fieldNumber(promo.totalViviendas, 2, 2000, projectBlock, catalogTotalContext),
+        entregaEstimada: literal(promo.entregaEstimada),
+        buscaSocios: promo.buscaSocios === true
+          ? (/\b(?:inscribete|plazo abierto|unete|captacion|venta en curso|busca socios)\b/i.test(block) ? true : null)
+          : promo.buscaSocios === false
+            ? (/\b(?:completa|adjudicada|cerrada|sin plazas)\b/i.test(block) ? false : null)
+            : null,
+        aportacionInicial: fieldNumber(promo.aportacionInicial, 1000, 2_000_000, projectBlock, contributionContext),
+      }];
+    });
   } catch (error) {
     console.warn(`[llm] Fallo al extraer catálogo de promociones para ${name}: ${error.message}`);
     return [];

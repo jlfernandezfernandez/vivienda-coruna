@@ -2,17 +2,20 @@ import { createHash } from 'node:crypto';
 import { config, AREA_LABELS } from './lib/config.mjs';
 import { searchWeb, scrapeUrl } from './lib/scraper.mjs';
 import { extractWithRegex } from './lib/regex-extractor.mjs';
-import { extractHousingData } from './lib/llm.mjs';
+import { extractHousingData, validateExtractedHousingData } from './lib/llm.mjs';
+import { requirePipelineWriter } from './lib/writer-lock.mjs';
 import {
   getDatabase,
   saveOpportunity,
   getAllOpportunities,
+  saveSource,
 } from './lib/db.mjs';
 import {
   cleanText,
   detectLocation,
   detectType,
   isRelevantTitle,
+  isTrustedOpportunityUrl,
   normalizeUrl,
 } from './lib/monitor.mjs';
 
@@ -20,6 +23,8 @@ const MUNICIPIOS = [
   'A Coruña', 'Arteixo', 'Culleredo', 'Oleiros', 'Cambre',
   'Sada', 'Bergondo', 'Carral', 'Abegondo',
 ];
+
+const PRESS_HOST_PATTERN = /(?:laopinioncoruna\.es|lavozdegalicia\.es|elidealgallego\.com|elespanol\.com|eldiariodearteixo\.com|news\.google\.com|que\.es|msn\.com|inmobiliario)/i;
 
 const SEARCH_QUERIES = [
   'cooperativa vivienda {municipio} 2026',
@@ -37,7 +42,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function toOpportunityFromSearch(result, source, now) {
   const title = cleanText(result.title);
-  if (!isRelevantTitle(title)) return null;
+  if (!isRelevantTitle(title) || !isTrustedOpportunityUrl(result.url)) return null;
 
   const id = createHash('sha256').update(normalizeUrl(result.url)).digest('hex').slice(0, 16);
 
@@ -74,12 +79,18 @@ async function enrichOpportunity(db, item) {
 
   let llmData;
   if (regexData._llmNeeded) {
-    llmData = await extractHousingData(item.title, contentToAnalyze);
+    const llmResult = await extractHousingData(item.title, contentToAnalyze);
+    const regexValues = Object.fromEntries(Object.entries(regexData).filter(([key, value]) => !key.startsWith('_') && value !== null && value !== undefined));
+    llmData = validateExtractedHousingData({ ...llmResult, ...regexValues, llmCallFailed: llmResult.llmCallFailed }, item.title, contentToAnalyze);
     console.log(`  [Regex→LLM] ${regexFields} campos regex + LLM para "${item.title.slice(0, 50)}..."`);
   } else {
-    llmData = { ...regexData, llmCallFailed: false };
+    llmData = validateExtractedHousingData({ ...regexData, llmCallFailed: false }, item.title, contentToAnalyze);
     console.log(`  [Regex] ${regexFields} campos sin LLM para "${item.title.slice(0, 50)}..."`);
   }
+
+  const titleGroundedTotal = PRESS_HOST_PATTERN.test(item.url || '')
+    ? validateExtractedHousingData({ totalViviendas: llmData.totalViviendas }, item.title, '').totalViviendas
+    : llmData.totalViviendas;
 
   saveOpportunity(db, {
     ...item,
@@ -88,28 +99,52 @@ async function enrichOpportunity(db, item) {
     habitacionesMin: llmData.habitacionesMin,
     banosMin: llmData.banosMin,
     promotora: llmData.promotora,
-    totalViviendas: llmData.totalViviendas,
+    totalViviendas: titleGroundedTotal,
     garaje: llmData.garaje,
     trastero: llmData.trastero,
     terraza: llmData.terraza,
     status: llmData.estado || item.status,
     nombrePromocion: llmData.nombrePromocion,
-    enriched: !llmData.llmCallFailed,
+    evidenceText: contentToAnalyze.slice(0, 10000),
+    extractionMethod: regexData._llmNeeded
+      ? (llmData.llmCallSkipped ? 'regex-no-llm' : 'regex+llm')
+      : 'regex',
+    enriched: llmData.llmCallSkipped || !llmData.llmCallFailed,
   });
 }
 
 async function main() {
+  requirePipelineWriter();
   const checkedAt = new Date().toISOString();
   const db = getDatabase();
+
+  // Reintenta campos previamente rechazados o llamadas LLM transitorias. Sin esto,
+  // las URLs conocidas se saltaban para siempre y un dato malo no podía recuperarse.
+  const retryNoLlm = config.llm.apiKey ? " OR extractionMethod = 'regex-no-llm'" : '';
+  const pending = db.prepare(`
+    SELECT * FROM opportunities
+    WHERE COALESCE(enriched, 0) = 0${retryNoLlm}
+    ORDER BY lastSeenAt DESC
+    LIMIT 25
+  `).all();
+  for (const item of pending) {
+    await enrichOpportunity(db, item);
+  }
+  if (pending.length) console.log(`Reintentadas ${pending.length} oportunidades pendientes de enriquecimiento.`);
+  if (process.env.RETRY_ONLY === '1') return;
+
   const seenUrls = new Set((getAllOpportunities(db, 500)).map((o) => o.url));
   let newCount = 0;
 
   for (const municipio of MUNICIPIOS) {
+    let scanned = 0;
+    let ok = true;
     for (const queryTpl of SEARCH_QUERIES) {
       const query = queryTpl.replace('{municipio}', municipio);
       const sourceName = `Firecrawl · ${municipio}`;
       try {
-        const results = await searchWeb(query, 5);
+        const results = await searchWeb(query, 5, { strict: true });
+        scanned += results.length;
         console.log(`✓ ${sourceName}: "${query}" → ${results.length} resultados`);
 
         for (const r of results) {
@@ -125,10 +160,18 @@ async function main() {
           }
         }
       } catch (err) {
+        ok = false;
         console.error(`✗ ${sourceName}: ${err.message}`);
       }
       await sleep(DELAY_MS);
     }
+    saveSource(db, {
+      name: `Firecrawl · ${municipio}`,
+      url: `${config.firecrawl.baseUrl}/v1/search`,
+      kind: 'firecrawl-search',
+      ok,
+      scanned,
+    });
     await sleep(MUNICIPIO_PAUSE_MS); // Pausa entre municipios
   }
 

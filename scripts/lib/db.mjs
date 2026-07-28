@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { config } from './config.mjs';
+import { classifyPromotionLocation } from './municipios.mjs';
 
 let dbInstance = null;
 
@@ -9,10 +10,13 @@ let dbInstance = null;
  * 
  * @returns {DatabaseSync} Database instance
  */
-export function getDatabase() {
+export function getDatabase(options = {}) {
   if (!dbInstance) {
     const dbPath = join(config.paths.root, 'src', 'data', 'monitor.db');
-    dbInstance = new DatabaseSync(dbPath);
+    const readOnly = options.readOnly ?? process.env.DB_READ_ONLY === '1';
+    dbInstance = new DatabaseSync(dbPath, { readOnly });
+    dbInstance.exec('PRAGMA foreign_keys = ON;');
+    if (readOnly) return dbInstance;
     
     // Create tables schema
     dbInstance.exec(`
@@ -39,7 +43,9 @@ export function getDatabase() {
         trastero INTEGER,
         terraza INTEGER,
         enriched INTEGER,
-        nombrePromocion TEXT
+        nombrePromocion TEXT,
+        evidenceText TEXT,
+        extractionMethod TEXT
       );
 
       CREATE TABLE IF NOT EXISTS sources (
@@ -47,7 +53,8 @@ export function getDatabase() {
         url TEXT NOT NULL,
         kind TEXT NOT NULL,
         ok INTEGER NOT NULL,
-        scanned INTEGER NOT NULL
+        scanned INTEGER NOT NULL,
+        checkedAt TEXT
       );
 
       CREATE TABLE IF NOT EXISTS gestoras (
@@ -72,6 +79,8 @@ export function getDatabase() {
         entregaEstimada TEXT,
         buscaSocios INTEGER,
         aportacionInicial INTEGER,
+        municipality TEXT,
+        scopeStatus TEXT NOT NULL DEFAULT 'unverified',
         FOREIGN KEY(gestoraId) REFERENCES gestoras(id) ON DELETE CASCADE
       );
 
@@ -88,7 +97,17 @@ export function getDatabase() {
         email TEXT,
         phone TEXT,
         firstSeenAt TEXT NOT NULL,
-        lastSeenAt TEXT NOT NULL
+        lastSeenAt TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1
+      );
+
+      CREATE TABLE IF NOT EXISTS entity_aliases (
+        entityKind TEXT NOT NULL,
+        aliasId TEXT NOT NULL,
+        canonicalId TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        PRIMARY KEY(entityKind, aliasId)
       );
 
       -- Cambios detectados entre corridas: base para "últimos cambios" en la web.
@@ -115,35 +134,38 @@ export function getDatabase() {
     if (!opportunityColumns.includes('promotionId')) {
       dbInstance.exec(`ALTER TABLE opportunities ADD COLUMN promotionId TEXT`);
     }
+    if (!opportunityColumns.includes('evidenceText')) {
+      dbInstance.exec(`ALTER TABLE opportunities ADD COLUMN evidenceText TEXT`);
+    }
+    if (!opportunityColumns.includes('extractionMethod')) {
+      dbInstance.exec(`ALTER TABLE opportunities ADD COLUMN extractionMethod TEXT`);
+    }
+    const sourceColumns = dbInstance.prepare(`PRAGMA table_info(sources)`).all().map((c) => c.name);
+    if (!sourceColumns.includes('checkedAt')) {
+      dbInstance.exec(`ALTER TABLE sources ADD COLUMN checkedAt TEXT`);
+    }
+    const cooperativeColumns = dbInstance.prepare(`PRAGMA table_info(cooperatives)`).all().map((c) => c.name);
+    if (!cooperativeColumns.includes('active')) {
+      dbInstance.exec(`ALTER TABLE cooperatives ADD COLUMN active INTEGER NOT NULL DEFAULT 1`);
+    }
     const promotionColumns = dbInstance.prepare(`PRAGMA table_info(gestora_promotions)`).all().map((c) => c.name);
-    for (const col of ['entregaEstimada TEXT', 'buscaSocios INTEGER', 'aportacionInicial INTEGER']) {
+    for (const col of ['entregaEstimada TEXT', 'buscaSocios INTEGER', 'aportacionInicial INTEGER', 'municipality TEXT', "scopeStatus TEXT NOT NULL DEFAULT 'unverified'"]) {
       if (!promotionColumns.includes(col.split(' ')[0])) {
         dbInstance.exec(`ALTER TABLE gestora_promotions ADD COLUMN ${col}`);
       }
     }
-
-    // Una sola familia de ids de promoción (prensa y web colisionan y se fusionan):
-    // históricos "gestora:slug" y "site:gestora:slug" pasan a "promo:gestora:slug".
-    const promoIds = dbInstance.prepare(`SELECT id FROM gestora_promotions WHERE id NOT LIKE 'promo:%'`).all();
-    if (promoIds.length > 0) {
-      // Transacción: si algo falla a mitad, no dejar ids a medio migrar.
-      dbInstance.exec('BEGIN');
-      try {
-        dbInstance.exec(`DELETE FROM gestora_promotions WHERE id LIKE 'site:%' AND 'promo:' || substr(id, 6) IN (SELECT id FROM gestora_promotions)`);
-        dbInstance.exec(`DELETE FROM gestora_promotions WHERE id NOT LIKE 'promo:%' AND id NOT LIKE 'site:%' AND 'promo:' || id IN (SELECT id FROM gestora_promotions)`);
-        // Si "site:G:S" y "G:S" coexisten, ambos UPDATEs producirían "promo:G:S"
-        // (UNIQUE crash): quedarse con el gemelo sin prefijo y borrar el de site.
-        dbInstance.exec(`DELETE FROM gestora_promotions WHERE id LIKE 'site:%' AND substr(id, 6) IN (SELECT id FROM gestora_promotions WHERE id NOT LIKE 'promo:%' AND id NOT LIKE 'site:%')`);
-        dbInstance.exec(`UPDATE gestora_promotions SET id = 'promo:' || substr(id, 6) WHERE id LIKE 'site:%'`);
-        dbInstance.exec(`UPDATE gestora_promotions SET id = 'promo:' || id WHERE id NOT LIKE 'promo:%'`);
-        dbInstance.exec('COMMIT');
-      } catch (error) {
-        dbInstance.exec('ROLLBACK');
-        throw error;
-      }
-    }
   }
   return dbInstance;
+}
+
+/** Recalcula el ámbito geográfico solo dentro del escritor serializado. */
+export function reclassifyPromotionScopes(db) {
+  const rows = db.prepare('SELECT id, location FROM gestora_promotions').all();
+  const update = db.prepare('UPDATE gestora_promotions SET municipality = ?, scopeStatus = ? WHERE id = ?');
+  for (const row of rows) {
+    const scope = classifyPromotionLocation(row.location);
+    update.run(scope.municipality, scope.scopeStatus, row.id);
+  }
 }
 
 /**
@@ -164,7 +186,16 @@ function logEvent(db, entityKind, entityId, kind, label, oldValue, newValue) {
  * @returns {Array<Object>}
  */
 export function getRecentEvents(db, limit = 25) {
-  return db.prepare('SELECT * FROM events ORDER BY id DESC LIMIT ?').all(limit);
+  return db.prepare(`
+    SELECT e.* FROM events e
+    LEFT JOIN opportunities o ON e.entityKind = 'opportunity' AND o.id = e.entityId
+    LEFT JOIN gestora_promotions p ON e.entityKind = 'promotion' AND p.id = e.entityId
+    LEFT JOIN cooperatives c ON e.entityKind = 'cooperative' AND c.cif = e.entityId AND c.active = 1
+    WHERE (e.entityKind = 'opportunity' AND o.id IS NOT NULL)
+       OR (e.entityKind = 'promotion' AND p.id IS NOT NULL)
+       OR (e.entityKind = 'cooperative' AND c.cif IS NOT NULL)
+    ORDER BY e.id DESC LIMIT ?
+  `).all(limit);
 }
 
 /**
@@ -174,23 +205,12 @@ export function getRecentEvents(db, limit = 25) {
  * @param {Object} op - Opportunity object
  */
 export function saveOpportunity(db, op) {
-  // Deduplicación por similitud de título: si ya existe una oportunidad
-  // con un título muy parecido (mismo prefijo de 50 chars normalizado), 
-  // la nueva se descarta para evitar duplicados de distintas fuentes RSS.
-  const norm = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
-  const newKey = norm(op.title).substring(0, 50);
-  if (newKey.length > 10) {
-    const existing = db.prepare('SELECT id, title, precioMin FROM opportunities').all();
-    for (const e of existing) {
-      const existKey = norm(e.title).substring(0, 50);
-      if (existKey === newKey && e.id !== op.id) {
-        // Ya existe: hacer upsert en el existente en vez de insertar nuevo
-        op.id = e.id;
-        break;
-      }
-    }
+  const alias = db.prepare("SELECT canonicalId FROM entity_aliases WHERE entityKind = 'opportunity' AND aliasId = ?").get(op.id);
+  if (alias?.canonicalId === '__rejected__') return;
+  if (alias) {
+    const canonical = db.prepare('SELECT title,url,source,sourceKind,publishedAt,firstSeenAt FROM opportunities WHERE id = ?').get(alias.canonicalId);
+    op = { ...op, id: alias.canonicalId, ...(canonical || {}) };
   }
-
   const old = db.prepare('SELECT status, precioMin FROM opportunities WHERE id = ?').get(op.id);
   if (!old) {
     logEvent(db, 'opportunity', op.id, 'new', op.title, null, op.type || null);
@@ -207,25 +227,27 @@ export function saveOpportunity(db, op) {
     INSERT INTO opportunities (
       id, title, url, source, sourceKind, publishedAt, firstSeenAt, lastSeenAt,
       location, type, status, summary, precioMin, precioMax, habitacionesMin,
-      banosMin, promotora, totalViviendas, garaje, trastero, terraza, enriched, nombrePromocion, promotionId
+      banosMin, promotora, totalViviendas, garaje, trastero, terraza, enriched,
+      nombrePromocion, promotionId, evidenceText, extractionMethod
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     ) ON CONFLICT(id) DO UPDATE SET
       lastSeenAt = excluded.lastSeenAt,
-      status = COALESCE(excluded.status, status),
-      precioMin = COALESCE(excluded.precioMin, precioMin),
-      precioMax = COALESCE(excluded.precioMax, precioMax),
-      habitacionesMin = COALESCE(excluded.habitacionesMin, habitacionesMin),
-      banosMin = COALESCE(excluded.banosMin, banosMin),
-      promotora = COALESCE(excluded.promotora, promotora),
-      totalViviendas = COALESCE(excluded.totalViviendas, totalViviendas),
-      garaje = COALESCE(excluded.garaje, garaje),
-      trastero = COALESCE(excluded.trastero, trastero),
-      terraza = COALESCE(excluded.terraza, terraza),
-      -- Sticky flag: una vez enriquecido por el LLM, no vuelve a 0.
-      enriched = CASE WHEN excluded.enriched = 1 THEN 1 ELSE enriched END,
-      nombrePromocion = COALESCE(excluded.nombrePromocion, nombrePromocion),
-      promotionId = COALESCE(excluded.promotionId, promotionId)
+      status = excluded.status,
+      precioMin = excluded.precioMin,
+      precioMax = excluded.precioMax,
+      habitacionesMin = excluded.habitacionesMin,
+      banosMin = excluded.banosMin,
+      promotora = excluded.promotora,
+      totalViviendas = excluded.totalViviendas,
+      garaje = excluded.garaje,
+      trastero = excluded.trastero,
+      terraza = excluded.terraza,
+      enriched = excluded.enriched,
+      nombrePromocion = excluded.nombrePromocion,
+      promotionId = excluded.promotionId,
+      evidenceText = COALESCE(excluded.evidenceText, evidenceText),
+      extractionMethod = COALESCE(excluded.extractionMethod, extractionMethod)
   `);
 
   stmt.run(
@@ -252,7 +274,9 @@ export function saveOpportunity(db, op) {
     op.terraza === true ? 1 : (op.terraza === false ? 0 : null),
     op.enriched ? 1 : 0,
     op.nombrePromocion || null,
-    op.promotionId || null
+    op.promotionId || null,
+    op.evidenceText || null,
+    op.extractionMethod || null
   );
 }
 
@@ -287,12 +311,20 @@ export function getOpportunity(db, id) {
  */
 export function getAllOpportunities(db, limit = 150) {
   const stmt = db.prepare(`
-    SELECT * FROM opportunities 
-    ORDER BY COALESCE(publishedAt, firstSeenAt) DESC 
+    SELECT * FROM (
+      SELECT opportunities.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(promotionId, id)
+          ORDER BY COALESCE(publishedAt, firstSeenAt) DESC, lastSeenAt DESC
+        ) AS canonicalRank
+      FROM opportunities
+    )
+    WHERE canonicalRank = 1
+    ORDER BY COALESCE(publishedAt, firstSeenAt) DESC
     LIMIT ?
   `);
   const rows = stmt.all(limit);
-  return rows.map(row => ({
+  return rows.map(({ canonicalRank: _canonicalRank, ...row }) => ({
     ...row,
     garaje: row.garaje === 1 ? true : (row.garaje === 0 ? false : null),
     trastero: row.trastero === 1 ? true : (row.trastero === 0 ? false : null),
@@ -309,18 +341,20 @@ export function getAllOpportunities(db, limit = 150) {
  */
 export function saveSource(db, source) {
   const stmt = db.prepare(`
-    INSERT INTO sources (name, url, kind, ok, scanned)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO sources (name, url, kind, ok, scanned, checkedAt)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET
       ok = excluded.ok,
-      scanned = excluded.scanned
+      scanned = excluded.scanned,
+      checkedAt = excluded.checkedAt
   `);
   stmt.run(
     source.name,
     source.url,
     source.kind,
     source.ok ? 1 : 0,
-    source.scanned
+    source.scanned,
+    new Date().toISOString()
   );
 }
 
@@ -347,7 +381,7 @@ export function getAllSources(db) {
  */
 export function getAllGestoras(db) {
   const gestorasRows = db.prepare('SELECT * FROM gestoras').all();
-  const promotionsRows = db.prepare('SELECT * FROM gestora_promotions').all();
+  const promotionsRows = db.prepare("SELECT * FROM gestora_promotions WHERE scopeStatus = 'in_scope'").all();
 
   return gestorasRows.map(g => {
     const promotions = promotionsRows
@@ -411,16 +445,28 @@ export function saveGestora(db, g) {
  * @param {Object} p - Promotion object
  */
 export function saveGestoraPromotion(db, p) {
-  const old = db.prepare('SELECT status FROM gestora_promotions WHERE id = ?').get(p.id);
+  const alias = db.prepare("SELECT canonicalId FROM entity_aliases WHERE entityKind = 'promotion' AND aliasId = ?").get(p.id);
+  if (alias?.canonicalId === '__rejected__') return;
+  if (alias) {
+    const canonical = db.prepare('SELECT name FROM gestora_promotions WHERE id = ?').get(alias.canonicalId);
+    p = { ...p, id: alias.canonicalId, name: canonical?.name || p.name };
+  }
+
+  const old = db.prepare('SELECT status, location FROM gestora_promotions WHERE id = ?').get(p.id);
   if (!old) {
     logEvent(db, 'promotion', p.id, 'new', p.name, null, p.status || null);
   } else if (old.status && p.status && old.status !== p.status) {
     logEvent(db, 'promotion', p.id, 'status', p.name, old.status, p.status);
   }
 
+  const effectiveLocation = p.location || old?.location || '';
+  const scope = classifyPromotionLocation(effectiveLocation);
   const stmt = db.prepare(`
-    INSERT INTO gestora_promotions (id, gestoraId, name, location, status, details, link, entregaEstimada, buscaSocios, aportacionInicial)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO gestora_promotions (
+      id, gestoraId, name, location, status, details, link, entregaEstimada,
+      buscaSocios, aportacionInicial, municipality, scopeStatus
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       gestoraId = excluded.gestoraId,
       name = excluded.name,
@@ -432,7 +478,9 @@ export function saveGestoraPromotion(db, p) {
       link = excluded.link,
       entregaEstimada = COALESCE(excluded.entregaEstimada, entregaEstimada),
       buscaSocios = COALESCE(excluded.buscaSocios, buscaSocios),
-      aportacionInicial = COALESCE(excluded.aportacionInicial, aportacionInicial)
+      aportacionInicial = COALESCE(excluded.aportacionInicial, aportacionInicial),
+      municipality = excluded.municipality,
+      scopeStatus = excluded.scopeStatus
   `);
   stmt.run(
     p.id,
@@ -444,7 +492,9 @@ export function saveGestoraPromotion(db, p) {
     p.link,
     p.entregaEstimada || null,
     p.buscaSocios === true ? 1 : (p.buscaSocios === false ? 0 : null),
-    p.aportacionInicial !== undefined && p.aportacionInicial !== null ? p.aportacionInicial : null
+    p.aportacionInicial !== undefined && p.aportacionInicial !== null ? p.aportacionInicial : null,
+    scope.municipality,
+    scope.scopeStatus
   );
 }
 
@@ -455,12 +505,13 @@ export function saveGestoraPromotion(db, p) {
  * @param {Object} c - Cooperative row
  */
 export function saveCooperative(db, c) {
-  const exists = db.prepare('SELECT 1 FROM cooperatives WHERE cif = ?').get(c.cif);
+  const exists = db.prepare('SELECT active FROM cooperatives WHERE cif = ?').get(c.cif);
   if (!exists) logEvent(db, 'cooperative', c.cif, 'new', c.name, null, c.municipality || null);
+  else if (exists.active === 0) logEvent(db, 'cooperative', c.cif, 'reappeared', c.name, null, c.municipality || null);
 
   db.prepare(`
-    INSERT INTO cooperatives (cif, numRegistro, name, foundedAt, foundingPartners, address, postalCode, municipality, email, phone, firstSeenAt, lastSeenAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO cooperatives (cif, numRegistro, name, foundedAt, foundingPartners, address, postalCode, municipality, email, phone, firstSeenAt, lastSeenAt, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(cif) DO UPDATE SET
       numRegistro = excluded.numRegistro,
       name = excluded.name,
@@ -471,7 +522,8 @@ export function saveCooperative(db, c) {
       municipality = excluded.municipality,
       email = excluded.email,
       phone = excluded.phone,
-      lastSeenAt = excluded.lastSeenAt
+      lastSeenAt = excluded.lastSeenAt,
+      active = 1
   `).run(
     c.cif,
     c.numRegistro || null,
@@ -497,10 +549,11 @@ export function saveCooperative(db, c) {
  * @param {string} seenAt - ISO timestamp de la corrida actual
  */
 export function finalizeRegistryImport(db, seenAt) {
-  const disappeared = db.prepare('SELECT cif, name, municipality FROM cooperatives WHERE lastSeenAt < ?').all(seenAt);
+  const disappeared = db.prepare('SELECT cif, name, municipality FROM cooperatives WHERE active = 1 AND lastSeenAt < ?').all(seenAt);
   for (const c of disappeared) {
     logEvent(db, 'cooperative', c.cif, 'disappeared', c.name, c.municipality || null, null);
   }
+  db.prepare('UPDATE cooperatives SET active = 0 WHERE active = 1 AND lastSeenAt < ?').run(seenAt);
   db.exec(`DELETE FROM events WHERE detectedAt < date('now', '-90 days')`);
 }
 
@@ -511,6 +564,6 @@ export function finalizeRegistryImport(db, seenAt) {
  * @returns {Array<Object>}
  */
 export function getAllCooperatives(db) {
-  return db.prepare('SELECT * FROM cooperatives ORDER BY foundedAt DESC').all();
+  return db.prepare('SELECT * FROM cooperatives WHERE active = 1 ORDER BY foundedAt DESC').all();
 }
 

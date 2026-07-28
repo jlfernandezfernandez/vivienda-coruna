@@ -7,12 +7,14 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "DB_READ_ONLY=1 astro build",
     "test": "LLM_API_KEY=test node --test tests/*.test.mjs",
     "refresh": "node scripts/fetch-rss.mjs",
+    "refresh:fast": "FAST_REFRESH=1 node scripts/fetch-rss.mjs",
     "enrich": "node scripts/enrich-firecrawl.mjs",
+    "enrich:retry": "RETRY_ONLY=1 node scripts/enrich-firecrawl.mjs",
     "refresh:all": "node scripts/fetch-rss.mjs && node scripts/enrich-firecrawl.mjs",
-    "tune": "node scripts/daily-tune.mjs",
+    "quality": "node scripts/quality-gate.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

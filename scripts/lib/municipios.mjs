@@ -24,6 +24,32 @@ export function resolveMunicipality(location) {
   return SUBLOCATION_TO_MUNI[location] ?? null;
 }
 
+const AREA_PATTERNS = [
+  ['Abegondo', /\babegondo\b/i],
+  ['Arteixo', /\b(?:arteixo|pastoriza)\b/i],
+  ['Bergondo', /\bbergondo\b/i],
+  ['Cambre', /\bcambre\b/i],
+  ['Carral', /\bcarral\b/i],
+  ['Culleredo', /\b(?:culleredo|o burgo|el burgo)\b/i],
+  ['Oleiros', /\b(?:oleiros|perillo|mera|santa cruz|rabadeira|xaz)\b/i],
+  ['Sada', /\bsada\b/i],
+  ['A Coruña', /\b(?:a coruna|la coruna|xuxan|eiris|matogrande|parque ofimatico|oza|viono|someso|visma|mesoiro|cuatro caminos|juan florez|plaza de vigo|marques de amboage|almirante romay|alfredo vicenti|caballeros|ramon y cajal|finisterre)\b/i],
+];
+
+const OUT_OF_SCOPE_PATTERN = /\b(?:ferrol|canido|ares|vigo|pontevedra|castineirino|santiago|ermua|bezana|pedrena)\b/i;
+const A_CORUNA_SPECIFIC_PATTERN = /\b(?:plaza de vigo|avenida de arteixo|avda de arteixo|san pedro de visma|someso|mesoiro|xuxan|eiris|matogrande|parque ofimatico|viono|cuatro caminos|juan florez|marques de amboage|almirante romay|alfredo vicenti|caballeros|ramon y cajal|finisterre)\b/i;
+
+/** Clasifica ubicaciones libres sin asumir A Coruña cuando hay dudas. */
+export function classifyPromotionLocation(location = '') {
+  const normalized = slugify(location).replace(/-/g, ' ');
+  if (!normalized) return { municipality: null, scopeStatus: 'unverified' };
+  if (A_CORUNA_SPECIFIC_PATTERN.test(normalized)) return { municipality: 'A Coruña', scopeStatus: 'in_scope' };
+  if (OUT_OF_SCOPE_PATTERN.test(normalized)) return { municipality: null, scopeStatus: 'out_of_scope' };
+  const match = AREA_PATTERNS.find(([, pattern]) => pattern.test(normalized));
+  if (match) return { municipality: match[0], scopeStatus: 'in_scope' };
+  return { municipality: null, scopeStatus: 'unverified' };
+}
+
 /** Slug de /municipio/<slug> para una location, o null si está fuera del área. */
 export function municipalitySlug(location) {
   const muni = resolveMunicipality(location);

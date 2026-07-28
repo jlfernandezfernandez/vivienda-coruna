@@ -4,7 +4,7 @@ import { config } from './config.mjs';
 // (env FIRECRAWL_BASE_URL, por defecto la API oficial). Token opcional: la instancia
 // self-hosted puede ir sin key; la API oficial la necesita.
 
-async function firecrawl(path, body, timeoutMs) {
+async function firecrawl(path, body, timeoutMs, strict = false) {
   const headers = { 'Content-Type': 'application/json' };
   if (config.firecrawl.apiKey) headers.Authorization = `Bearer ${config.firecrawl.apiKey}`;
   const response = await fetch(`${config.firecrawl.baseUrl}${path}`, {
@@ -15,6 +15,7 @@ async function firecrawl(path, body, timeoutMs) {
   });
   if (!response.ok) {
     console.warn(`[firecrawl] ${path} → HTTP ${response.status}`);
+    if (strict) throw new Error(`Firecrawl ${path}: HTTP ${response.status}`);
     return null;
   }
   return response.json();
@@ -65,12 +66,13 @@ export async function mapSite(url) {
 }
 
 /** Web search for a company's real pages, or []. */
-export async function searchWeb(query, limit = 3) {
+export async function searchWeb(query, limit = 3, options = {}) {
   try {
-    const json = await firecrawl('/v1/search', { query, limit }, 20_000);
+    const json = await firecrawl('/v1/search', { query, limit }, 20_000, options.strict === true);
     return (json?.data || []).map((r) => ({ url: r.url, title: r.title }));
   } catch (error) {
     console.warn(`[firecrawl] Error al buscar "${query}": ${error.message}`);
+    if (options.strict) throw error;
     return [];
   }
 }
