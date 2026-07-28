@@ -19,15 +19,12 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
 
 <Layout title={pageTitle} description={pageDescription}>
   <div class="mx-auto max-w-4xl px-4 sm:px-6">
-    <a
-      href={base}
-      class="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted hover:text-brand-green transition-colors mb-5"
-    >
-      <svg class="h-3.5 w-3.5 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-      </svg>
-      Volver a novedades
-    </a>
+    <!-- Breadcrumbs -->
+    <nav aria-label="Migas" class="text-xs text-ink-muted mb-5 flex flex-wrap items-center gap-1">
+      <a href={base} class="hover:text-brand-green transition-colors font-semibold">Municipios</a>
+      <span aria-hidden="true">›</span>
+      <span class="text-ink-light truncate max-w-[16rem]" title={municipality}>{municipality}</span>
+    </nav>
 
     <!-- Header -->
     <div class="mb-8 border-b border-border-soft pb-6">

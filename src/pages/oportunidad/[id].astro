@@ -6,7 +6,19 @@ import { apiSafe } from '../../lib/api/boundary.mjs';
 import { siteBase } from '../../lib/ui.mjs';
 
 const base = siteBase(import.meta.env.BASE_URL);
-const item = await apiSafe(Astro.response, () => api.opportunity(Astro.params.id), { id: '', title: 'Oportunidad no disponible', url: base, source: '', sourceKind: '', publishedAt: null, firstSeenAt: new Date(0).toISOString(), location: null, type: null, status: null, summary: '' });
+const item = await apiSafe(Astro.response, () => api.opportunity(Astro.params.id), { id: '', title: 'Oportunidad no disponible', url: base, source: '', sourceKind: '', publishedAt: null, firstSeenAt: new Date(0).toISOString(), location: null, type: null, status: null, summary: '', events: [] });
+
+const truncate = (s: string, n = 48) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || '');
+
+// Events timeline — desc by detectedAt
+const eventIcons: Record<string, { icon: string; className: string; ring: string }> = {
+  new: { icon: '✚', className: 'text-brand-green', ring: 'bg-brand-green-soft border-brand-green/30' },
+  status: { icon: '⇄', className: 'text-brand-blue', ring: 'bg-brand-blue-soft border-brand-blue/30' },
+  price: { icon: '€', className: 'text-brand-orange', ring: 'bg-brand-orange-soft border-brand-orange/30' },
+};
+const opportunityEvents = Array.isArray(item.events)
+  ? [...item.events].sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime())
+  : [];
 
 const isMarket = item.sourceKind === 'market-alert';
 const isWebSearch = item.sourceKind === 'firecrawl-search';
@@ -43,17 +55,18 @@ const pageDescription = item.summary || `${item.type || 'Oportunidad'} en ${item
 
 <Layout title={pageTitle} description={pageDescription} jsonLd={jsonLd}>
   <div class="mx-auto max-w-3xl px-4 sm:px-6">
-    <!-- Back link: vuelve atrás en el historial si venimos de la propia web -->
-    <a
-      href={base}
-      onclick="if (document.referrer && new URL(document.referrer).origin === location.origin && history.length > 1) { history.back(); return false; }"
-      class="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted hover:text-brand-green transition-colors mb-5"
-    >
-      <svg class="h-3.5 w-3.5 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-      </svg>
-      Volver a novedades
-    </a>
+    <!-- Breadcrumbs -->
+    <nav aria-label="Migas" class="text-xs text-ink-muted mb-5 flex flex-wrap items-center gap-1">
+      <a href={base} class="hover:text-brand-green transition-colors font-semibold">Novedades</a>
+      <span aria-hidden="true">›</span>
+      {publishedLabel && (
+        <>
+          <span>{publishedLabel}</span>
+          <span aria-hidden="true">›</span>
+        </>
+      )}
+      <span class="text-ink-light truncate max-w-[16rem]" title={item.title}>{truncate(item.title)}</span>
+    </nav>
 
     <article class="border border-border-soft bg-surface p-6 sm:p-8 rounded-2xl shadow-premium">
       <!-- Badges -->
@@ -168,5 +181,29 @@ const pageDescription = item.summary || `${item.type || 'Oportunidad'} en ${item
         </svg>
       </a>
     </article>
+
+    <!-- Timeline of changes -->
+    {opportunityEvents.length > 0 && (
+      <section class="mt-6 border border-border-soft bg-surface p-6 sm:p-8 rounded-2xl shadow-premium" aria-labelledby="timeline-title">
+        <h2 id="timeline-title" class="text-base font-bold text-ink mb-4">Línea temporal de cambios</h2>
+        <ol class="relative border-l-2 border-border-soft ml-3 space-y-5">
+          {opportunityEvents.map((ev) => {
+            const meta = eventIcons[ev.kind] || eventIcons.new;
+            return (
+              <li class="relative pl-6">
+                <span class={`absolute -left-[11px] top-0 flex h-5 w-5 items-center justify-center rounded-full border ${meta.ring} ${meta.className} text-[11px] font-bold`} aria-hidden="true">
+                  {meta.icon}
+                </span>
+                <p class="text-xs font-bold text-ink leading-snug">{ev.label || ev.kind}</p>
+                <p class="text-[11px] text-ink-light mt-0.5">
+                  {new Date(ev.detectedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Madrid' })}
+                  {ev.newValue && <span class="text-ink-muted"> · {ev.newValue}</span>}
+                </p>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    )}
   </div>
 </Layout>

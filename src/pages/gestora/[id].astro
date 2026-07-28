@@ -27,15 +27,12 @@ const pageDescription = gestora.description || `Promociones y cooperativas gesti
 
 <Layout title={pageTitle} description={pageDescription} jsonLd={jsonLd}>
   <div class="mx-auto max-w-3xl px-4 sm:px-6">
-    <a
-      href={`${base}gestoras`}
-      class="inline-flex items-center gap-1.5 text-xs font-bold text-ink-muted hover:text-brand-green transition-colors mb-5"
-    >
-      <svg class="h-3.5 w-3.5 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-      </svg>
-      Todas las gestoras
-    </a>
+    <!-- Breadcrumbs -->
+    <nav aria-label="Migas" class="text-xs text-ink-muted mb-5 flex flex-wrap items-center gap-1">
+      <a href={`${base}gestoras`} class="hover:text-brand-green transition-colors font-semibold">Gestoras</a>
+      <span aria-hidden="true">›</span>
+      <span class="text-ink-light truncate max-w-[16rem]" title={gestora.name}>{gestora.name}</span>
+    </nav>
 
     <article class="border border-border-soft bg-surface p-6 sm:p-8 rounded-2xl shadow-premium">
       <!-- Header -->
