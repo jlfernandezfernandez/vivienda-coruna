@@ -20,7 +20,6 @@ export interface Props {
   garaje?: boolean | null;
   trastero?: boolean | null;
   terraza?: boolean | null;
-  enriched?: boolean;
 }
 
 const {
@@ -43,8 +42,7 @@ const {
   totalViviendas = null,
   garaje = null,
   trastero = null,
-  terraza = null,
-  enriched = false
+  terraza = null
 } = Astro.props;
 
 import { municipalitySlug, webBase } from '../../scripts/lib/municipios.mjs';
@@ -201,8 +199,5 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
       </a>
     </div>
 
-    {enriched && (
-      <p class="mt-2 text-[11px] text-ink-light">Datos extraídos por IA · verifica en la fuente</p>
-    )}
   </div>
 </article>
