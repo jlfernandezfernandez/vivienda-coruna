@@ -8,7 +8,7 @@ import { createCoverageBuilder } from './coverage.mjs';
 import { createRepository, ensureSchema } from '../scripts/lib/db.mjs';
 
 const projectRoot = resolve(new URL('..', import.meta.url).pathname);
-const databasePath = resolve(process.env.DB_PATH || `${projectRoot}/src/data/monitor.db`);
+const databasePath = resolve(process.env.DB_PATH || '/data/monitor.db');
 const port = Number(process.env.PORT || 3000);
 const operationsApiKey = process.env.OPERATIONS_API_KEY;
 

@@ -6,6 +6,9 @@ dist/
 # dependencies
 node_modules/
 
+# database (lives in Docker volume, seed is built into image)
+src/data/monitor.db
+
 # logs
 npm-debug.log*
 yarn-debug.log*

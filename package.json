@@ -7,16 +7,15 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "DB_READ_ONLY=1 astro build",
+    "build": "astro build",
     "test": "LLM_API_KEY=test LLM_BASE_URL=http://llm.invalid LLM_MODEL=test-model node --test tests/*.test.mjs",
     "refresh": "node scripts/fetch-rss.mjs",
     "refresh:fast": "FAST_REFRESH=1 node scripts/fetch-rss.mjs",
+    "refresh:all": "node scripts/fetch-rss.mjs && node scripts/enrich-firecrawl.mjs",
     "enrich": "node scripts/enrich-firecrawl.mjs",
     "enrich:retry": "RETRY_ONLY=1 node scripts/enrich-firecrawl.mjs",
-    "refresh:all": "node scripts/fetch-rss.mjs && node scripts/enrich-firecrawl.mjs",
     "quality": "node scripts/quality-gate.mjs",
-    "preview": "astro preview",
-    "astro": "astro"
+    "preview": "astro preview"
   },
   "dependencies": {
     "@astrojs/node": "11.0.3",

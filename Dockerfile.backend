@@ -1,6 +1,6 @@
 FROM node:24-alpine AS dependencies
 WORKDIR /app
-COPY backend/package.json backend/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 FROM node:24-alpine AS runtime

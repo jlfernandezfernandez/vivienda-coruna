@@ -14,7 +14,7 @@ let dbInstance = null;
 export function getDatabase(options = {}) {
   if (!dbInstance) {
     const dbPath = process.env.DB_PATH || join(config.paths.root, 'src', 'data', 'monitor.db');
-    const readOnly = options.readOnly ?? process.env.DB_READ_ONLY === '1';
+    const readOnly = options.readOnly ?? false;
     dbInstance = new DatabaseSync(dbPath, { readOnly });
     dbInstance.exec('PRAGMA foreign_keys = ON;');
     if (readOnly) return dbInstance;
