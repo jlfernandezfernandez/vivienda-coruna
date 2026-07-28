@@ -191,9 +191,14 @@ export function getRecentEvents(db, limit = 25) {
     LEFT JOIN opportunities o ON e.entityKind = 'opportunity' AND o.id = e.entityId
     LEFT JOIN gestora_promotions p ON e.entityKind = 'promotion' AND p.id = e.entityId
     LEFT JOIN cooperatives c ON e.entityKind = 'cooperative' AND c.cif = e.entityId AND c.active = 1
-    WHERE (e.entityKind = 'opportunity' AND o.id IS NOT NULL)
+    WHERE ((e.entityKind = 'opportunity' AND o.id IS NOT NULL)
        OR (e.entityKind = 'promotion' AND p.id IS NOT NULL)
-       OR (e.entityKind = 'cooperative' AND c.cif IS NOT NULL)
+       OR (e.entityKind = 'cooperative' AND c.cif IS NOT NULL))
+    AND (e.kind != 'status' OR
+      (e.entityKind = 'opportunity' AND e.newValue IS o.status) OR
+      (e.entityKind = 'promotion' AND e.newValue IS p.status))
+    AND (e.kind != 'price' OR
+      (e.entityKind = 'opportunity' AND e.newValue IS CAST(o.precioMin AS TEXT)))
     ORDER BY e.id DESC LIMIT ?
   `).all(limit);
 }
@@ -233,6 +238,7 @@ export function saveOpportunity(db, op) {
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     ) ON CONFLICT(id) DO UPDATE SET
       lastSeenAt = excluded.lastSeenAt,
+      publishedAt = COALESCE(publishedAt, excluded.publishedAt),
       status = excluded.status,
       precioMin = excluded.precioMin,
       precioMax = excluded.precioMax,

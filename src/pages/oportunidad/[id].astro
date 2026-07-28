@@ -16,10 +16,9 @@ const rawBase = import.meta.env.BASE_URL;
 const base = rawBase.endsWith("/") ? rawBase : rawBase + "/"; // build strips trailing slash
 
 const isMarket = item.sourceKind === 'market-alert';
-const sourceLabel = isMarket ? 'Prensa local' : item.source;
-const sourceBadgeBg = isMarket
-  ? 'bg-brand-orange-soft text-brand-orange border border-brand-orange/10'
-  : 'bg-brand-green-soft text-brand-green border border-brand-green/10';
+const isWebSearch = item.sourceKind === 'firecrawl-search';
+const originalDomain = new URL(item.url).hostname.replace(/^www\./, '');
+const sourceLabel = isMarket ? 'Prensa local' : isWebSearch ? originalDomain : item.source;
 
 const formatDate = (d: string | null, style: 'long' | 'medium' = 'long') =>
   d
@@ -76,9 +75,6 @@ const pageDescription = item.summary || `${item.type || 'Oportunidad'} en ${item
             {item.status}
           </span>
         )}
-        <span class={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold ${sourceBadgeBg}`}>
-          {sourceLabel}
-        </span>
       </div>
 
       <!-- Title -->

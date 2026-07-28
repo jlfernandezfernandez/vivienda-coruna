@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   detectLocation,
   detectStatus,
+  extractPublishedAt,
   isActionableMarketAlert,
   isFreshMarketAlert,
   isRelevantTitle,
@@ -13,7 +14,7 @@ import {
   toOpportunity,
 } from '../scripts/lib/monitor.mjs';
 import { classifyPromotionLocation } from '../scripts/lib/municipios.mjs';
-import { finalizeRegistryImport, getAllCooperatives, getAllOpportunities, saveCooperative } from '../scripts/lib/db.mjs';
+import { finalizeRegistryImport, getAllCooperatives, getAllOpportunities, getRecentEvents, saveCooperative } from '../scripts/lib/db.mjs';
 
 test('acepta únicamente A Coruña ciudad y su entorno inmediato', () => {
   const valid = [
@@ -50,6 +51,15 @@ test('descarta alertas de mercado antiguas', () => {
   assert.equal(isFreshMarketAlert({ publishedAt: '2025-12-01T00:00:00Z' }, new Date('2026-07-20T00:00:00Z')), false);
   assert.equal(isActionableMarketAlert({ title: 'Costes y demanda de vivienda en A Coruña', publishedAt: '2026-07-01T00:00:00Z' }, new Date('2026-07-20T00:00:00Z')), false);
   assert.equal(isActionableMarketAlert({ title: 'Nueva cooperativa de viviendas en Oleiros', publishedAt: '2026-07-01T00:00:00Z' }, new Date('2026-07-20T00:00:00Z')), true);
+});
+
+test('recupera la fecha editorial de metadatos y URLs de prensa', () => {
+  assert.equal(extractPublishedAt({ publishedDate: '2026-06-15' }), '2026-06-15T00:00:00.000Z');
+  assert.equal(extractPublishedAt('https://medio.gal/noticia/2025/12/01/proyecto/'), '2025-12-01T12:00:00.000Z');
+  assert.equal(extractPublishedAt('https://medio.gal/0003_202510H26C10991.htm'), '2025-10-26T12:00:00.000Z');
+  assert.equal(extractPublishedAt('https://medio.gal/economia/20250207/proyecto.html'), '2025-02-07T12:00:00.000Z');
+  assert.equal(extractPublishedAt('https://medio.gal/noticia/sin-fecha'), null);
+  assert.equal(extractPublishedAt('https://medio.gal/noticia/2025/02/31/imposible/'), null);
 });
 
 test('normaliza enlaces y extrae estado', () => {
@@ -166,4 +176,20 @@ test('una baja del registro oficial se publica una vez y es idempotente', () => 
   finalizeRegistryImport(db, '2026-02-01');
   assert.equal(db.prepare("SELECT COUNT(*) n FROM events WHERE kind='disappeared'").get().n, 1);
   assert.equal(getAllCooperatives(db).length, 0);
+});
+
+test('últimos cambios oculta eventos huérfanos o contradichos', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`
+    CREATE TABLE opportunities (id TEXT PRIMARY KEY, status TEXT, precioMin INTEGER);
+    CREATE TABLE gestora_promotions (id TEXT PRIMARY KEY, status TEXT);
+    CREATE TABLE cooperatives (cif TEXT PRIMARY KEY, active INTEGER NOT NULL DEFAULT 1);
+    CREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT, detectedAt TEXT, entityKind TEXT, entityId TEXT, kind TEXT, label TEXT, oldValue TEXT, newValue TEXT);
+    INSERT INTO opportunities VALUES ('op-1', 'Comercialización', 200000);
+    INSERT INTO events(detectedAt,entityKind,entityId,kind,newValue) VALUES
+      ('2026-01-01','opportunity','op-1','status','Suelo/Proyecto'),
+      ('2026-01-02','opportunity','op-1','status','Comercialización'),
+      ('2026-01-03','opportunity','eliminada','new','Obra nueva');
+  `);
+  assert.deepEqual(getRecentEvents(db).map((event) => event.id), [2]);
 });

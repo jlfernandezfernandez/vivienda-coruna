@@ -157,6 +157,31 @@ export function isFreshMarketAlert(item, now = new Date()) {
   return !Number.isNaN(published.getTime()) && age >= 0 && age <= 180 * 24 * 60 * 60 * 1000;
 }
 
+export function extractPublishedAt(result) {
+  const explicit = result?.publishedDate || result?.publishedAt || result?.date;
+  if (explicit) {
+    const parsed = new Date(explicit);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+  const url = String(result?.url || result || '');
+  const patterns = [
+    /\/(20\d{2})\/(\d{1,2})\/(\d{1,2})(?:\/|$)/,
+    /_(20\d{2})(\d{2})H(\d{1,2})(?:\D|$)/,
+    /(?:\/|_)(20\d{2})(\d{2})(\d{2})(?:\D|$)/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (!match) continue;
+    const [, year, month, day] = match;
+    const parsed = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00.000Z`);
+    if (!Number.isNaN(parsed.getTime())
+      && parsed.getUTCFullYear() === Number(year)
+      && parsed.getUTCMonth() === Number(month) - 1
+      && parsed.getUTCDate() === Number(day)) return parsed.toISOString();
+  }
+  return null;
+}
+
 export function isActionableMarketAlert(item, now = new Date()) {
   return isFreshMarketAlert(item, now) && !MARKET_CONTEXT_NOISE_PATTERN.test(cleanText(item.title));
 }

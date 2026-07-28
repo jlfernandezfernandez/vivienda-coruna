@@ -1,4 +1,5 @@
 import { getDatabase, reclassifyPromotionScopes } from './lib/db.mjs';
+import { extractPublishedAt } from './lib/monitor.mjs';
 import { requirePipelineWriter } from './lib/writer-lock.mjs';
 
 requirePipelineWriter();
@@ -152,8 +153,31 @@ for (const [id, promotionId] of promotionLinks) linkOpportunity.run(promotionId,
 db.prepare('UPDATE opportunities SET totalViviendas = 4 WHERE id = ?').run('348c39238441ca4a');
 db.prepare("UPDATE opportunities SET totalViviendas = NULL, status = 'Comercialización' WHERE id = ?").run('9a31bfded0b8ef6a');
 db.prepare("UPDATE opportunities SET type = 'Vivienda protegida' WHERE promotionId IN ('promo:igvs:arteixo-14-vpp','promo:igvs:culleredo-17-vpp')").run();
-  db.prepare('UPDATE opportunities SET status = NULL WHERE id IN (?, ?)').run('d6c6918f5c233047', 'a6cec57917912992');
-  db.prepare("DELETE FROM gestoras WHERE id = 'carlos-luxury-realty' AND NOT EXISTS (SELECT 1 FROM gestora_promotions WHERE gestoraId = 'carlos-luxury-realty')").run();
+db.prepare('UPDATE opportunities SET status = NULL WHERE id IN (?, ?)').run('d6c6918f5c233047', 'a6cec57917912992');
+
+const setPublishedAt = db.prepare('UPDATE opportunities SET publishedAt = ? WHERE id = ? AND publishedAt IS NULL');
+for (const row of db.prepare("SELECT id,url FROM opportunities WHERE sourceKind = 'firecrawl-search' AND publishedAt IS NULL").all()) {
+  const publishedAt = extractPublishedAt(row.url);
+  if (publishedAt) setPublishedAt.run(publishedAt, row.id);
+}
+
+// Las decisiones de reconciliación mandan sobre el historial público.
+// Conservamos aliases/rechazos como evidencia, no eventos ya imposibles o contradichos.
+db.prepare(`DELETE FROM events WHERE
+  (entityKind = 'opportunity' AND NOT EXISTS (SELECT 1 FROM opportunities o WHERE o.id = events.entityId)) OR
+  (entityKind = 'promotion' AND NOT EXISTS (SELECT 1 FROM gestora_promotions p WHERE p.id = events.entityId)) OR
+  (entityKind = 'cooperative' AND NOT EXISTS (SELECT 1 FROM cooperatives c WHERE c.cif = events.entityId AND c.active = 1)) OR
+  (kind = 'status' AND entityKind = 'opportunity' AND EXISTS (
+    SELECT 1 FROM opportunities o WHERE o.id = events.entityId AND events.newValue IS NOT o.status
+  )) OR
+  (kind = 'status' AND entityKind = 'promotion' AND EXISTS (
+    SELECT 1 FROM gestora_promotions p WHERE p.id = events.entityId AND events.newValue IS NOT p.status
+  )) OR
+  (kind = 'price' AND entityKind = 'opportunity' AND EXISTS (
+    SELECT 1 FROM opportunities o WHERE o.id = events.entityId AND events.newValue IS NOT CAST(o.precioMin AS TEXT)
+  ))
+`).run();
+db.prepare("DELETE FROM gestoras WHERE id = 'carlos-luxury-realty' AND NOT EXISTS (SELECT 1 FROM gestora_promotions WHERE gestoraId = 'carlos-luxury-realty')").run();
   db.exec('COMMIT');
 } catch (error) {
   db.exec('ROLLBACK');

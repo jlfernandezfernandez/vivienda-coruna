@@ -69,7 +69,12 @@ export async function mapSite(url) {
 export async function searchWeb(query, limit = 3, options = {}) {
   try {
     const json = await firecrawl('/v1/search', { query, limit }, 20_000, options.strict === true);
-    return (json?.data || []).map((r) => ({ url: r.url, title: r.title }));
+    return (json?.data || []).map((r) => ({
+      url: r.url,
+      title: r.title,
+      description: r.description,
+      publishedDate: r.publishedDate || r.published_at || r.date || null,
+    }));
   } catch (error) {
     console.warn(`[firecrawl] Error al buscar "${query}": ${error.message}`);
     if (options.strict) throw error;

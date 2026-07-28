@@ -38,10 +38,10 @@ Fuentes RSS / IGVS / Prensa Local
 ```
 
 1. **Rastreador**: Un script en Node.js consulta los tablones oficiales de la Xunta de Galicia y los canales de prensa local.
-2. **Raspado Avanzado (Firecrawl)**: Scrape, map y búsqueda web van por Firecrawl (`FIRECRAWL_BASE_URL`, por defecto la API oficial) (por defecto la API oficial de Firecrawl; opcionalmente tu instancia self-hosted vía `FIRECRAWL_BASE_URL`) que descarga el artículo completo en markdown limpio, saltándose paywalls y renderizaciones complejas.
-3. **Extracción por IA (OpenRouter)**: El modelo `openai/gpt-4o-mini` analiza el texto completo de la noticia y extrae un JSON estructurado con el precio de salida, número de dormitorios, baños, promotora y equipamiento (garaje, trastero, terraza).
+2. **Raspado avanzado (Firecrawl)**: Scrape, map y búsqueda web usan `FIRECRAWL_BASE_URL`; puede apuntar a la API oficial o a una instancia self-hosted sin autenticación.
+3. **Extracción estructurada opcional (OpenRouter)**: Las expresiones regulares resuelven primero los campos deterministas. Si se configura `LLM_API_KEY`, el modelo completa únicamente los campos restantes.
 4. **Base de Datos SQLite (`monitor.db`)**: Centraliza los datos en una base de datos relacional nativa en Node.js. Esto conserva todo el historial ilimitado de cooperativas y licencias sin perder las noticias que van saliendo de los feeds RSS.
-5. **Astro + GitHub Pages**: En cada compilación, se exportan las últimas 150 oportunidades a un JSON estático para renderizar el frontal con búsquedas instantáneas, mapa y un **Directorio de Gestoras de Cooperativas** (Gestogar/Nosogar, Xesta, Galivivienda, Libra GP) integrado.
+5. **Astro + GitHub Pages**: Cada compilación lee SQLite en modo solo lectura y genera directamente el HTML estático con búsquedas, mapa y directorio de gestoras.
 
 ---
 
@@ -52,7 +52,7 @@ Fuentes RSS / IGVS / Prensa Local
 
 ### Instalación
 ```bash
-git clone https://github.com/tu-usuario/vivienda-coruna.git
+git clone https://github.com/jlfernandezfernandez/vivienda-coruna.git
 cd vivienda-coruna
 npm ci
 ```

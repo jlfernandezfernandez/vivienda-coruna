@@ -72,6 +72,26 @@ const orphanOpportunityLinks = db.prepare(`
 `).get().n;
 if (orphanOpportunityLinks) errors.push(`${orphanOpportunityLinks} oportunidades apuntan a promociones inexistentes`);
 
+const orphanEvents = db.prepare(`SELECT COUNT(*) n FROM events e WHERE
+  (e.entityKind = 'opportunity' AND NOT EXISTS (SELECT 1 FROM opportunities o WHERE o.id = e.entityId)) OR
+  (e.entityKind = 'promotion' AND NOT EXISTS (SELECT 1 FROM gestora_promotions p WHERE p.id = e.entityId)) OR
+  (e.entityKind = 'cooperative' AND NOT EXISTS (SELECT 1 FROM cooperatives c WHERE c.cif = e.entityId AND c.active = 1))
+`).get().n;
+if (orphanEvents) errors.push(`${orphanEvents} eventos apuntan a entidades no publicables`);
+
+const staleEvents = db.prepare(`SELECT COUNT(*) n FROM events e WHERE
+  (e.kind = 'status' AND e.entityKind = 'opportunity' AND EXISTS (
+    SELECT 1 FROM opportunities o WHERE o.id = e.entityId AND e.newValue IS NOT o.status
+  )) OR
+  (e.kind = 'status' AND e.entityKind = 'promotion' AND EXISTS (
+    SELECT 1 FROM gestora_promotions p WHERE p.id = e.entityId AND e.newValue IS NOT p.status
+  )) OR
+  (e.kind = 'price' AND e.entityKind = 'opportunity' AND EXISTS (
+    SELECT 1 FROM opportunities o WHERE o.id = e.entityId AND e.newValue IS NOT CAST(o.precioMin AS TEXT)
+  ))
+`).get().n;
+if (staleEvents) errors.push(`${staleEvents} eventos contradicen el estado actual`);
+
 const rejectedStillPresent = db.prepare(`
   SELECT COUNT(*) n FROM entity_aliases a
   JOIN gestora_promotions p ON p.id = a.aliasId

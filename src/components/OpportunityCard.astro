@@ -52,9 +52,6 @@ const base = webBase(import.meta.env.BASE_URL);
 
 // Link badge a /municipio/<slug> cuando la location mapea a un municipio monitorizado.
 const muniSlug = municipalitySlug(location);
-const isMarket = sourceKind === 'market-alert';
-const sourceLabel = isMarket ? 'Prensa local' : source;
-const sourceBadgeBg = isMarket ? 'bg-brand-orange-soft text-brand-orange border border-brand-orange/10' : 'bg-brand-green-soft text-brand-green border border-brand-green/10';
 const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
   day: 'numeric',
   month: 'short',
@@ -100,7 +97,7 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
         )}
       </div>
       <time class="text-xs font-medium text-ink-light" datetime={publishedAt || firstSeenAt}>
-        {date}
+        {publishedAt ? date : `Detectado ${date}`}
       </time>
     </div>
 
@@ -111,7 +108,7 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
         {title}
       </a>
     </h3>
-    <p class="text-[11px] text-ink-light mb-2">Detectado el {firstSeenDate}</p>
+    {publishedAt && <p class="text-[11px] text-ink-light mb-2">Detectado el {firstSeenDate}</p>}
 
     {(precioMin || promotora || habitacionesMin || banosMin || garaje || trastero || terraza) && (
       <div class="mb-3.5 relative z-10 pointer-events-none">
@@ -179,10 +176,6 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
           </span>
         )}
 
-        <!-- Source Badge -->
-        <span class="inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold" class:list={[sourceBadgeBg]}>
-          {sourceLabel}
-        </span>
       </div>
 
       <!-- External Source Link -->

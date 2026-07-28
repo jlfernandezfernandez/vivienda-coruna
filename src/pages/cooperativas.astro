@@ -112,7 +112,11 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
                   <div class="min-w-0">
                     <span class="text-sm font-bold text-ink group-hover:text-brand-green transition-colors block truncate">{o.title}</span>
                     <span class="text-[11px] text-ink-light">
-                      {o.location || 'Área de A Coruña'} · {o.sourceKind === 'market-alert' ? 'Prensa local' : o.source}
+                      {o.location || 'Área de A Coruña'} · {o.sourceKind === 'market-alert'
+                        ? 'Prensa local'
+                        : o.sourceKind === 'firecrawl-search'
+                          ? new URL(o.url).hostname.replace(/^www\./, '')
+                          : o.source}
                     </span>
                   </div>
                   <span class="text-[11px] text-ink-light flex-shrink-0">

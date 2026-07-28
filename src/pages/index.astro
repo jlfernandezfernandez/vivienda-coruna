@@ -14,6 +14,8 @@ const sources = getAllSources(db);
 const gestoras = getAllGestoras(db);
 const cooperatives = getAllCooperatives(db);
 const recentEvents = getRecentEvents(db, 12);
+const publicSourceName = (source: { name: string; kind: string }) =>
+  source.kind === 'firecrawl-search' ? source.name.replace(/^Firecrawl/, 'Web') : source.name;
 const healthySources = sources.filter((source) => source.ok).length;
 const checkedAt = items.length ? new Date(Math.max(...items.map(i => new Date(i.lastSeenAt).getTime()))) : null;
 const checkedLabel = checkedAt
@@ -375,7 +377,7 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
               {allItems.length}
             </span>
           </h2>
-          <span class="text-xs text-ink-muted">Ordenado por publicación reciente</span>
+          <span class="text-xs text-ink-muted">Más reciente primero</span>
         </div>
 
         <!-- Grouped Bulletin Feed -->
@@ -467,14 +469,18 @@ const mapItems = allItems.map((i) => ({ id: i.id, title: i.title, location: i.lo
                     aria-hidden="true"
                     title={source.ok ? 'Fuente operativa' : 'Problema de conexión'}
                   ></span>
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-xs font-bold text-ink hover:text-brand-green hover:underline truncate"
-                  >
-                    {source.name}
-                  </a>
+                  {source.kind === 'firecrawl-search' ? (
+                    <span class="text-xs font-bold text-ink truncate">{publicSourceName(source)}</span>
+                  ) : (
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-xs font-bold text-ink hover:text-brand-green hover:underline truncate"
+                    >
+                      {publicSourceName(source)}
+                    </a>
+                  )}
                 </div>
                 <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-light flex-shrink-0">
                   {source.scanned || 0} reg
