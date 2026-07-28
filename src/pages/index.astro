@@ -49,8 +49,8 @@ const coopPromotions = gestoras.flatMap((g) =>
 );
 const activeCoopCount = coopOpportunities.length + coopPromotions.length;
 
-import { config } from '../../scripts/lib/config.mjs';
-const { title: siteTitle, description: siteDescription, headerTitle, headerSubtitle } = config.site;
+import { site } from '../lib/site.mjs';
+const { title: siteTitle, description: siteDescription, headerTitle, headerSubtitle } = site;
 
 const shortDate = (d: string) =>
   new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' });
