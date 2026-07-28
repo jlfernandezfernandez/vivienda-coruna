@@ -1,6 +1,8 @@
 import { timingSafeEqual } from 'node:crypto';
 import Fastify from 'fastify';
 
+const VALID_MODES = new Set(['fast', 'deep']);
+
 function authorized(header, expectedToken) {
   if (!expectedToken || typeof header !== 'string' || !header.startsWith('Bearer ')) return false;
   const supplied = Buffer.from(header.slice('Bearer '.length));
@@ -8,12 +10,13 @@ function authorized(header, expectedToken) {
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
-const VALID_MODES = new Set(['fast', 'deep']);
-
-export function buildBackend({ repository, operationsApiKey, logger = false }) {
-  const app = Fastify({ logger });
-
-  // ── Public contracts (no auth) ──────────────────────────────────────────
+export function buildBackend({
+  repository,
+  operationsApiKey,
+  onRunCreated = () => {},
+  logger = false,
+}) {
+  const app = Fastify({ logger, bodyLimit: 8 * 1024 });
 
   app.get('/health', async () => ({ status: 'ok' }));
 
@@ -25,30 +28,31 @@ export function buildBackend({ repository, operationsApiKey, logger = false }) {
     }
   });
 
-  app.get('/api/v1/dashboard', async () => repository.dashboard());
+  app.get('/api/v1/dashboard', async (_request, reply) => {
+    reply.header('cache-control', 'public, max-age=60, stale-while-revalidate=300');
+    return repository.dashboard();
+  });
 
   app.get('/api/v1/opportunities/:id', async (request, reply) => {
     const opportunity = repository.opportunityById(request.params.id);
     return opportunity ?? reply.code(404).send({ error: 'not_found' });
   });
 
-  app.get('/gestoras', async () => repository.gestoras());
+  app.get('/api/v1/gestoras', async () => repository.gestoras());
 
-  app.get('/gestoras/:id', async (request, reply) => {
+  app.get('/api/v1/gestoras/:id', async (request, reply) => {
     const gestora = repository.gestoraById(request.params.id);
     return gestora ?? reply.code(404).send({ error: 'not_found' });
   });
 
-  app.get('/cooperatives', async () => repository.cooperatives());
+  app.get('/api/v1/cooperatives', async () => repository.cooperatives());
 
-  app.get('/municipalities/:slug', async (request, reply) => {
+  app.get('/api/v1/municipalities/:slug', async (request, reply) => {
     const municipality = repository.municipalityBySlug(request.params.slug);
     return municipality ?? reply.code(404).send({ error: 'not_found' });
   });
 
-  app.get('/seo/routes', async () => repository.seoRoutes());
-
-  // ── Operational endpoints (Bearer auth) ─────────────────────────────────
+  app.get('/api/v1/seo/routes', async () => repository.seoRoutes());
 
   app.addHook('onRequest', async (request, reply) => {
     if (!request.url.startsWith('/api/v1/operations/')) return;
@@ -67,8 +71,14 @@ export function buildBackend({ repository, operationsApiKey, logger = false }) {
     if (!VALID_MODES.has(mode)) {
       return reply.code(400).send({ error: 'invalid_mode', valid: [...VALID_MODES] });
     }
-    const idempotencyKey = request.headers['idempotency-key'] || null;
+
+    const idempotencyKey = request.headers['idempotency-key'];
+    if (typeof idempotencyKey !== 'string' || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+      return reply.code(400).send({ error: 'idempotency_key_required' });
+    }
+
     const run = repository.createRun(mode, idempotencyKey);
+    queueMicrotask(() => onRunCreated(run));
     return reply
       .code(202)
       .header('location', `/api/v1/operations/runs/${run.id}`)

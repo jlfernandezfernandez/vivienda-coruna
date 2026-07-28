@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { config } from './config.mjs';
-import { classifyPromotionLocation } from './municipios.mjs';
+import { classifyPromotionLocation, municipalitySlug, MUNICIPALITIES, slugify } from './municipios.mjs';
 
 let dbInstance = null;
 
@@ -691,6 +692,8 @@ export function ensureSchema(db) {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_idempotency
       ON pipeline_runs(idempotencyKey) WHERE idempotencyKey IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_one_running
+      ON pipeline_runs((1)) WHERE status = 'running';
   `);
 }
 
@@ -699,7 +702,7 @@ export function createRun(db, mode, idempotencyKey) {
     const existing = getRunByIdempotencyKey(db, idempotencyKey);
     if (existing) return existing;
   }
-  const id = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const id = `run-${randomUUID()}`;
   const createdAt = new Date().toISOString();
   db.prepare(
     'INSERT INTO pipeline_runs (id, mode, status, idempotencyKey, createdAt) VALUES (?, ?, ?, ?, ?)'
@@ -745,100 +748,128 @@ export function getRunningRun(db) {
 
 // ── Repository (injectable into buildBackend) ──────────────────────────────
 
-export function createRepository(db) {
+function opportunityDto(row) {
+  if (!row) return null;
+  const scope = classifyPromotionLocation(row.location || '');
   return {
-    health: () => {
+    ...row,
+    municipalitySlug: scope.municipality ? slugify(scope.municipality) : municipalitySlug(row.location),
+    statusLabel: row.status || null,
+    statusTone: statusTone(row.status),
+  };
+}
+
+function statusTone(status) {
+  if (status === 'Últimas unidades') return 'warning';
+  if (['Comercialización', 'En construcción', 'En preventa'].includes(status)) return 'positive';
+  return 'neutral';
+}
+
+function gestoraDto(gestora) {
+  return {
+    ...gestora,
+    promotions: (gestora.promotions || []).map((promotion) => ({
+      ...promotion,
+      statusLabel: promotion.status || null,
+      statusTone: statusTone(promotion.status),
+    })),
+  };
+}
+
+/**
+ * Repository over either one caller-owned connection (tests/migrations) or a
+ * connection factory (runtime). Factory connections close after each operation
+ * so atomic database replacement is immediately visible.
+ */
+export function createRepository(dbOrFactory, options = {}) {
+  const isFactory = typeof dbOrFactory === 'function';
+  const withDb = (operation) => {
+    if (!isFactory) return operation(dbOrFactory);
+    const db = dbOrFactory();
+    try {
+      db.exec?.('PRAGMA foreign_keys = ON;');
+      return operation(db);
+    } finally {
+      db.close();
+    }
+  };
+  const municipalities = MUNICIPALITIES.map((name) => ({ name, slug: slugify(name) }));
+
+  return {
+    health: () => withDb((db) => {
       const integrity = db.prepare('PRAGMA integrity_check').get();
       return { database: integrity.integrity_check === 'ok' ? 'ok' : 'corrupt' };
-    },
-
-    dashboard: () => ({
-      opportunities: getAllOpportunities(db, 50),
-      sources: getAllSources(db),
-      gestoras: getAllGestoras(db),
-      cooperatives: getAllCooperatives(db),
-      events: getRecentEvents(db, 25),
     }),
 
-    opportunityById: (id) => getOpportunity(db, id),
+    dashboard: () => withDb((db) => {
+      const opportunities = getAllOpportunities(db, 150).map(opportunityDto);
+      return {
+        opportunities,
+        sources: getAllSources(db),
+        gestoras: getAllGestoras(db).map(gestoraDto),
+        cooperatives: getAllCooperatives(db),
+        events: getRecentEvents(db, 25),
+        municipalities,
+        coverage: options.coverageBuilder?.(opportunities)
+          ?? options.coverage
+          ?? { boundaries: [], markers: [] },
+      };
+    }),
 
-    gestoras: () => getAllGestoras(db),
+    opportunityById: (id) => withDb((db) => opportunityDto(getOpportunity(db, id))),
+    gestoras: () => withDb((db) => getAllGestoras(db).map(gestoraDto)),
+    gestoraById: (id) => withDb((db) => {
+      const gestora = getAllGestoras(db).find((candidate) => candidate.id === id);
+      return gestora ? gestoraDto(gestora) : null;
+    }),
+    cooperatives: () => withDb((db) => getAllCooperatives(db)),
 
-    gestoraById: (id) => {
-      const all = getAllGestoras(db);
-      return all.find(g => g.id === id) || null;
-    },
-
-    cooperatives: () => getAllCooperatives(db),
-
-    municipalityBySlug: (slug) => {
-      const { slugify, MUNICIPALITIES } = requireMunicipios();
-      const name = MUNICIPALITIES.find(m => slugify(m) === slug);
+    municipalityBySlug: (requestedSlug) => withDb((db) => {
+      const name = MUNICIPALITIES.find((municipality) => slugify(municipality) === requestedSlug);
       if (!name) return null;
-      const opportunities = db.prepare(
-        `SELECT * FROM opportunities WHERE location LIKE ? ORDER BY COALESCE(publishedAt, firstSeenAt) DESC LIMIT 50`
-      ).all(`%${name}%`);
+      const opportunities = getAllOpportunities(db, 150)
+        .filter((row) => classifyPromotionLocation(row.location || '').municipality === name)
+        .map(opportunityDto);
       const gestoraPromotions = db.prepare(
-        `SELECT * FROM gestora_promotions WHERE municipality = ? AND scopeStatus = 'in_scope'`
-      ).all(name);
+        "SELECT * FROM gestora_promotions WHERE municipality = ? AND scopeStatus = 'in_scope'",
+      ).all(name).map((promotion) => ({
+        ...promotion,
+        buscaSocios: promotion.buscaSocios === 1 ? true : (promotion.buscaSocios === 0 ? false : null),
+        statusLabel: promotion.status || null,
+        statusTone: statusTone(promotion.status),
+      }));
       const cooperatives = db.prepare(
-        'SELECT * FROM cooperatives WHERE municipality = ? AND active = 1'
+        'SELECT * FROM cooperatives WHERE municipality = ? AND active = 1',
       ).all(name);
-      return { slug, name, opportunities, gestoraPromotions, cooperatives };
-    },
+      return { slug: requestedSlug, name, opportunities, gestoraPromotions, cooperatives };
+    }),
 
-    seoRoutes: () => {
-      const { slugify, MUNICIPALITIES } = requireMunicipios();
-      const municipalities = MUNICIPALITIES.map(m => `/municipio/${slugify(m)}`);
-      const opportunities = db.prepare('SELECT id FROM opportunities').all().map(o => `/oportunidad/${o.id}`);
-      const gestoras = db.prepare('SELECT id FROM gestoras').all().map(g => `/gestora/${g.id}`);
-      return { municipalities, opportunities, gestoras };
-    },
+    seoRoutes: () => withDb((db) => ({
+      municipalities: municipalities.map(({ slug }) => `/municipio/${slug}`),
+      opportunities: db.prepare('SELECT id FROM opportunities').all().map(({ id }) => `/oportunidad/${id}`),
+      gestoras: db.prepare('SELECT id FROM gestoras').all().map(({ id }) => `/gestora/${id}`),
+    })),
 
-    createRun: (mode, idempotencyKey) => createRun(db, mode, idempotencyKey),
+    createRun: (mode, idempotencyKey) => withDb((db) => createRun(db, mode, idempotencyKey)),
+    listRuns: () => withDb((db) => listRuns(db)),
+    runById: (id) => withDb((db) => getRunById(db, id)),
+    runningRun: () => withDb((db) => getRunningRun(db)),
+    nextQueuedRun: () => withDb((db) => db.prepare(
+      "SELECT * FROM pipeline_runs WHERE status = 'queued' ORDER BY createdAt ASC LIMIT 1",
+    ).get() || null),
+    interruptRunningRuns: () => withDb((db) => db.prepare(
+      "UPDATE pipeline_runs SET status = 'interrupted', completedAt = ? WHERE status = 'running'",
+    ).run(new Date().toISOString()).changes),
+    sources: () => withDb((db) => getAllSources(db)),
 
-    listRuns: () => listRuns(db),
-
-    runById: (id) => getRunById(db, id),
-
-    sources: () => getAllSources(db),
-
-    diagnostics: () => ({
+    diagnostics: () => withDb((db) => ({
       database: 'ok',
       opportunities: db.prepare('SELECT COUNT(*) n FROM opportunities').get().n,
       sources: db.prepare('SELECT COUNT(*) n FROM sources').get().n,
       gestoras: db.prepare('SELECT COUNT(*) n FROM gestoras').get().n,
       cooperatives: db.prepare('SELECT COUNT(*) n FROM cooperatives WHERE active = 1').get().n,
       runs: db.prepare('SELECT COUNT(*) n FROM pipeline_runs').get().n,
-    }),
+    })),
   };
-}
-
-function requireMunicipios() {
-  // Dynamic import to avoid circular dependency at module load time
-  // (municipios.mjs imports config.mjs which imports db.mjs)
-  const { slugify, MUNICIPALITIES } = await_import_municipios();
-  return { slugify, MUNICIPALITIES };
-}
-
-// Lazy-loaded municipios helpers — resolved on first use
-let _municipios = null;
-function await_import_municipios() {
-  if (_municipios) return _municipios;
-  // We inline the needed functions to avoid circular imports
-  const { slugify, MUNICIPALITIES } = _loadMunicipiosInline();
-  _municipios = { slugify, MUNICIPALITIES };
-  return _municipios;
-}
-
-function _loadMunicipiosInline() {
-  const AREA_LABELS = [
-    'A Coruña', 'Arteixo', 'Culleredo · O Burgo', 'Oleiros · Perillo · Santa Cruz',
-    'Cambre', 'Sada', 'Bergondo', 'Carral', 'Abegondo',
-  ];
-  const MUNICIPALITIES = AREA_LABELS.map((l) => l.split(' · ')[0]);
-  const slugify = (s) =>
-    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-  return { slugify, MUNICIPALITIES };
 }
 

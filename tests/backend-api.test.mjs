@@ -78,7 +78,7 @@ test('GET /api/v1/opportunities/:id returns opportunity when found', async () =>
 
 test('GET /gestoras returns all gestoras with promotions', async () => {
   const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
-  const response = await app.inject({ method: 'GET', url: '/gestoras' });
+  const response = await app.inject({ method: 'GET', url: '/api/v1/gestoras' });
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
@@ -90,7 +90,7 @@ test('GET /gestoras returns all gestoras with promotions', async () => {
 
 test('GET /gestoras/:id returns 404 for unknown gestora', async () => {
   const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
-  const response = await app.inject({ method: 'GET', url: '/gestoras/missing' });
+  const response = await app.inject({ method: 'GET', url: '/api/v1/gestoras/missing' });
 
   assert.equal(response.statusCode, 404);
   assert.deepEqual(response.json(), { error: 'not_found' });
@@ -99,7 +99,7 @@ test('GET /gestoras/:id returns 404 for unknown gestora', async () => {
 
 test('GET /gestoras/:id returns gestora when found', async () => {
   const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
-  const response = await app.inject({ method: 'GET', url: '/gestoras/g1' });
+  const response = await app.inject({ method: 'GET', url: '/api/v1/gestoras/g1' });
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().id, 'g1');
@@ -108,7 +108,7 @@ test('GET /gestoras/:id returns gestora when found', async () => {
 
 test('GET /cooperatives returns all active cooperatives', async () => {
   const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
-  const response = await app.inject({ method: 'GET', url: '/cooperatives' });
+  const response = await app.inject({ method: 'GET', url: '/api/v1/cooperatives' });
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
@@ -119,7 +119,7 @@ test('GET /cooperatives returns all active cooperatives', async () => {
 
 test('GET /municipalities/:slug returns 404 for unknown municipality', async () => {
   const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
-  const response = await app.inject({ method: 'GET', url: '/municipalities/unknown' });
+  const response = await app.inject({ method: 'GET', url: '/api/v1/municipalities/unknown' });
 
   assert.equal(response.statusCode, 404);
   assert.deepEqual(response.json(), { error: 'not_found' });
@@ -128,7 +128,7 @@ test('GET /municipalities/:slug returns 404 for unknown municipality', async () 
 
 test('GET /municipalities/:slug returns municipality data when found', async () => {
   const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
-  const response = await app.inject({ method: 'GET', url: '/municipalities/a-coruna' });
+  const response = await app.inject({ method: 'GET', url: '/api/v1/municipalities/a-coruna' });
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().slug, 'a-coruna');
@@ -137,7 +137,7 @@ test('GET /municipalities/:slug returns municipality data when found', async () 
 
 test('GET /seo/routes returns SEO-relevant route map', async () => {
   const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
-  const response = await app.inject({ method: 'GET', url: '/seo/routes' });
+  const response = await app.inject({ method: 'GET', url: '/api/v1/seo/routes' });
 
   assert.equal(response.statusCode, 200);
   const body = response.json();
@@ -169,12 +169,21 @@ test('operational endpoints accept requests with correct bearer token', async ()
   await app.close();
 });
 
-test('POST /api/v1/operations/runs creates a run and returns 202 with Location', async () => {
-  const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
+test('POST /api/v1/operations/runs creates a run, dispatches it and returns 202 with Location', async () => {
+  let dispatched = null;
+  const app = buildBackend({
+    repository: fakeRepository(),
+    operationsApiKey: 'test-key',
+    onRunCreated: (run) => { dispatched = run; },
+  });
   const response = await app.inject({
     method: 'POST',
     url: '/api/v1/operations/runs',
-    headers: { authorization: 'Bearer test-key', 'content-type': 'application/json' },
+    headers: {
+      authorization: 'Bearer test-key',
+      'content-type': 'application/json',
+      'idempotency-key': 'test-run-fast',
+    },
     payload: { mode: 'fast' },
   });
 
@@ -184,6 +193,8 @@ test('POST /api/v1/operations/runs creates a run and returns 202 with Location',
   const body = response.json();
   assert.equal(body.status, 'queued');
   assert.equal(body.mode, 'fast');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(dispatched.id, body.id);
   await app.close();
 });
 
@@ -192,11 +203,25 @@ test('POST /api/v1/operations/runs rejects invalid mode', async () => {
   const response = await app.inject({
     method: 'POST',
     url: '/api/v1/operations/runs',
-    headers: { authorization: 'Bearer test-key', 'content-type': 'application/json' },
+    headers: { authorization: 'Bearer test-key', 'content-type': 'application/json', 'idempotency-key': 'test-run-invalid' },
     payload: { mode: 'invalid' },
   });
 
   assert.equal(response.statusCode, 400);
+  await app.close();
+});
+
+test('POST /api/v1/operations/runs requires an idempotency key', async () => {
+  const app = buildBackend({ repository: fakeRepository(), operationsApiKey: 'test-key' });
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/v1/operations/runs',
+    headers: { authorization: 'Bearer test-key', 'content-type': 'application/json' },
+    payload: { mode: 'fast' },
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.json(), { error: 'idempotency_key_required' });
   await app.close();
 });
 
@@ -209,7 +234,7 @@ test('POST /api/v1/operations/runs respects idempotency key', async () => {
   };
   const app = buildBackend({ repository: repo, operationsApiKey: 'test-key' });
 
-  const headers = { authorization: 'Bearer test-key', 'content-type': 'application/json', 'idempotency-key': 'key-abc' };
+  const headers = { authorization: 'Bearer test-key', 'content-type': 'application/json', 'idempotency-key': 'key-abc-1' };
   const r1 = await app.inject({ method: 'POST', url: '/api/v1/operations/runs', headers, payload: { mode: 'fast' } });
   const r2 = await app.inject({ method: 'POST', url: '/api/v1/operations/runs', headers, payload: { mode: 'fast' } });
 

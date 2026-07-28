@@ -290,3 +290,45 @@ test('repository.diagnostics returns counts', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('repository created from a factory closes the connection after every operation', () => {
+  let closed = 0;
+  const repo = createRepository(() => ({
+    prepare: (sql) => {
+      assert.match(sql, /integrity_check/);
+      return { get: () => ({ integrity_check: 'ok' }) };
+    },
+    close: () => { closed += 1; },
+  }));
+
+  assert.deepEqual(repo.health(), { database: 'ok' });
+  assert.equal(closed, 1);
+});
+
+test('repository dashboard includes presentation-ready municipalities and coverage', () => {
+  const { db, dir } = tempDb();
+  try {
+    const coverage = { boundaries: [{ type: 'Feature' }], markers: [] };
+    const repo = createRepository(db, { coverage });
+    const dashboard = repo.dashboard();
+    assert.equal(dashboard.municipalities.length, 9);
+    assert.equal(dashboard.municipalities[0].slug, 'a-coruna');
+    assert.deepEqual(dashboard.coverage, coverage);
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('schema prevents two pipeline runs from being running simultaneously', () => {
+  const { db, dir } = tempDb();
+  try {
+    const first = createRun(db, 'fast', 'single-writer-1');
+    const second = createRun(db, 'deep', 'single-writer-2');
+    assert.equal(transitionRun(db, first.id, 'queued', 'running').status, 'running');
+    assert.throws(() => transitionRun(db, second.id, 'queued', 'running'), /UNIQUE|constraint/i);
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
