@@ -69,6 +69,34 @@ const firstSeenDate = new Date(firstSeenAt).toLocaleDateString('es-ES', {
 
 const mapsQuery = encodeURIComponent(location + ' A Coruña España');
 const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+
+// Urgency: recent (<48h) vs stale (>30d)
+const firstSeenMs = new Date(firstSeenAt).getTime();
+const nowMs = Date.now();
+const hoursSinceFirstSeen = (nowMs - firstSeenMs) / (1000 * 60 * 60);
+const isRecent = hoursSinceFirstSeen <= 48;
+const isStale = hoursSinceFirstSeen >= 30 * 24; // 30+ days
+const urgencyAttr = isRecent ? 'recent' : isStale ? 'stale' : '';
+
+// Phase indicator: Suelo → Licencia → En construcción → Comercialización → Últimas unidades → Agotada
+const phaseLabels = ['Suelo', 'Licencia', 'En construcción', 'Comercialización', 'Últimas unidades', 'Agotada'];
+const statusLabel = Astro.props.statusLabel || '';
+let activePhaseIndex = -1;
+// Map statusLabel to phase index
+phaseLabels.forEach((label, i) => {
+  if (statusLabel === label || statusLabel.toLowerCase().includes(label.toLowerCase())) {
+    activePhaseIndex = i;
+  }
+});
+// Also check some variant labels
+if (activePhaseIndex === -1) {
+  if (statusLabel.toLowerCase().includes('suelo') || statusLabel.toLowerCase().includes('proyecto')) activePhaseIndex = 0;
+  else if (statusLabel.toLowerCase().includes('licencia')) activePhaseIndex = 1;
+  else if (statusLabel.toLowerCase().includes('construc')) activePhaseIndex = 2;
+  else if (statusLabel.toLowerCase().includes('comercial')) activePhaseIndex = 3;
+  else if (statusLabel.toLowerCase().includes('últimas') || statusLabel.toLowerCase().includes('ultimas')) activePhaseIndex = 4;
+  else if (statusLabel.toLowerCase().includes('agotad')) activePhaseIndex = 5;
+}
 ---
 
 <article
@@ -82,6 +110,8 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
   data-garaje={garaje === true ? 'true' : ''}
   data-trastero={trastero === true ? 'true' : ''}
   data-terraza={terraza === true ? 'true' : ''}
+  data-first-seen={firstSeenAt}
+  data-urgency={urgencyAttr}
   data-text={`${title} ${location} ${type} ${summary || ''} ${promotora || ''}`.toLowerCase()}
 >
   <div>
@@ -180,6 +210,18 @@ const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
         )}
 
       </div>
+
+      <!-- Phase indicator: 6-dot progress bar -->
+      {activePhaseIndex >= 0 && (
+        <div class="flex items-center gap-2 mt-2 w-full">
+          <span class="phase-dots" role="img" aria-label={`Fase: ${phaseLabels[activePhaseIndex]}`}>
+            {phaseLabels.map((_, i) => (
+              <span class="phase-dot" data-active={i === activePhaseIndex ? 'true' : i < activePhaseIndex ? 'done' : 'false'}></span>
+            ))}
+          </span>
+          <span class="text-[10px] text-ink-light font-medium truncate">{phaseLabels[activePhaseIndex]}</span>
+        </div>
+      )}
 
       <!-- External Source Link -->
       <a

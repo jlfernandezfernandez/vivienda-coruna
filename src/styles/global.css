@@ -59,7 +59,7 @@
   body {
     min-height: 100dvh;
     margin: 0;
-    font-size: 14.5px;
+    font-size: 16px;
     line-height: 1.6;
   }
 
@@ -265,10 +265,82 @@ button[data-filter-rooms]:hover,
 button[data-filter-baths]:hover {
   transform: translateY(-1px);
 }
-button[data-filter-source]:active, 
-button[data-filter-location]:active, 
-button[data-filter-rooms]:active, 
+button[data-filter-source]:active,
+button[data-filter-location]:active,
+button[data-filter-rooms]:active,
 button[data-filter-baths]:active {
   transform: translateY(0) scale(0.97);
+}
+
+/* Micro-interactions CSS-only */
+
+/* Opportunity cards: transitions for box-shadow and border-color on hover */
+.opportunity-card {
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+.opportunity-card:hover {
+  box-shadow: var(--shadow-hover);
+  border-color: var(--color-border-strong);
+}
+
+/* Filter buttons: background-color transition + active scale */
+button[data-filter-source],
+button[data-filter-location],
+button[data-filter-rooms],
+button[data-filter-baths],
+button[data-filter-category] {
+  transition: background-color 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+button[data-filter-source]:active,
+button[data-filter-location]:active,
+button[data-filter-rooms]:active,
+button[data-filter-baths]:active,
+button[data-filter-category]:active {
+  transform: scale(0.97);
+}
+
+/* Source links: underline on hover */
+.opportunity-card a[href]:hover {
+  text-decoration: underline;
+}
+
+/* Urgency visual hierarchy */
+.opportunity-card[data-urgency="recent"] {
+  border-left: 3px solid var(--color-brand-green);
+}
+.opportunity-card[data-urgency="stale"] {
+  opacity: 0.85;
+}
+
+/* Phase indicator dots */
+.phase-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.phase-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--color-border-medium);
+}
+.phase-dot[data-active="true"] {
+  background-color: var(--color-brand-green);
+}
+.phase-dot[data-active="done"] {
+  background-color: var(--color-brand-green);
+  opacity: 0.5;
+}
+
+/* Visit banner */
+.visit-banner {
+  transition: opacity 200ms ease;
+}
+
+/* Sparkline */
+.sparkline-svg text {
+  fill: var(--color-ink-muted);
+  font-size: 9px;
+  font-family: var(--font-sans);
 }
 
