@@ -8,7 +8,8 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json ./
 COPY scripts ./scripts
-RUN DB_PATH=/app/seed/monitor.db node -e "import {getDatabase} from './scripts/lib/db.mjs'; const db=getDatabase(); db.close();"
+RUN mkdir -p /app/seed && \
+    DB_PATH=/app/seed/monitor.db node -e "import {getDatabase} from './scripts/lib/db.mjs'; const db=getDatabase(); db.close();"
 
 FROM node:24-alpine AS runtime
 WORKDIR /app
