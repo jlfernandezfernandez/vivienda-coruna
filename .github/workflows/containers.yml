@@ -24,8 +24,14 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Prepare seed database for quality gate
+        run: node -e "import { getDatabase } from './scripts/lib/db.mjs'; const db = getDatabase(); db.close();" 
+        env:
+          DB_PATH: ${{ runner.temp }}/monitor.db
       - run: npm test
       - run: npm run quality
+        env:
+          DB_PATH: ${{ runner.temp }}/monitor.db
       - run: npm run build
       - name: Validate production Compose
         env:
