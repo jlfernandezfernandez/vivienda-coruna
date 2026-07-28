@@ -174,6 +174,23 @@ export function getRecentEvents(db, limit = 25) {
  * @param {Object} op - Opportunity object
  */
 export function saveOpportunity(db, op) {
+  // Deduplicación por similitud de título: si ya existe una oportunidad
+  // con un título muy parecido (mismo prefijo de 50 chars normalizado), 
+  // la nueva se descarta para evitar duplicados de distintas fuentes RSS.
+  const norm = (s) => (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
+  const newKey = norm(op.title).substring(0, 50);
+  if (newKey.length > 10) {
+    const existing = db.prepare('SELECT id, title, precioMin FROM opportunities').all();
+    for (const e of existing) {
+      const existKey = norm(e.title).substring(0, 50);
+      if (existKey === newKey && e.id !== op.id) {
+        // Ya existe: hacer upsert en el existente en vez de insertar nuevo
+        op.id = e.id;
+        break;
+      }
+    }
+  }
+
   const old = db.prepare('SELECT status, precioMin FROM opportunities WHERE id = ?').get(op.id);
   if (!old) {
     logEvent(db, 'opportunity', op.id, 'new', op.title, null, op.type || null);

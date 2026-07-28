@@ -405,7 +405,19 @@ function step5_deploy(patches) {
   try {
     execSync('git add -A', { cwd: ROOT });
     execSync(`git commit -m "${commitMsg}"`, { cwd: ROOT });
-    execSync('git push origin master', { cwd: ROOT, timeout: 30_000 });
+    // Retry con rebase para evitar conflictos de DB binaria
+    let pushed = false;
+    for (let i = 1; i <= 3; i++) {
+      try {
+        execSync('git push origin master', { cwd: ROOT, timeout: 30_000 });
+        pushed = true;
+        break;
+      } catch {
+        log(`  Push failed (attempt ${i}), pulling rebase...`);
+        execSync('git pull --rebase --strategy-option theirs origin master', { cwd: ROOT, timeout: 30_000 });
+      }
+    }
+    if (!pushed) throw new Error('Push failed after 3 retries');
     log(`  Pushed: "${commitMsg}"`);
     execSync('gh workflow run deploy.yml --ref master', { cwd: ROOT, timeout: 10_000 });
     log('  Deploy triggered');

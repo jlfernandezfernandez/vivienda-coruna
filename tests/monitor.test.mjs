@@ -78,7 +78,8 @@ test('convierte un item RSS al esquema público', () => {
     { title: '15/07/2026 A Coruña - Informe del sorteo de viviendas de VPP en Xuxán', link: 'https://example.com/xuxan', pubDate: '15/07/2026' },
     'IGVS · Adjudicaciones y sorteos',
   );
-  assert.equal(igvs.publishedAt, '2026-07-15T00:00:00.000Z');
+  // VPP adjudication notices are now filtered out (VPP_NOISE_PATTERN)
+  assert.equal(igvs, null);
 });
 
 test('normaliza el nombre de una promotora al mismo id pese a variaciones de redacción del LLM', () => {
