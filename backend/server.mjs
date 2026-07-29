@@ -46,10 +46,19 @@ function runPipeline(run) {
       stdio: 'inherit',
     });
     currentChild = child;
-    child.once('exit', () => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
       currentChild = null;
       resolveRun();
+    };
+    child.once('error', (error) => {
+      app.log.error({ error, runId: run.id }, 'pipeline process failed to start');
+      repository.failQueuedRun(run.id, error.message);
+      finish();
     });
+    child.once('exit', finish);
   });
 }
 

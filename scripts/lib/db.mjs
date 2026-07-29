@@ -962,6 +962,11 @@ export function createRepository(dbOrFactory, options = {}) {
     nextQueuedRun: () => withDb((db) => db.prepare(
       "SELECT * FROM pipeline_runs WHERE status = 'queued' ORDER BY createdAt ASC LIMIT 1",
     ).get() || null),
+    failQueuedRun: (id, error) => withDb((db) => {
+      const failed = transitionRun(db, id, 'queued', 'failed');
+      if (failed) db.prepare('UPDATE pipeline_runs SET error = ? WHERE id = ?').run(String(error).slice(0, 2000), id);
+      return failed;
+    }),
     interruptRunningRuns: () => withDb((db) => db.prepare(
       "UPDATE pipeline_runs SET status = 'interrupted', completedAt = ? WHERE status = 'running'",
     ).run(new Date().toISOString()).changes),
