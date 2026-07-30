@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { isIP } from 'node:net';
 import { validateExtractedHousingData } from './llm.mjs';
 import { classifyPromotionLocation } from './municipios.mjs';
 import { statusLabels } from './statuses.mjs';
@@ -154,6 +155,33 @@ export function listCurationCandidates(db) {
   return candidates;
 }
 
+function isNonPublicEvidenceHost(rawHostname) {
+  const host = rawHostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  const kind = isIP(host);
+  if (kind === 4) {
+    const octets = host.split('.').map(Number);
+    const [a, b] = octets;
+    return a === 0 || a === 10 || a === 127 || a >= 224
+      || (a === 100 && b >= 64 && b <= 127)
+      || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && (b === 0 || b === 168))
+      || (a === 198 && (b === 18 || b === 19))
+      || (a === 198 && b === 51 && octets[2] === 100)
+      || (a === 203 && b === 0 && octets[2] === 113);
+  }
+  if (kind === 6) {
+    return host === '::' || host === '::1'
+      || /^f[cd]/.test(host)
+      || /^fe/.test(host)
+      || /^ff/.test(host)
+      || host.startsWith('::ffff:')
+      || /^2001:db8(?::|$)/.test(host);
+  }
+  return false;
+}
+
 function validateEvidence(evidence) {
   if (!Array.isArray(evidence) || evidence.length === 0 || evidence.length > 3) {
     throw new Error('evidence_required');
@@ -163,10 +191,7 @@ function validateEvidence(evidence) {
     if (!item || typeof item.url !== 'string' || !/^https?:\/\//i.test(item.url)) throw new Error('invalid_evidence_url');
     let parsedUrl;
     try { parsedUrl = new URL(item.url); } catch { throw new Error('invalid_evidence_url'); }
-    const host = parsedUrl.hostname.toLowerCase();
-    if (parsedUrl.username || parsedUrl.password || host === 'localhost' || host === '::1'
-      || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)
-      || /^169\.254\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+    if (parsedUrl.username || parsedUrl.password || isNonPublicEvidenceHost(parsedUrl.hostname)) {
       throw new Error('invalid_evidence_url');
     }
     if (typeof item.excerpt !== 'string' || item.excerpt.trim().length < 5 || item.excerpt.length > 2000) {

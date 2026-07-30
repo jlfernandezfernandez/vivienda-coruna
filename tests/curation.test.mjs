@@ -194,6 +194,36 @@ test('rejects unrelated evidence, nulls and inconsistent price ranges', () => {
   }
 });
 
+test('evidence URLs reject private IPv6 and accept a globally routable IPv6 literal', () => {
+  for (const url of [
+    'http://[::1]/evidence',
+    'https://[fc00::1]/evidence',
+    'https://[fd12:3456::1]/evidence',
+    'https://[fe80::1]/evidence',
+  ]) {
+    const db = database();
+    try {
+      const candidate = listCurationCandidates(db).find((item) => item.entityId === 'opp-1');
+      assert.throws(() => stageCurationReview(db, {
+        entityKind: 'opportunity', entityId: 'opp-1', action: 'confirm',
+        contentHash: candidate.contentHash, patch: {},
+        evidence: proof(url, 'Residencial Test en A Coruña.'),
+      }), /invalid_evidence_url/);
+    } finally { db.close(); }
+  }
+
+  const db = database();
+  try {
+    const candidate = listCurationCandidates(db).find((item) => item.entityId === 'opp-1');
+    const review = stageCurationReview(db, {
+      entityKind: 'opportunity', entityId: 'opp-1', action: 'confirm',
+      contentHash: candidate.contentHash, patch: {},
+      evidence: proof('https://[2606:4700:4700::1111]/evidence', 'Residencial Test en A Coruña.'),
+    });
+    assert.equal(review.status, 'staged');
+  } finally { db.close(); }
+});
+
 test('creates gestora before its dependent promotion and validates the relationship evidence', () => {
   const db = database();
   try {
