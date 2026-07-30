@@ -73,6 +73,8 @@ Cada valor del `patch` debe aparecer en el fragmento citado. Las URLs deben coin
 
 Cada revisión necesita entre una y tres fuentes con URL y extracto, y al menos una debe incluir `screenshot`. `ref` es una ruta relativa a `~/.hermes/data/`; el cron conserva los ficheros bajo `~/.hermes/data/vivienda-curation/`. El servidor rechaza rutas absolutas, traversal, extensiones no admitidas, fechas inválidas y hashes que no sean SHA-256. El hash permite auditar que la captura no cambió; la URL, el extracto y el grounding por campo siguen siendo la prueba factual.
 
+Antes de enviar una revisión, `curator-client.mjs stage` comprueba además que el fichero local existe sin escapar del directorio ni mediante symlinks, coincide con el SHA-256 declarado, se decodifica realmente como PNG/JPEG/WebP, ocupa entre 4 KiB y 20 MiB, mide como mínimo 320×200 y no es una imagen sólida sin contenido. Esto rechaza placeholders, cabeceras falsificadas y PNG de 1×1; la captura debe proceder de una página realmente inspeccionada.
+
 Para oportunidades creadas, `source`, `sourceKind`, `firstSeenAt`, `lastSeenAt`, `evidenceText` y `extractionMethod` los deriva el servidor. `municipality` y `scopeStatus` de promociones también son derivados. IDs, CIF, identidad registral y otros campos internos no son editables.
 
 ## Seguridad

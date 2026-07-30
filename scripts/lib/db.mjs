@@ -815,6 +815,35 @@ export function ensureSchema(db) {
       COMMIT;
     `);
   }
+
+  // A cron run without browser tools created 1x1 PNG placeholders. Preserve
+  // the audit rows but invalidate that exact batch so every entity is reviewed
+  // again with real, locally verified screenshots.
+  const placeholderScreenshotSha256 = 'e878950f8091ec010cf5cc723bdea027a8539cf7147cfea199c2f666232dcd4e';
+  db.prepare(`
+    UPDATE curation_reviews
+    SET status = 'conflict',
+        notes = CASE
+          WHEN notes IS NULL OR notes = '' THEN 'invalidated: placeholder screenshot detected'
+          ELSE notes || ' | invalidated: placeholder screenshot detected'
+        END
+    WHERE status = 'applied'
+      AND EXISTS (
+        SELECT 1
+        FROM json_each(
+          CASE
+            WHEN json_valid(curation_reviews.evidenceJson) THEN
+              CASE WHEN json_type(curation_reviews.evidenceJson) = 'array'
+                THEN curation_reviews.evidenceJson ELSE '[]' END
+            ELSE '[]'
+          END
+        ) AS evidence
+        WHERE json_extract(
+          CASE WHEN evidence.type = 'object' THEN evidence.value ELSE '{}' END,
+          '$.screenshot.sha256'
+        ) = ?
+      )
+  `).run(placeholderScreenshotSha256);
 }
 
 export function createRun(db, mode, idempotencyKey) {

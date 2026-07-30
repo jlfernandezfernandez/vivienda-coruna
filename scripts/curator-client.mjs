@@ -3,6 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { verifyReviewScreenshots } from './lib/screenshot-proof.mjs';
+
 const baseUrl = 'https://vivienda-api.jordixlab.com';
 const keyPath = process.env.VIVIENDA_OPERATIONS_KEY_FILE || join(homedir(), '.hermes', 'secrets', 'vivienda_operations_key');
 const token = readFileSync(keyPath, 'utf8').trim();
@@ -36,19 +38,28 @@ function output(body, path) {
   }
 }
 
+function outputCollection(body, key, argument) {
+  if (argument === '--count') {
+    console.log(JSON.stringify({ count: body[key]?.length ?? 0 }));
+    return;
+  }
+  output(body, argument);
+}
+
 const [command, argument] = process.argv.slice(2);
 if (!command) {
-  console.error('usage: curator-client.mjs candidates|reviews|stage|deep|commit|runs|run|wait|diagnostics [argument]');
+  console.error('usage: curator-client.mjs candidates|reviews [FILE|--count] | stage|deep|commit|runs|run|wait|diagnostics [argument]');
   process.exit(64);
 }
 
 if (command === 'candidates') {
-  output(await request('/api/v1/operations/curation/candidates'), argument);
+  outputCollection(await request('/api/v1/operations/curation/candidates'), 'candidates', argument);
 } else if (command === 'reviews') {
-  output(await request('/api/v1/operations/curation/reviews'), argument);
+  outputCollection(await request('/api/v1/operations/curation/reviews'), 'reviews', argument);
 } else if (command === 'stage') {
   if (!argument) throw new Error('stage requires a JSON file');
   const review = JSON.parse(readFileSync(argument, 'utf8'));
+  await verifyReviewScreenshots(review);
   output(await request('/api/v1/operations/curation/reviews', { method: 'POST', body: JSON.stringify(review) }));
 } else if (command === 'deep') {
   const idempotencyKey = argument || `deep-curator-${new Date().toISOString()}`;
