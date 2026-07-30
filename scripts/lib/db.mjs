@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { config } from './config.mjs';
+import { listCurationCandidates, listCurationReviews, stageCurationReview } from './curation.mjs';
 import { classifyPromotionLocation, municipalitySlug, MUNICIPALITIES, slugify } from './municipios.mjs';
 
 let dbInstance = null;
@@ -124,6 +125,25 @@ export function getDatabase(options = {}) {
         createdAt TEXT NOT NULL,
         PRIMARY KEY(entityKind, aliasId)
       );
+
+      CREATE TABLE IF NOT EXISTS curation_reviews (
+        id TEXT PRIMARY KEY,
+        entityKind TEXT NOT NULL CHECK(entityKind IN ('opportunity','gestora','promotion','cooperative')),
+        entityId TEXT NOT NULL,
+        action TEXT NOT NULL CHECK(action IN ('confirm','update','create')),
+        contentHash TEXT,
+        resultHash TEXT,
+        patchJson TEXT NOT NULL,
+        evidenceJson TEXT NOT NULL,
+        notes TEXT,
+        status TEXT NOT NULL DEFAULT 'staged' CHECK(status IN ('staged','applied','conflict')),
+        createdAt TEXT NOT NULL,
+        appliedAt TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_curation_reviews_entity
+        ON curation_reviews(entityKind, entityId, createdAt DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_curation_reviews_one_staged
+        ON curation_reviews(entityKind, entityId) WHERE status = 'staged';
 
       -- Cambios detectados entre corridas: base para "últimos cambios" en la web.
       CREATE TABLE IF NOT EXISTS events (
@@ -713,6 +733,25 @@ export function ensureSchema(db) {
       PRIMARY KEY(entityKind, aliasId)
     );
 
+    CREATE TABLE IF NOT EXISTS curation_reviews (
+      id TEXT PRIMARY KEY,
+      entityKind TEXT NOT NULL CHECK(entityKind IN ('opportunity','gestora','promotion','cooperative')),
+      entityId TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('confirm','update','create')),
+      contentHash TEXT,
+      resultHash TEXT,
+      patchJson TEXT NOT NULL,
+      evidenceJson TEXT NOT NULL,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'staged' CHECK(status IN ('staged','applied','conflict')),
+      createdAt TEXT NOT NULL,
+      appliedAt TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_curation_reviews_entity
+      ON curation_reviews(entityKind, entityId, createdAt DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_curation_reviews_one_staged
+      ON curation_reviews(entityKind, entityId) WHERE status = 'staged';
+
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       detectedAt TEXT NOT NULL,
@@ -726,7 +765,7 @@ export function ensureSchema(db) {
 
     CREATE TABLE IF NOT EXISTS pipeline_runs (
       id TEXT PRIMARY KEY,
-      mode TEXT NOT NULL CHECK(mode IN ('fast','deep')),
+      mode TEXT NOT NULL CHECK(mode IN ('fast','deep','curate')),
       status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','running','succeeded','failed','interrupted')),
       idempotencyKey TEXT,
       createdAt TEXT NOT NULL,
@@ -747,6 +786,35 @@ export function ensureSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_events_detectedAt ON events(detectedAt DESC);
     CREATE INDEX IF NOT EXISTS idx_coop_municipality_active ON cooperatives(municipality, active);
   `);
+
+  // SQLite cannot alter CHECK constraints. Upgrade databases created before
+  // the curation run mode while preserving run history and idempotency keys.
+  const pipelineSchema = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_runs'",
+  ).get()?.sql || '';
+  if (!pipelineSchema.includes("'curate'")) {
+    db.exec(`
+      BEGIN IMMEDIATE;
+      ALTER TABLE pipeline_runs RENAME TO pipeline_runs_legacy;
+      CREATE TABLE pipeline_runs (
+        id TEXT PRIMARY KEY,
+        mode TEXT NOT NULL CHECK(mode IN ('fast','deep','curate')),
+        status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','running','succeeded','failed','interrupted')),
+        idempotencyKey TEXT,
+        createdAt TEXT NOT NULL,
+        startedAt TEXT,
+        completedAt TEXT,
+        error TEXT
+      );
+      INSERT INTO pipeline_runs SELECT * FROM pipeline_runs_legacy;
+      DROP TABLE pipeline_runs_legacy;
+      CREATE UNIQUE INDEX idx_pipeline_runs_idempotency
+        ON pipeline_runs(idempotencyKey) WHERE idempotencyKey IS NOT NULL;
+      CREATE UNIQUE INDEX idx_pipeline_runs_one_running
+        ON pipeline_runs((1)) WHERE status = 'running';
+      COMMIT;
+    `);
+  }
 }
 
 export function createRun(db, mode, idempotencyKey) {
@@ -958,7 +1026,11 @@ export function createRepository(dbOrFactory, options = {}) {
     createRun: (mode, idempotencyKey) => withDb((db) => createRun(db, mode, idempotencyKey)),
     listRuns: () => withDb((db) => listRuns(db)),
     runById: (id) => withDb((db) => getRunById(db, id)),
+    runByIdempotencyKey: (key) => withDb((db) => getRunByIdempotencyKey(db, key)),
     runningRun: () => withDb((db) => getRunningRun(db)),
+    activeRun: () => withDb((db) => db.prepare(
+      "SELECT * FROM pipeline_runs WHERE status IN ('queued','running') ORDER BY createdAt ASC LIMIT 1",
+    ).get() || null),
     nextQueuedRun: () => withDb((db) => db.prepare(
       "SELECT * FROM pipeline_runs WHERE status = 'queued' ORDER BY createdAt ASC LIMIT 1",
     ).get() || null),
@@ -971,6 +1043,12 @@ export function createRepository(dbOrFactory, options = {}) {
       "UPDATE pipeline_runs SET status = 'interrupted', completedAt = ? WHERE status = 'running'",
     ).run(new Date().toISOString()).changes),
     sources: () => withDb((db) => getAllSources(db)),
+    curationCandidates: () => withDb((db) => listCurationCandidates(db)),
+    curationReviews: () => withDb((db) => listCurationReviews(db)),
+    stageCurationReview: (review) => withDb((db) => stageCurationReview(db, review)),
+    hasStagedCurationReviews: () => withDb((db) => Boolean(db.prepare(
+      "SELECT 1 FROM curation_reviews WHERE status = 'staged' LIMIT 1",
+    ).get())),
 
     diagnostics: () => withDb((db) => ({
       database: 'ok',

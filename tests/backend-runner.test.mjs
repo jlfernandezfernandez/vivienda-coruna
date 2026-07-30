@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import { DatabaseSync } from 'node:sqlite';
+import { stageCurationReview } from '../scripts/lib/curation.mjs';
 import { ensureSchema, createRun, getRunById, transitionRun } from '../scripts/lib/db.mjs';
 
 const projectRoot = new URL('../', import.meta.url).pathname;
@@ -144,6 +145,61 @@ test('runner with injected executor succeeds when pipeline passes', () => {
 
     assert.equal(updated.status, 'succeeded', `Expected succeeded, got ${updated.status}: ${result.stderr}`);
     assert.ok(updated.completedAt, 'Should have completedAt');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('curate runner applies staged reviews on a candidate and publishes atomically', () => {
+  const dir = tempDir();
+  try {
+    const { db, path: dbPath } = createEmptyDb(dir);
+    stageCurationReview(db, {
+      entityKind: 'gestora', entityId: 'gestora-curada', action: 'create',
+      patch: { name: 'Gestora Curada', website: 'https://example.com' },
+      evidence: [{
+        url: 'https://example.com', excerpt: 'Gestora Curada, información oficial.',
+        screenshot: {
+          ref: 'vivienda-curation/tests/runner.png', sha256: '0'.repeat(64), capturedAt: new Date().toISOString(),
+        },
+      }],
+    });
+    const run = createRun(db, 'curate', null);
+    db.close();
+
+    const fakeProject = join(dir, 'curation-project');
+    mkdirSync(join(fakeProject, 'scripts'), { recursive: true });
+    writeFileSync(join(fakeProject, 'package.json'), JSON.stringify({
+      name: 'curation-test', scripts: { quality: 'echo "PASS: all good"' },
+    }));
+    writeFileSync(
+      join(fakeProject, 'scripts', 'apply-curation.mjs'),
+      `await import(${JSON.stringify(new URL('../scripts/apply-curation.mjs', import.meta.url).href)});`,
+    );
+    writeFileSync(join(fakeProject, 'scripts', 'reconcile-entities.mjs'), 'console.log("reconcile ok");');
+    writeFileSync(join(fakeProject, 'scripts', 'repair-opportunity-grounding.mjs'), 'console.log("repair ok");');
+
+    const result = spawnSync('bash', [runnerScript, run.id, 'curate', dbPath], {
+      cwd: fakeProject,
+      env: {
+        ...process.env,
+        DB_PATH: dbPath,
+        CANDIDATE_PATH: `${dbPath}.candidate`,
+        BACKUP_PATH: `${dbPath}.backup`,
+        PROJECT_ROOT: fakeProject,
+      },
+      encoding: 'utf8',
+    });
+
+    const published = new DatabaseSync(dbPath);
+    const updated = getRunById(published, run.id);
+    const gestora = published.prepare('SELECT name FROM gestoras WHERE id = ?').get('gestora-curada');
+    published.close();
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(updated.status, 'succeeded');
+    assert.equal(gestora.name, 'Gestora Curada');
+    assert.ok(existsSync(`${dbPath}.backup`));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

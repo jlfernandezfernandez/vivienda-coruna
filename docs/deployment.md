@@ -52,10 +52,9 @@ NPMplus es el edge público: termina TLS con el certificado wildcard y reenvía 
 3. valida Compose;
 4. construye ambos Dockerfiles;
 5. publica dos imágenes GHCR por SHA;
-6. actualiza `IMAGE_TAG` mediante la CLI oficial de Coolify;
-7. reinicia el recurso y ejecuta smoke tests.
+6. deja el deploy automático desactivado porque Cloudflare WAF bloquea los runners públicos.
 
-GitHub Pages permanece activo durante la estabilización y se retira únicamente después del cutover verificado.
+Tras publicar ambos paquetes, Hermes actualiza manualmente `IMAGE_TAG` mediante la CLI oficial de Coolify, reinicia el recurso y ejecuta smoke tests. El workflow legado de GitHub Pages se retiró después del cutover verificado.
 
 ## Cutover inicial
 
@@ -68,7 +67,7 @@ GitHub Pages permanece activo durante la estabilización y se retira únicamente
 7. Configurar NPMplus para ambos dominios hacia Coolify conservando el Host.
 8. Probar home, detalle, mapa, API, 404, 503 y operaciones autenticadas.
 9. Cambiar los crons Hermes para llamar a la API.
-10. Mantener Pages y la SQLite antigua congelados al menos siete días.
+10. Conservar la SQLite antigua congelada y su hash al menos siete días; retirar Pages tras verificar la estabilización.
 
 ## Operación con Hermes
 
@@ -110,4 +109,4 @@ Datos:
 3. restaurar un backup validado mediante el init/runbook;
 4. comprobar integridad, FK y conteos antes de reabrir escrituras.
 
-Si Coolify falla durante el cutover, NPMplus puede volver temporalmente a GitHub Pages. Nunca deben quedar activos simultáneamente el escritor antiguo y el nuevo.
+Si una imagen nueva falla, fijar Coolify al SHA anterior. Nunca deben quedar activos simultáneamente dos escritores ni restaurarse datos salvo corrupción o migración incompatible.

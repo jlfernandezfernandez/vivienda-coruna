@@ -11,7 +11,7 @@ CANDIDATE_PATH="${CANDIDATE_PATH:-${LIVE_DB_PATH}.${RUN_ID}.candidate}"
 BACKUP_PATH="${BACKUP_PATH:-$(dirname "$LIVE_DB_PATH")/backups/${RUN_ID}.db}"
 
 case "$MODE" in
-  fast|deep) ;;
+  fast|deep|curate) ;;
   *) printf 'invalid mode: %s\n' "$MODE" >&2; exit 64 ;;
 esac
 
@@ -36,7 +36,9 @@ export DB_PATH="$CANDIDATE_PATH"
 export VIVIENDA_PIPELINE_LOCKED=1
 cd "$PROJECT_ROOT"
 
-if [[ "$MODE" == "fast" ]]; then
+if [[ "$MODE" == "curate" ]]; then
+  node scripts/apply-curation.mjs
+elif [[ "$MODE" == "fast" ]]; then
   npm run refresh:fast
   npm run enrich:retry
 else
@@ -44,6 +46,7 @@ else
 fi
 node scripts/reconcile-entities.mjs
 node scripts/repair-opportunity-grounding.mjs
+node "$STATE_SCRIPT" purge "$CANDIDATE_PATH"
 npm run quality
 node "$STATE_SCRIPT" check "$CANDIDATE_PATH"
 

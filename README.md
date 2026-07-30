@@ -102,8 +102,15 @@ Operación autenticada:
 - `GET /api/v1/operations/runs/:id`
 - `GET /api/v1/operations/diagnostics`
 - `GET /api/v1/operations/sources`
+- `GET /api/v1/operations/curation/candidates`
+- `GET /api/v1/operations/curation/reviews`
+- `POST /api/v1/operations/curation/reviews`
 
 No existe SQL remoto ni CRUD público.
+
+El curador semanal de Hermes revisa por hash todo dato nuevo o modificado,
+registra evidencia y publica mediante un run atómico `curate`. Contrato y
+controles: [docs/curation.md](docs/curation.md).
 
 ## Despliegue
 
@@ -112,9 +119,9 @@ Producción usa Coolify y dos imágenes GHCR separadas:
 - `ghcr.io/jlfernandezfernandez/vivienda-coruna-frontend`
 - `ghcr.io/jlfernandezfernandez/vivienda-coruna-backend`
 
-Cada despliegue fija `IMAGE_TAG=sha-<commit>`. GitHub Actions valida, construye, publica, actualiza Coolify y ejecuta smoke tests.
+Cada despliegue fija `IMAGE_TAG=sha-<commit>`. GitHub Actions valida, construye y publica las imágenes; Hermes actualiza Coolify y ejecuta los smoke tests.
 
-GitHub Pages se conserva temporalmente como rollback durante el cutover; no es el runtime objetivo.
+El workflow legado de GitHub Pages se retiró tras verificar el cutover. El rollback fija Coolify al SHA anterior; la base se restaura solo desde un backup validado.
 
 Runbook completo: [docs/deployment.md](docs/deployment.md).
 

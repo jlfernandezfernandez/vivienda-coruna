@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import { buildBackend } from '../backend/app.mjs';
 
+const operationsToken = ['test', 'token'].join('-');
+
 function fakeRepository() {
   return {
     health: () => ({ database: 'ok' }),
@@ -16,7 +18,13 @@ function fakeRepository() {
     createRun: (mode, idempotencyKey) => ({ id: 'run-1', mode, idempotencyKey, status: 'queued', createdAt: new Date().toISOString() }),
     listRuns: () => [{ id: 'run-1', mode: 'fast', status: 'succeeded', createdAt: new Date().toISOString() }],
     runById: (id) => (id === 'run-1' ? { id: 'run-1', mode: 'fast', status: 'succeeded', createdAt: new Date().toISOString() } : null),
+    runByIdempotencyKey: () => null,
+    activeRun: () => null,
+    hasStagedCurationReviews: () => false,
     sources: () => [{ name: 'src1', url: 'https://example.com', kind: 'rss', ok: true, scanned: 10, checkedAt: new Date().toISOString() }],
+    curationCandidates: () => [{ entityKind: 'opportunity', entityId: 'op-1', contentHash: 'a'.repeat(64), record: { id: 'op-1' } }],
+    curationReviews: () => [{ id: 'review-1', status: 'staged' }],
+    stageCurationReview: (review) => ({ id: 'review-1', status: 'staged', ...review }),
     diagnostics: () => ({ database: 'ok', opportunities: 42 }),
   };
 }
@@ -297,5 +305,160 @@ test('GET /api/v1/operations/sources returns all sources', async () => {
   const body = response.json();
   assert.equal(body.length, 1);
   assert.equal(body[0].name, 'src1');
+  await app.close();
+});
+
+test('curation API lists candidates and stages evidence-backed reviews', async () => {
+  const app = buildBackend({ repository: fakeRepository(), operationsApiKey: operationsToken });
+  const headers = { authorization: `Bearer ${operationsToken}` };
+  const candidates = await app.inject({ method: 'GET', url: '/api/v1/operations/curation/candidates', headers });
+  assert.equal(candidates.statusCode, 200);
+  assert.equal(candidates.json().candidates[0].entityId, 'op-1');
+
+  const staged = await app.inject({
+    method: 'POST',
+    url: '/api/v1/operations/curation/reviews',
+    headers,
+    payload: {
+      entityKind: 'opportunity', entityId: 'op-1', action: 'confirm',
+      contentHash: 'a'.repeat(64), patch: {},
+      evidence: [{
+        url: 'https://example.com', excerpt: 'Dato verificado en la fuente.',
+        screenshot: { ref: 'vivienda-curation/tests/api.png', sha256: '0'.repeat(64), capturedAt: new Date().toISOString() },
+      }],
+    },
+  });
+  assert.equal(staged.statusCode, 201);
+  assert.equal(staged.json().status, 'staged');
+  await app.close();
+});
+
+test('curation API maps stale candidate reviews to HTTP 409', async () => {
+  const repository = { ...fakeRepository(), stageCurationReview: () => { throw new Error('stale_content'); } };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'POST', url: '/api/v1/operations/curation/reviews',
+    headers: { authorization: `Bearer ${operationsToken}` },
+    payload: {
+      entityKind: 'opportunity', entityId: 'op-1', action: 'confirm',
+      contentHash: 'a'.repeat(64), patch: {},
+      evidence: [{
+        url: 'https://example.com', excerpt: 'Dato válido.',
+        screenshot: { ref: 'vivienda-curation/tests/api.png', sha256: '0'.repeat(64), capturedAt: new Date().toISOString() },
+      }],
+    },
+  });
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), { error: 'stale_content' });
+  await app.close();
+});
+
+test('curation API rejects staging while a pipeline snapshot may be in flight', async () => {
+  const repository = { ...fakeRepository(), activeRun: () => ({ id: 'run-active', status: 'running' }) };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'POST', url: '/api/v1/operations/curation/reviews',
+    headers: { authorization: `Bearer ${operationsToken}` },
+    payload: { entityKind: 'opportunity', entityId: 'op-1', action: 'confirm', contentHash: 'a'.repeat(64), patch: {}, evidence: [{ url: 'https://example.com', excerpt: 'Dato válido.' }] },
+  });
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), { error: 'operation_in_progress' });
+  await app.close();
+});
+
+test('normal pipelines cannot start while curation reviews are staged', async () => {
+  const repository = { ...fakeRepository(), hasStagedCurationReviews: () => true };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'POST', url: '/api/v1/operations/runs',
+    headers: { authorization: `Bearer ${operationsToken}`, 'idempotency-key': 'deep-during-curation' },
+    payload: { mode: 'deep' },
+  });
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), { error: 'curation_in_progress' });
+  await app.close();
+});
+
+test('curate run requires every candidate staged and then dispatches normally', async () => {
+  const repository = {
+    ...fakeRepository(),
+    curationCandidates: () => [],
+    hasStagedCurationReviews: () => true,
+  };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'POST', url: '/api/v1/operations/runs',
+    headers: { authorization: `Bearer ${operationsToken}`, 'idempotency-key': 'curate-complete-batch' },
+    payload: { mode: 'curate' },
+  });
+  assert.equal(response.statusCode, 202);
+  assert.equal(response.json().mode, 'curate');
+  await app.close();
+});
+
+test('idempotency keys cannot be reused across pipeline modes', async () => {
+  const repository = {
+    ...fakeRepository(),
+    runByIdempotencyKey: () => ({ id: 'run-deep', mode: 'deep', status: 'succeeded' }),
+  };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'POST', url: '/api/v1/operations/runs',
+    headers: { authorization: `Bearer ${operationsToken}`, 'idempotency-key': 'same-key-week-2026-31' },
+    payload: { mode: 'curate' },
+  });
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), { error: 'idempotency_key_mode_mismatch' });
+  await app.close();
+});
+
+test('a second run cannot be queued while another run is active', async () => {
+  const repository = {
+    ...fakeRepository(),
+    activeRun: () => ({ id: 'run-active', mode: 'curate', status: 'queued' }),
+  };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'POST', url: '/api/v1/operations/runs',
+    headers: { authorization: `Bearer ${operationsToken}`, 'idempotency-key': 'different-curate-key' },
+    payload: { mode: 'curate' },
+  });
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json(), { error: 'operation_in_progress', runId: 'run-active' });
+  await app.close();
+});
+
+test('curation API maps all known validation errors to 400', async () => {
+  let validationError = 'required_field_missing:name';
+  const repository = {
+    ...fakeRepository(),
+    stageCurationReview: () => { throw new Error(validationError); },
+  };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  for (const expected of ['required_field_missing', 'invalid_notes', 'screenshot_required', 'invalid_screenshot_evidence']) {
+    validationError = expected === 'required_field_missing' ? `${expected}:name` : expected;
+    const response = await app.inject({
+      method: 'POST', url: '/api/v1/operations/curation/reviews',
+      headers: { authorization: `Bearer ${operationsToken}` }, body: {},
+    });
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, expected);
+  }
+  await app.close();
+});
+
+test('curation API masks unexpected repository errors', async () => {
+  const repository = {
+    ...fakeRepository(),
+    stageCurationReview: () => { throw new Error('SQLITE_CONSTRAINT: secret schema detail'); },
+  };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'POST', url: '/api/v1/operations/curation/reviews',
+    headers: { authorization: `Bearer ${operationsToken}` },
+    payload: { entityKind: 'opportunity' },
+  });
+  assert.equal(response.statusCode, 500);
+  assert.deepEqual(response.json(), { error: 'internal_error' });
   await app.close();
 });

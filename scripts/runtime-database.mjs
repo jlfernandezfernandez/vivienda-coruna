@@ -45,7 +45,8 @@ try {
     if (!getRunById(db, runId) || !transitionRun(db, runId, 'queued', 'running')) process.exitCode = 65;
   } else if (command === 'succeed') {
     if (!transitionRun(db, runId, 'running', 'succeeded')) process.exitCode = 65;
-    else purgeStaleData(db);
+  } else if (command === 'purge') {
+    purgeStaleData(db);
   } else if (command === 'fail') {
     const failed = transitionRun(db, runId, 'running', 'failed');
     if (failed && extra) {
