@@ -12,26 +12,14 @@ const dashboard = await apiSafe(Astro.response, () => api.dashboard(), { opportu
 const apiUnavailable = Astro.response.status >= 400;
 const { opportunities: items, sources, gestoras, cooperatives, events, coverage } = dashboard;
 const municipalities = dashboard.municipalities.map((municipality) => municipality.name);
-const recentEvents = events.slice(0, 12);
-const publicSourceName = (source: { name: string; kind: string }) =>
-  source.kind === 'firecrawl-search' ? source.name.replace(/^Firecrawl/, 'Web') : source.name;
+const recentEvents = events.slice(0, 8);
 const healthySources = sources.filter((source) => source.ok).length;
-const checkedAt = items.length ? new Date(Math.max(...items.map(i => new Date(i.lastSeenAt).getTime()))) : null;
-const checkedLabel = checkedAt
-  ? checkedAt.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' })
-  : 'Pendiente';
 const allItems = [...items].sort((a, b) => new Date(b.publishedAt || b.firstSeenAt).getTime() - new Date(a.publishedAt || a.firstSeenAt).getTime());
 
-// Group items by date for an editorial feed
+// Group items by date
 const groupedItems = allItems.reduce((acc, item) => {
   const itemDate = new Date(item.publishedAt || item.firstSeenAt);
-  const dateKey = itemDate.toLocaleDateString('es-ES', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Europe/Madrid'
-  });
+  const dateKey = itemDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Madrid' });
   const capitalizedKey = dateKey.charAt(0).toUpperCase() + dateKey.slice(1);
   if (!acc[capitalizedKey]) acc[capitalizedKey] = [];
   acc[capitalizedKey].push(item);
@@ -40,7 +28,6 @@ const groupedItems = allItems.reduce((acc, item) => {
 
 const groupedEntries = Object.entries(groupedItems);
 
-// Cooperativas activas: oportunidades tipo Cooperativa + promociones de gestoras que buscan socios
 const coopOpportunities = items.filter((i) => i.type === 'Cooperativa');
 const coopPromotions = gestoras.flatMap((g) =>
   g.promotions
@@ -52,6 +39,11 @@ const activeCoopCount = coopOpportunities.length + coopPromotions.length;
 import { site } from '../lib/site.mjs';
 const { title: siteTitle, description: siteDescription, headerTitle, headerSubtitle } = site;
 
+const checkedAt = items.length ? new Date(Math.max(...items.map(i => new Date(i.lastSeenAt).getTime()))) : null;
+const checkedLabel = checkedAt
+  ? checkedAt.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' })
+  : 'Pendiente';
+
 const shortDate = (d: string) =>
   new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' });
 const truncate = (s: string, n = 60) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s);
@@ -60,312 +52,112 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
   status: { icon: '⇄', className: 'text-brand-blue' },
   price: { icon: '€', className: 'text-brand-orange' },
 };
-
 ---
 
-<Layout
-  title={siteTitle}
-  description={siteDescription}
->
+<Layout title={siteTitle} description={siteDescription}>
   <div class="mx-auto max-w-6xl px-4 sm:px-6">
     {apiUnavailable && (
       <div role="alert" class="mb-6 rounded-2xl border border-status-error/30 bg-status-error/10 p-4 text-sm text-ink">
         <strong class="font-bold">Datos temporalmente no disponibles.</strong>
-        <span class="text-ink-muted"> Reintenta en un minuto; no se muestran datos antiguos como si estuvieran actualizados.</span>
       </div>
     )}
 
-    <!-- Page Header -->
-    <div class="mb-8 md:mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-soft pb-6">
-      <div class="max-w-2xl">
-        <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
-          <span class:list={['flex h-1.5 w-1.5 rounded-full', apiUnavailable ? 'bg-status-error' : 'bg-brand-green pulse-indicator-ok']}></span>
-          {apiUnavailable ? 'Seguimiento temporalmente no disponible' : 'Seguimiento en directo'}
-        </div>
-        <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
-          {headerTitle}
-        </h1>
-        <p class="text-sm md:text-base text-ink-muted mt-3 leading-relaxed">
-          {headerSubtitle}
-        </p>
+    <!-- Compact status line -->
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border-soft pb-4">
+      <div class="flex items-center gap-2">
+        <span class:list={['flex h-2 w-2 rounded-full', apiUnavailable ? 'bg-status-error' : 'bg-status-ok pulse-indicator-ok']}></span>
+        <span class="text-sm font-semibold text-ink">
+          {apiUnavailable ? 'No disponible' : allItems.length + ' oportunidades'}
+        </span>
+        <span class="text-xs text-ink-light">·</span>
+        <span class="text-xs text-ink-muted">
+          {apiUnavailable ? 'Reintenta en un minuto' : 'Actualizado ' + checkedLabel}
+        </span>
       </div>
-
-      <!-- Crawler health metric card -->
-      <div class="flex-shrink-0 flex flex-col justify-between border border-border-soft bg-surface p-5 rounded-2xl shadow-premium min-w-[280px]">
-        <div class="flex items-center justify-between border-b border-border-soft pb-2.5">
-          <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Estado del Rastreador</span>
-          <span class:list={['flex h-2.5 w-2.5 rounded-full', apiUnavailable ? 'bg-status-error' : 'bg-status-ok pulse-indicator-ok']} aria-hidden="true"></span>
-        </div>
-        <div class="text-xs text-ink-muted space-y-1.5 mt-3">
-          <div class="flex justify-between">
-            <span>Última comprobación:</span>
-            <strong class="text-ink font-semibold">{checkedLabel}</strong>
-          </div>
-          <div class="flex justify-between">
-            <span>Fuentes operativas:</span>
-            <strong class="text-ink font-semibold">{apiUnavailable ? 'No disponible' : `${healthySources} de ${sources.length}`}</strong>
-          </div>
-          <div class="flex justify-between">
-            <span>Cooperativas en el registro:</span>
-            <strong class="text-ink font-semibold">{cooperatives.length}</strong>
-          </div>
-        </div>
+      <div class="flex items-center gap-3 text-xs text-ink-muted">
+        <span>{cooperatives.length} cooperativas</span>
+        <span class="text-ink-light">·</span>
+        <span>{gestoras.length} gestoras</span>
+        <span class="text-ink-light">·</span>
+        <span>{healthySources}/{sources.length} fuentes</span>
       </div>
     </div>
 
-    <!-- Cooperativas activas ahora -->
-    <section class="mb-10" aria-labelledby="coop-activas-title">
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 id="coop-activas-title" class="text-lg font-bold text-ink flex items-center gap-2">
-          Cooperativas activas ahora
-          <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
-            {activeCoopCount}
-          </span>
-        </h2>
-        <a href={`${base}cooperativas`} class="text-xs font-bold text-brand-green hover:underline">
-          Ver todas las cooperativas →
-        </a>
-      </div>
-
-      {activeCoopCount === 0 ? (
-        <div class="rounded-2xl border border-border-soft bg-surface p-5 text-sm text-ink-muted shadow-premium">
-          Ahora mismo no hay captación abierta detectada. El registro oficial recoge
-          <strong class="text-ink font-semibold"> {cooperatives.length} </strong>
-          cooperativas en la zona.
-          <a href={`${base}cooperativas`} class="font-bold text-brand-green hover:underline">Consultar el registro →</a>
+    <!-- Cooperativas activas -->
+    {activeCoopCount > 0 && (
+      <section class="mb-8" aria-labelledby="coop-activas-title">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <h2 id="coop-activas-title" class="text-base font-bold text-ink flex items-center gap-2">
+            Captación abierta
+            <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
+              {activeCoopCount}
+            </span>
+          </h2>
         </div>
-      ) : (
-        <div class="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+        <div class="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
           {coopOpportunities.map((op) => (
             <a
-              href={`${base}oportunidad/${op.id}`}
-              class="flex min-w-[260px] max-w-[280px] flex-shrink-0 flex-col gap-2 rounded-2xl border border-border-soft bg-surface p-4 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
+              href={base + 'oportunidad/' + op.id}
+              class="flex min-w-[240px] max-w-[260px] flex-shrink-0 flex-col gap-1.5 rounded-xl border border-border-soft bg-surface p-3.5 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
             >
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-bold uppercase tracking-wider text-ink-muted truncate">{op.location || 'Área'}</span>
-                <span class="inline-flex items-center rounded-lg bg-brand-green-soft px-2 py-0.5 text-[10px] font-semibold text-brand-green border border-brand-green/10 flex-shrink-0">
-                  {op.status || 'Captación abierta'}
-                </span>
-              </div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-ink-muted truncate">{op.location || 'Área'}</span>
               <h3 class="text-sm font-bold text-ink leading-snug line-clamp-2">{op.nombrePromocion || op.title}</h3>
-              <div class="flex flex-wrap items-baseline gap-x-3 text-xs text-ink-muted">
-                {op.precioMin && (
-                  <span class="text-sm font-extrabold text-brand-green">Desde {op.precioMin.toLocaleString('es-ES')} €</span>
-                )}
-                {op.totalViviendas && <span>{op.totalViviendas} vivs.</span>}
-              </div>
-              <span class="text-[11px] text-ink-light mt-auto">Detectado el {shortDate(op.firstSeenAt)}</span>
+              {op.precioMin && <span class="text-sm font-extrabold text-brand-green">Desde {op.precioMin.toLocaleString('es-ES')} €</span>}
+              <span class="text-[11px] text-ink-light mt-auto">{shortDate(op.firstSeenAt)}</span>
             </a>
           ))}
           {coopPromotions.map((promo) => (
             <a
-              href={`${base}gestora/${promo.gestoraId}`}
-              class="flex min-w-[260px] max-w-[280px] flex-shrink-0 flex-col gap-2 rounded-2xl border border-border-soft bg-surface p-4 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
+              href={base + 'gestora/' + promo.gestoraId}
+              class="flex min-w-[240px] max-w-[260px] flex-shrink-0 flex-col gap-1.5 rounded-xl border border-border-soft bg-surface p-3.5 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
             >
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-bold uppercase tracking-wider text-ink-muted truncate">{promo.location || 'Área'}</span>
-                <span class="inline-flex items-center rounded-lg bg-brand-green-soft px-2 py-0.5 text-[10px] font-semibold text-brand-green border border-brand-green/10 flex-shrink-0">
-                  {promo.status || 'Captación abierta'}
-                </span>
-              </div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-ink-muted truncate">{promo.location || 'Área'}</span>
               <h3 class="text-sm font-bold text-ink leading-snug line-clamp-2">{promo.name}</h3>
-              <span class="text-xs text-ink-muted">Gestiona: <span class="font-bold text-ink">{promo.gestoraName}</span></span>
+              <span class="text-xs text-ink-muted">{promo.gestoraName}</span>
               <span class="text-[11px] text-brand-green font-semibold mt-auto">Busca socios</span>
             </a>
           ))}
         </div>
-      )}
-    </section>
+      </section>
+    )}
 
     <!-- Layout Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8">
 
-      <!-- Left Column: Search & Grouped Feed -->
+      <!-- Left Column: Search + Feed -->
       <div class="flex flex-col gap-6">
 
-        <!-- Card 1: Búsqueda y Ubicación -->
-        <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col gap-4">
-          <!-- Text Search input - Height explicitly 40px (h-10) -->
-          <div class="relative flex items-center h-10 w-full">
+        <!-- Search + Municipio filter -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex items-center h-10 flex-1">
             <input
               type="text"
               id="search-input"
               aria-label="Buscar promociones"
-              placeholder="Buscar promoción, promotora, calle, tipo..."
-              class="w-full pl-10 pr-4 h-full rounded-xl border border-border-soft bg-canvas text-sm text-ink placeholder-ink-light focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all"
+              placeholder="Buscar promotora, calle, tipo..."
+              class="w-full pl-10 pr-4 h-full rounded-xl border border-border-soft bg-surface text-sm text-ink placeholder-ink-light focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all"
             />
             <svg class="absolute left-3.5 h-4 w-4 text-ink-light fill-none stroke-current stroke-2" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
             </svg>
           </div>
-
-          <!-- Filter 1: Tipo de señal -->
-          <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
-            <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Tipo de señal</span>
-            <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center max-w-md">
-              <button
-                class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer"
-                data-filter-source="all"
-                aria-pressed="true"
-              >
-                Todas
-              </button>
-              <button
-                class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
-                data-filter-source="official"
-                aria-pressed="false"
-              >
-                Oficiales
-              </button>
-              <button
-                class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer"
-                data-filter-source="market-alert"
-                aria-pressed="false"
-              >
-                Prensa
-              </button>
-            </div>
-          </div>
-
-          <!-- Filter 2: Categoría -->
-          <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
-            <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Categoría</span>
-            <div class="flex flex-wrap gap-1.5 items-center min-h-10">
-              <button
-                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
-                data-filter-category="all"
-                aria-pressed="true"
-              >
-                Todas
-              </button>
-              <button
-                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
-                data-filter-category="Promoción nueva"
-                aria-pressed="false"
-              >
-                Obra Nueva
-              </button>
-              <button
-                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
-                data-filter-category="Cooperativa"
-                aria-pressed="false"
-              >
-                Cooperativas
-              </button>
-              <button
-                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
-                data-filter-category="Suelo"
-                aria-pressed="false"
-              >
-                Suelo
-              </button>
-              <button
-                class="h-8 min-h-11 sm:min-h-0 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
-                data-filter-category="Vivienda protegida"
-                aria-pressed="false"
-              >
-                VPP / VPA Oficial
-              </button>
-            </div>
-          </div>
-
-          <!-- Filter 3: Municipio -->
-          <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
-            <label for="filter-municipio" class="text-xs font-bold text-ink-muted uppercase tracking-wider">Municipio</label>
-            <select
-              id="filter-municipio"
-              class="h-10 rounded-xl border border-border-soft bg-canvas px-3 text-sm font-semibold text-ink cursor-pointer focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all max-w-md"
-              data-filter-location-select
-            >
-              <option value="all" selected>Todos los municipios</option>
-              {municipalities.map(loc => (
-                <option value={loc}>{loc}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            id="filter-municipio"
+            aria-label="Filtrar por municipio"
+            class="h-10 rounded-xl border border-border-soft bg-surface px-3 text-sm font-semibold text-ink cursor-pointer focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all sm:w-52"
+          >
+            <option value="all">Todos los municipios</option>
+            {municipalities.map(loc => (
+              <option value={loc}>{loc}</option>
+            ))}
+          </select>
         </div>
 
-        <!-- Card 2: Características (colapsado por defecto) -->
-        <details class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium group">
-          <summary class="text-xs font-bold text-ink-muted uppercase tracking-wider cursor-pointer list-none flex items-center justify-between">
-            Características de la Vivienda
-            <svg class="h-4 w-4 text-ink-light transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
-          </summary>
-
-          <div class="flex flex-col gap-4 mt-4">
-            <!-- Price + Bedrooms + Bathrooms row -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <!-- Price Slider -->
-              <div class="flex flex-col gap-2">
-                <div class="flex justify-between items-center">
-                  <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Precio máximo</span>
-                  <span id="price-display" class="inline-flex items-center rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10">
-                    Sin límite
-                  </span>
-                </div>
-                <div class="flex items-center h-10">
-                  <input 
-                    type="range" 
-                    id="price-range" 
-                    min="150000" 
-                    max="600000" 
-                    step="25000" 
-                    value="600000" 
-                    class="w-full accent-brand-green cursor-pointer h-1.5 bg-canvas rounded-lg appearance-none border border-border-soft"
-                  />
-                </div>
-              </div>
-
-              <!-- Bedrooms Filter -->
-              <div class="flex flex-col gap-2">
-                <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Dormitorios</span>
-                <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center">
-                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer" data-filter-rooms="0">Todos</button>
-                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="1">1+</button>
-                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="2">2+</button>
-                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-rooms="3">3+</button>
-                </div>
-              </div>
-
-              <!-- Bathrooms Filter -->
-              <div class="flex flex-col gap-2">
-                <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Baños</span>
-                <div class="flex rounded-xl bg-canvas p-1 border border-border-soft h-10 items-center">
-                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold bg-brand-green text-surface transition-all cursor-pointer" data-filter-baths="0">Todos</button>
-                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="1">1+</button>
-                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="2">2+</button>
-                  <button class="flex-1 text-center h-8 min-h-11 sm:min-h-0 rounded-lg text-xs sm:text-sm font-semibold text-ink-muted hover:bg-surface-hover transition-all cursor-pointer" data-filter-baths="3">3+</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Extras Checkboxes -->
-            <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
-              <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Equipamiento adicional</span>
-              <div class="flex flex-wrap gap-4 items-center min-h-10">
-                <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
-                  <input type="checkbox" id="filter-garage" class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" />
-                  <span>🚗 Con Garaje</span>
-                </label>
-                <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
-                  <input type="checkbox" id="filter-storage" class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" />
-                  <span>📦 Con Trastero</span>
-                </label>
-                <label class="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-semibold text-ink-muted select-none">
-                  <input type="checkbox" id="filter-terrace" class="h-4 w-4 rounded border-border-soft accent-brand-green cursor-pointer" />
-                  <span>☀️ Con Terraza</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </details>
-        <div class="flex items-center justify-between pb-2 px-1 mt-4">
-          <h2 class="text-lg font-bold text-ink flex items-center gap-2">
-            Novedades detectadas
-            <span
-              id="active-count"
-              class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold"
-            >
+        <!-- Feed header -->
+        <div class="flex items-center justify-between pb-1 px-1">
+          <h2 class="text-base font-bold text-ink flex items-center gap-2">
+            Novedades
+            <span id="active-count" class="inline-flex items-center justify-center px-2 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
               {allItems.length}
             </span>
           </h2>
@@ -378,11 +170,10 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
             Sin novedades en esta comprobación.
           </div>
         ) : (
-          <div class="flex flex-col gap-8" id="opportunities-feed">
+          <div class="flex flex-col gap-7" id="opportunities-feed">
             {groupedEntries.map(([dateKey, itemsGroup]) => (
               <div class="date-group flex flex-col gap-3" data-date={dateKey}>
-                <!-- Date Header -->
-                <h3 class="text-sm font-bold text-ink-muted border-b border-border-soft pb-2 mt-2">
+                <h3 class="text-sm font-bold text-ink-muted border-b border-border-soft pb-2">
                   {dateKey}
                 </h3>
                 <div class="grid grid-cols-1 gap-4">
@@ -393,48 +184,39 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           </div>
         )}
 
-        <!-- Search Empty State -->
-        <div
-          id="empty-search-state"
-          class="hidden p-12 text-center rounded-2xl border border-border-soft bg-surface"
-        >
-          <svg class="mx-auto h-10 w-10 text-ink-light fill-none stroke-current stroke-2" viewBox="0 0 24 24" width="40" height="40">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-          </svg>
-          <h3 class="mt-4 text-base font-bold text-ink">No hay resultados</h3>
-          <p class="mt-1.5 text-sm text-ink-muted">Intenta ajustar los términos o filtros seleccionados.</p>
+        <!-- Empty state -->
+        <div id="empty-search-state" class="hidden p-10 text-center rounded-2xl border border-border-soft bg-surface">
+          <h3 class="text-base font-bold text-ink">No hay resultados</h3>
+          <p class="mt-1 text-sm text-ink-muted">Ajusta la búsqueda o el municipio.</p>
         </div>
       </div>
 
       <!-- Right Column: Sidebar -->
       <aside class="flex flex-col gap-6">
 
-        <!-- Coverage Map Section -->
-        <section class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium" aria-labelledby="coverage-title">
-          <div class="flex items-center justify-between mb-4">
-            <h2 id="coverage-title" class="text-base font-bold text-ink">Área de Seguimiento</h2>
-            <span class="inline-flex items-center rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10">
+        <!-- Coverage Map -->
+        <section class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium" aria-labelledby="coverage-title">
+          <div class="flex items-center justify-between mb-3">
+            <h2 id="coverage-title" class="text-sm font-bold text-ink">Área de cobertura</h2>
+            <span class="inline-flex items-center rounded-lg bg-brand-green-soft px-2 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10">
               {municipalities.length} municipios
             </span>
           </div>
-          <CoverageMap boundaries={coverage.boundaries} markers={coverage.markers.map((marker) => ({ ...marker, url: `${base}${marker.url.replace(/^\//, '')}` }))} />
-          <p class="text-xs text-ink-muted mt-3 leading-relaxed">
-            Área de monitorización restringida a A Coruña y su corona metropolitana inmediata.
-          </p>
+          <CoverageMap boundaries={coverage.boundaries} markers={coverage.markers.map((marker) => ({ ...marker, url: base + marker.url.replace(/^\//, '') }))} />
         </section>
 
-        <!-- Recent Changes Section -->
-        <section class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium" aria-labelledby="changes-title">
-          <h2 id="changes-title" class="text-base font-bold text-ink mb-4">Últimos cambios</h2>
+        <!-- Recent Changes -->
+        <section class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium" aria-labelledby="changes-title">
+          <h2 id="changes-title" class="text-sm font-bold text-ink mb-3">Últimos cambios</h2>
           {recentEvents.length === 0 ? (
-            <p class="text-xs text-ink-light italic">Sin cambios detectados todavía.</p>
+            <p class="text-xs text-ink-light italic">Sin cambios detectados.</p>
           ) : (
             <ul class="divide-y divide-border-soft">
               {recentEvents.map((ev) => {
                 const meta = eventIcons[ev.kind] || eventIcons.new;
                 return (
-                  <li class="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">
-                    <span class={`font-bold text-xs leading-5 flex-shrink-0 ${meta.className}`} aria-hidden="true">{meta.icon}</span>
+                  <li class="flex items-start gap-2.5 py-2 first:pt-0 last:pb-0">
+                    <span class={'font-bold text-xs leading-5 flex-shrink-0 ' + meta.className} aria-hidden="true">{meta.icon}</span>
                     <div class="min-w-0">
                       <p class="text-xs font-semibold text-ink truncate" title={ev.label}>{truncate(ev.label || ev.entityId)}</p>
                       <p class="text-[11px] text-ink-light">
@@ -449,34 +231,23 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           )}
         </section>
 
-        <!-- Sources Log Section -->
-        <section class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium" aria-labelledby="sources-title">
-          <h2 id="sources-title" class="text-base font-bold text-ink mb-4">Fuentes de Datos</h2>
+        <!-- Sources -->
+        <section class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium" aria-labelledby="sources-title">
+          <h2 id="sources-title" class="text-sm font-bold text-ink mb-3">Fuentes</h2>
           <ul class="divide-y divide-border-soft">
             {sources.map((source) => (
-              <li class="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+              <li class="flex items-center justify-between py-2 first:pt-0 last:pb-0">
                 <div class="flex items-center gap-2.5 min-w-0">
-                  <span
-                    class={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${source.ok ? 'bg-status-ok pulse-indicator-ok' : 'bg-status-error pulse-indicator-warning'}`}
-                    aria-hidden="true"
-                    title={source.ok ? 'Fuente operativa' : 'Problema de conexión'}
-                  ></span>
+                  <span class={'h-2 w-2 rounded-full flex-shrink-0 ' + (source.ok ? 'bg-status-ok' : 'bg-status-error')} aria-hidden="true"></span>
                   {source.kind === 'firecrawl-search' ? (
-                    <span class="text-xs font-bold text-ink truncate">{publicSourceName(source)}</span>
+                    <span class="text-xs font-semibold text-ink truncate">{source.name}</span>
                   ) : (
-                    <a
-                      href={source.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="text-xs font-bold text-ink hover:text-brand-green hover:underline truncate"
-                    >
-                      {publicSourceName(source)}
+                    <a href={source.url} target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-ink hover:text-brand-green hover:underline truncate">
+                      {source.name}
                     </a>
                   )}
                 </div>
-                <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-light flex-shrink-0">
-                  {source.scanned || 0} reg
-                </span>
+                <span class="text-[11px] text-ink-light flex-shrink-0">{source.scanned || 0}</span>
               </li>
             ))}
           </ul>
@@ -487,36 +258,16 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
   </div>
 </Layout>
 
-<!-- Client Filtering Javascript -->
+<!-- Client Filtering: search + municipio only -->
 <script>
   const searchInput = document.getElementById('search-input') as HTMLInputElement;
-  const sourceFilters = document.querySelectorAll('[data-filter-source]');
-  const categoryFilters = document.querySelectorAll('[data-filter-category]');
-  const locationSelect = document.querySelector('[data-filter-location-select]') as HTMLSelectElement | null;
-  const roomFilters = document.querySelectorAll('[data-filter-rooms]');
-  const bathFilters = document.querySelectorAll('[data-filter-baths]');
-  const priceRange = document.getElementById('price-range') as HTMLInputElement;
-  const priceDisplay = document.getElementById('price-display');
-
-  // New features checkboxes
-  const filterGarage = document.getElementById('filter-garage') as HTMLInputElement;
-  const filterStorage = document.getElementById('filter-storage') as HTMLInputElement;
-  const filterTerrace = document.getElementById('filter-terrace') as HTMLInputElement;
-
+  const locationSelect = document.getElementById('filter-municipio') as HTMLSelectElement;
   const dateGroups = document.querySelectorAll('.date-group') as NodeListOf<HTMLElement>;
   const activeCountEl = document.getElementById('active-count');
   const emptyStateEl = document.getElementById('empty-search-state');
 
   let searchVal = '';
-  let activeSource = 'all';
-  let activeCategory = 'all';
   let activeLocation = 'all';
-  let maxPrice = 600000;
-  let minRooms = 0;
-  let minBaths = 0;
-  let needGarage = false;
-  let needStorage = false;
-  let needTerrace = false;
 
   function updateFilters() {
     let visibleCount = 0;
@@ -528,64 +279,13 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
       cards.forEach(card => {
         const text = card.getAttribute('data-text') || '';
         const location = card.getAttribute('data-location') || '';
-        const sourceKind = card.getAttribute('data-source-kind') || '';
-        const type = card.getAttribute('data-type') || '';
-
-        // LLM data attributes
-        const cardPriceAttr = card.getAttribute('data-precio-min');
-        const cardRoomsAttr = card.getAttribute('data-habitaciones-min');
-        const cardBathsAttr = card.getAttribute('data-banos-min');
-        const hasGarageAttr = card.getAttribute('data-garaje') === 'true';
-        const hasStorageAttr = card.getAttribute('data-trastero') === 'true';
-        const hasTerraceAttr = card.getAttribute('data-terraza') === 'true';
-
-        const cardPrice = cardPriceAttr ? parseInt(cardPriceAttr, 10) : null;
-        const cardRooms = cardRoomsAttr ? parseInt(cardRoomsAttr, 10) : null;
-        const cardBaths = cardBathsAttr ? parseInt(cardBathsAttr, 10) : null;
 
         const matchesSearch = text.includes(searchVal.toLowerCase());
-        const matchesSource = activeSource === 'all' || sourceKind === activeSource;
-        const matchesCategory = activeCategory === 'all' || type === activeCategory;
+        let matchesLocation = activeLocation === 'all' || location === activeLocation
+          || (activeLocation === 'Oleiros' && (location.includes('Perillo') || location.includes('Santa Cruz')))
+          || (activeLocation === 'Culleredo' && location.includes('O Burgo'));
 
-        let matchesLocation = false;
-        if (activeLocation === 'all') {
-          matchesLocation = true;
-        } else {
-          if (activeLocation === 'Oleiros') {
-            matchesLocation = location === 'Oleiros' || location.includes('Perillo') || location.includes('Santa Cruz');
-          } else if (activeLocation === 'Culleredo') {
-            matchesLocation = location === 'Culleredo' || location.includes('O Burgo');
-          } else {
-            matchesLocation = location === activeLocation;
-          }
-        }
-
-        // Price Filter: con filtro activo, las tarjetas sin precio quedan excluidas
-        const matchesPrice = maxPrice === 600000 || (cardPrice !== null && cardPrice <= maxPrice);
-
-        // Rooms Filter
-        const matchesRooms = minRooms === 0 || (cardRooms !== null && cardRooms >= minRooms);
-
-        // Baths Filter
-        const matchesBaths = minBaths === 0 || (cardBaths !== null && cardBaths >= minBaths);
-
-        // Features Filters
-        const matchesGarage = !needGarage || hasGarageAttr;
-        const matchesStorage = !needStorage || hasStorageAttr;
-        const matchesTerrace = !needTerrace || hasTerraceAttr;
-
-        if (
-          matchesSearch &&
-          matchesSource &&
-          matchesCategory &&
-          matchesLocation &&
-          matchesPrice &&
-          matchesRooms &&
-          matchesBaths &&
-          matchesGarage &&
-          matchesStorage &&
-          matchesTerrace
-        ) {
+        if (matchesSearch && matchesLocation) {
           card.style.display = 'flex';
           groupHasMatches = true;
           visibleCount++;
@@ -594,147 +294,20 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
         }
       });
 
-      // Show/hide group depending on matches
-      if (groupHasMatches) {
-        group.style.display = 'block';
-      } else {
-        group.style.display = 'none';
-      }
+      group.style.style = groupHasMatches ? 'block' : 'none';
     });
 
-    if (activeCountEl) {
-      activeCountEl.textContent = String(visibleCount);
-    }
-
-    if (emptyStateEl) {
-      if (visibleCount === 0) {
-        emptyStateEl.classList.remove('hidden');
-      } else {
-        emptyStateEl.classList.add('hidden');
-      }
-    }
+    if (activeCountEl) activeCountEl.textContent = String(visibleCount);
+    if (emptyStateEl) emptyStateEl.classList.toggle('hidden', visibleCount > 0);
   }
 
-  // Bind input search
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      searchVal = (e.target as HTMLInputElement).value;
-      updateFilters();
-    });
-  }
-
-  // Bind source toggle filter buttons
-  sourceFilters.forEach(btn => {
-    btn.addEventListener('click', () => {
-      sourceFilters.forEach(b => {
-        b.classList.remove('bg-brand-green', 'text-surface');
-        b.classList.add('text-ink-muted', 'hover:bg-surface-hover');
-        b.setAttribute('aria-pressed', 'false');
-      });
-
-      btn.classList.remove('text-ink-muted', 'hover:bg-surface-hover');
-      btn.classList.add('bg-brand-green', 'text-surface');
-      btn.setAttribute('aria-pressed', 'true');
-
-      activeSource = btn.getAttribute('data-filter-source') || 'all';
-      updateFilters();
-    });
+  searchInput?.addEventListener('input', (e) => {
+    searchVal = (e.target as HTMLInputElement).value;
+    updateFilters();
   });
 
-  // Bind category toggle filter chips
-  categoryFilters.forEach(btn => {
-    btn.addEventListener('click', () => {
-      categoryFilters.forEach(b => {
-        b.classList.remove('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/20');
-        b.classList.add('bg-surface', 'text-ink-muted', 'border-border-soft', 'hover:border-border-strong');
-        b.setAttribute('aria-pressed', 'false');
-      });
-
-      btn.classList.remove('bg-surface', 'text-ink-muted', 'border-border-soft', 'hover:border-border-strong');
-      btn.classList.add('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/20');
-      btn.setAttribute('aria-pressed', 'true');
-
-      activeCategory = btn.getAttribute('data-filter-category') || 'all';
-      updateFilters();
-    });
+  locationSelect?.addEventListener('change', (e) => {
+    activeLocation = (e.target as HTMLSelectElement).value || 'all';
+    updateFilters();
   });
-
-  // Bind location select (change event)
-  if (locationSelect) {
-    locationSelect.addEventListener('change', (e) => {
-      activeLocation = (e.target as HTMLSelectElement).value || 'all';
-      updateFilters();
-    });
-  }
-
-  // Bind price range slider
-  if (priceRange && priceDisplay) {
-    priceRange.addEventListener('input', (e) => {
-      const val = parseInt((e.target as HTMLInputElement).value, 10);
-      maxPrice = val;
-      if (val === 600000) {
-        priceDisplay.textContent = 'Sin límite';
-      } else {
-        priceDisplay.textContent = `\u003c ${val.toLocaleString('es-ES')} €`;
-      }
-      updateFilters();
-    });
-  }
-
-  // Bind rooms toggle buttons
-  roomFilters.forEach(btn => {
-    btn.addEventListener('click', () => {
-      roomFilters.forEach(b => {
-        b.classList.remove('bg-brand-green', 'text-surface');
-        b.classList.add('text-ink-muted', 'hover:bg-surface-hover');
-        b.setAttribute('aria-pressed', 'false');
-      });
-
-      btn.classList.remove('text-ink-muted', 'hover:bg-surface-hover');
-      btn.classList.add('bg-brand-green', 'text-surface');
-      btn.setAttribute('aria-pressed', 'true');
-
-      minRooms = parseInt(btn.getAttribute('data-filter-rooms') || '0', 10);
-      updateFilters();
-    });
-  });
-
-  // Bind baths toggle buttons
-  bathFilters.forEach(btn => {
-    btn.addEventListener('click', () => {
-      bathFilters.forEach(b => {
-        b.classList.remove('bg-brand-green', 'text-surface');
-        b.classList.add('text-ink-muted', 'hover:bg-surface-hover');
-        b.setAttribute('aria-pressed', 'false');
-      });
-
-      btn.classList.remove('text-ink-muted', 'hover:bg-surface-hover');
-      btn.classList.add('bg-brand-green', 'text-surface');
-      btn.setAttribute('aria-pressed', 'true');
-
-      minBaths = parseInt(btn.getAttribute('data-filter-baths') || '0', 10);
-      updateFilters();
-    });
-  });
-
-  // Bind new features checkboxes
-  if (filterGarage) {
-    filterGarage.addEventListener('change', (e) => {
-      needGarage = (e.target as HTMLInputElement).checked;
-      updateFilters();
-    });
-  }
-  if (filterStorage) {
-    filterStorage.addEventListener('change', (e) => {
-      needStorage = (e.target as HTMLInputElement).checked;
-      updateFilters();
-    });
-  }
-  if (filterTerrace) {
-    filterTerrace.addEventListener('change', (e) => {
-      needTerrace = (e.target as HTMLInputElement).checked;
-      updateFilters();
-    });
-  }
-
 </script>

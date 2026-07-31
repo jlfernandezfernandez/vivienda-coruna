@@ -189,89 +189,6 @@
 
 /* Premium Form Controls & Custom Interactive Elements Styling */
 
-/* Custom Range Slider */
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  width: 100%;
-}
-input[type="range"]::-webkit-slider-runnable-track {
-  background: var(--color-brand-green-soft);
-  height: 6px;
-  border-radius: 999px;
-  border: 1px solid var(--color-border-soft);
-}
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  margin-top: -5px; /* Center thumb on track */
-  background-color: var(--color-brand-green);
-  height: 16px;
-  width: 16px;
-  border-radius: 999px;
-  border: 2px solid var(--color-surface);
-  box-shadow: 0 2px 5px rgba(23, 40, 30, 0.15);
-  cursor: pointer;
-  transition: transform 0.15s ease, background-color 0.15s ease;
-}
-input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
-  background-color: var(--color-brand-green-hover);
-}
-
-/* Custom Checkbox Design */
-input[type="checkbox"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background-color: var(--color-canvas);
-  border: 1.5px solid var(--color-border-strong);
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: inline-grid;
-  place-content: center;
-  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-input[type="checkbox"]::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  transform: scale(0);
-  transition: 120ms transform ease-in-out;
-  box-shadow: inset 1em 1em var(--color-surface);
-  background-color: CanvasText;
-  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-}
-input[type="checkbox"]:checked {
-  background-color: var(--color-brand-green);
-  border-color: var(--color-brand-green);
-}
-input[type="checkbox"]:checked::before {
-  transform: scale(1);
-}
-
-/* Micro-interactions for interactive filter buttons & chips */
-button[data-filter-source], 
-button[data-filter-location], 
-button[data-filter-rooms], 
-button[data-filter-baths] {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-button[data-filter-source]:hover, 
-button[data-filter-location]:hover, 
-button[data-filter-rooms]:hover, 
-button[data-filter-baths]:hover {
-  transform: translateY(-1px);
-}
-button[data-filter-source]:active,
-button[data-filter-location]:active,
-button[data-filter-rooms]:active,
-button[data-filter-baths]:active {
-  transform: translateY(0) scale(0.97);
-}
-
 /* Micro-interactions CSS-only */
 
 /* Opportunity cards: transitions for box-shadow and border-color on hover */
@@ -281,22 +198,6 @@ button[data-filter-baths]:active {
 .opportunity-card:hover {
   box-shadow: var(--shadow-hover);
   border-color: var(--color-border-strong);
-}
-
-/* Filter buttons: background-color transition + active scale */
-button[data-filter-source],
-button[data-filter-location],
-button[data-filter-rooms],
-button[data-filter-baths],
-button[data-filter-category] {
-  transition: background-color 100ms ease, border-color 100ms ease, color 100ms ease;
-}
-button[data-filter-source]:active,
-button[data-filter-location]:active,
-button[data-filter-rooms]:active,
-button[data-filter-baths]:active,
-button[data-filter-category]:active {
-  transform: scale(0.97);
 }
 
 /* Source links: underline on hover */

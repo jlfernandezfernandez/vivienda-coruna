@@ -50,44 +50,33 @@ const sections = [
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body class="bg-canvas text-ink selection:bg-brand-green-soft selection:text-brand-green">
-    <!-- Header: Sticky header with simple bottom border -->
-    <header class="w-full border-b border-border-soft bg-surface/95 backdrop-blur-md sticky top-0 z-50 py-4" role="banner" aria-label="Cabecera del sitio">
+    <!-- Header: Sticky header, compact -->
+    <header class="w-full border-b border-border-soft bg-surface/95 backdrop-blur-md sticky top-0 z-[1001] py-2.5" role="banner" aria-label="Cabecera del sitio">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6">
-        <!-- Logo Brand (Clean, simple, no "Monitor Metropolitano" subtitle) -->
-        <a class="group flex items-center gap-2.5 no-underline" href={base}>
-          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-green text-surface transition-transform group-hover:scale-105 duration-250 shadow-sm">
-            <svg class="h-5 w-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+        <a class="group flex items-center gap-2 no-underline" href={base}>
+          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-green text-surface transition-transform group-hover:scale-105 duration-200 shadow-sm">
+            <svg class="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
               <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
             </svg>
           </div>
-          <span class="text-lg font-extrabold tracking-tight text-ink group-hover:text-brand-green transition-colors duration-200">Vivienda Coruña</span>
+          <span class="text-base font-extrabold tracking-tight text-ink group-hover:text-brand-green transition-colors duration-200">Vivienda Coruña</span>
         </a>
 
-        <!-- Repository (Copied style and path exactly from compound-interest-calculator) -->
-        <div class="flex items-center">
-          <a
-            href="https://github.com/jlfernandezfernandez/vivienda-coruna"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-ink-muted hover:text-brand-green transition-colors duration-200"
-            aria-label="Código fuente en GitHub (se abre en una nueva ventana)"
-          >
-            <svg
-              class="h-5 w-5"
-              viewBox="0 0 16 16"
-              fill="currentColor"
-              aria-hidden="true"
-              width="20"
-              height="20"
-            >
-              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-            </svg>
-          </a>
-        </div>
+        <a
+          href="https://github.com/jlfernandezfernandez/vivienda-coruna"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-ink-muted hover:text-brand-green transition-colors duration-200"
+          aria-label="Código fuente en GitHub"
+        >
+          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" width="16" height="16">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+          </svg>
+        </a>
       </div>
     </header>
     
-    <main class="py-6 sm:py-8">
+    <main class="py-4 sm:py-6">
       <!-- Section navigation (compartida por todas las páginas) -->
       <div class="mx-auto max-w-6xl px-4 sm:px-6">
         <nav class="mb-8 flex flex-wrap gap-2" aria-label="Secciones">
