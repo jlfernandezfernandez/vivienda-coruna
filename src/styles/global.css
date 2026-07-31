@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Surfaces & Canvas: Elegant Softer Paper and Card System */
+  /* Surfaces & Canvas */
   --color-canvas: #fafaf7;
   --color-surface: #ffffff;
   --color-surface-hover: #fcfcfa;
@@ -9,45 +9,37 @@
   --color-border-medium: rgba(23, 40, 30, 0.12);
   --color-border-strong: rgba(23, 40, 30, 0.2);
 
-  /* Typography: Ink & Slate */
+  /* Typography */
   --color-ink: #161c19;
   --color-ink-muted: #536057;
   --color-ink-light: #6b7a6f;
 
-  /* Brand and Signal Colors */
+  /* Brand */
   --color-brand-green: #1f4d36;
   --color-brand-green-hover: #163827;
   --color-brand-green-soft: #eaf3ee;
-  
+
   --color-brand-orange: #b45309;
-  --color-brand-orange-hover: #92400e;
   --color-brand-orange-soft: #fffbeb;
 
   --color-brand-blue: #0369a1;
   --color-brand-blue-soft: #f0f9ff;
 
-  /* Crawler statuses */
+  /* Status */
   --color-status-ok: #16a34a;
   --color-status-error: #dc2626;
 
-  /* Radius & Shadows (Softer Gym-Tracker & Calculator Inspired Feel) */
-  --radius-card: 20px;
-  --radius-badge: 8px;
-  --radius-pill: 999px;
-
+  /* Shadows */
   --shadow-premium: 0 4px 20px -2px rgba(23, 40, 30, 0.03), 0 10px 30px -4px rgba(23, 40, 30, 0.04);
   --shadow-hover: 0 10px 30px -4px rgba(23, 40, 30, 0.06), 0 20px 50px -8px rgba(23, 40, 30, 0.08);
 
   /* Fonts */
   --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
-  
+  * { box-sizing: border-box; }
+
   html {
     scroll-behavior: smooth;
     background-color: var(--color-canvas);
@@ -74,80 +66,34 @@
     border-radius: 4px;
   }
 
-  /* Custom subtle rounded scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: rgba(23, 40, 30, 0.12);
-    border-radius: 999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(23, 40, 30, 0.22);
-  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(23, 40, 30, 0.12); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(23, 40, 30, 0.22); }
 }
 
-/* Pulsing dot animation for crawler status */
+/* Pulsing dot for status indicators */
 @keyframes pulse-glowing {
-  0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4);
-  }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 5px rgba(22, 163, 74, 0);
-  }
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
-  }
-}
-
-@keyframes pulse-glowing-orange {
-  0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(180, 83, 9, 0.4);
-  }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 5px rgba(180, 83, 9, 0);
-  }
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(180, 83, 9, 0);
-  }
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4); }
+  70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
 }
 
 .pulse-indicator-ok {
   animation: pulse-glowing 2s infinite;
 }
 
-.pulse-indicator-warning {
-  animation: pulse-glowing-orange 2s infinite;
-}
-
-/* Reduced motion: desactiva pulsos (pulse-indicator-*, animate-spin) y transiciones hover-translate */
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-  *,
-  *::before,
-  *::after {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
 
-/* Leaflet UI Overrides (Elegant Rounded Styles) */
-.leaflet-container {
-  font-family: var(--font-sans) !important;
-}
+/* Leaflet UI overrides */
+.leaflet-container { font-family: var(--font-sans) !important; }
 
 .leaflet-bar {
   border: 1px solid var(--color-border-soft) !important;
@@ -187,11 +133,7 @@
   padding: 4px 8px !important;
 }
 
-/* Premium Form Controls & Custom Interactive Elements Styling */
-
-/* Micro-interactions CSS-only */
-
-/* Opportunity cards: transitions for box-shadow and border-color on hover */
+/* Opportunity card interactions */
 .opportunity-card {
   transition: box-shadow 150ms ease, border-color 150ms ease;
 }
@@ -199,17 +141,12 @@
   box-shadow: var(--shadow-hover);
   border-color: var(--color-border-strong);
 }
-
-/* Source links: underline on hover */
 .opportunity-card a[href]:hover {
   text-decoration: underline;
 }
-
-/* Urgency visual hierarchy */
 .opportunity-card[data-urgency="recent"] {
   border-left: 3px solid var(--color-brand-green);
 }
 .opportunity-card[data-urgency="stale"] {
   opacity: 0.85;
 }
-

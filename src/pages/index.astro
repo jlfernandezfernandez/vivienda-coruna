@@ -294,7 +294,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
         }
       });
 
-      group.style.style = groupHasMatches ? 'block' : 'none';
+      group.style.display = groupHasMatches ? 'block' : 'none';
     });
 
     if (activeCountEl) activeCountEl.textContent = String(visibleCount);
