@@ -12,7 +12,7 @@ const truncate = (s: string, n = 48) => (s && s.length > n ? s.slice(0, n - 1) +
 
 // Events timeline — desc by detectedAt
 const eventIcons: Record<string, { icon: string; className: string; ring: string }> = {
-  new: { icon: '✚', className: 'text-brand-green', ring: 'bg-brand-green-soft border-brand-green/30' },
+  new: { icon: '✚', className: 'text-brand-green', ring: 'bg-brand-green-soft border-brand-green/15' },
   status: { icon: '⇄', className: 'text-brand-blue', ring: 'bg-brand-blue-soft border-brand-blue/30' },
   price: { icon: '€', className: 'text-brand-orange', ring: 'bg-brand-orange-soft border-brand-orange/30' },
 };
@@ -173,7 +173,7 @@ const pageDescription = item.summary || `${item.type || 'Oportunidad'} en ${item
         href={item.url}
         target="_blank"
         rel="noopener noreferrer"
-        class="w-full bg-brand-green text-surface text-center font-bold py-3 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover hover:-translate-y-[1px] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
+        class="w-full bg-brand-green text-surface text-center font-bold py-3 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover transition-colors flex items-center justify-center gap-2 text-sm"
       >
         <span>Ver fuente original</span>
         <svg class="h-4 w-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">

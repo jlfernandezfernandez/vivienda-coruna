@@ -77,22 +77,22 @@ const sections = [
     </header>
     
     <main class="py-4 sm:py-6">
-      <!-- Section navigation (compartida por todas las páginas) -->
+      <!-- Section navigation -->
       <div class="mx-auto max-w-6xl px-4 sm:px-6">
-        <nav class="mb-8 flex flex-wrap gap-2" aria-label="Secciones">
+        <nav class="mb-6 flex flex-wrap gap-1.5" aria-label="Secciones">
           {sections.map((section) =>
             section.id === activeSection ? (
               <a
                 href={section.href}
                 aria-current="page"
-                class="rounded-full bg-brand-green px-4 py-2 text-sm font-bold text-surface shadow-sm"
+                class="rounded-lg bg-brand-green px-3.5 py-1.5 text-sm font-bold text-surface"
               >
                 {section.label}
               </a>
             ) : (
               <a
                 href={section.href}
-                class="rounded-full border border-border-soft bg-surface px-4 py-2 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
+                class="rounded-lg border border-border-soft bg-surface px-3.5 py-1.5 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
               >
                 {section.label}
               </a>

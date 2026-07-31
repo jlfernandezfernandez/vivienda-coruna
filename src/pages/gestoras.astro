@@ -36,7 +36,7 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
     ) : (
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       {gestoras.map((gestora) => (
-        <div class="border border-border-soft bg-surface p-6 rounded-2xl shadow-premium flex flex-col justify-between hover:translate-y-[-2px] transition-all duration-200">
+        <div class="border border-border-soft bg-surface p-6 rounded-2xl shadow-premium flex flex-col justify-between hover:border-border-medium transition-colors duration-200">
           <div>
             <!-- Header -->
             <div class="flex items-center gap-4 border-b border-border-soft pb-4 mb-4">
@@ -108,11 +108,11 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
                         <span class="text-sm font-bold text-ink">{promo.name}</span>
                         <div class="flex gap-1.5 flex-wrap">
                           {promo.buscaSocios === true && (
-                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-status-ok/10 text-brand-green border-status-ok/25">
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg border bg-status-ok/10 text-brand-green border-status-ok/15">
                               Captación abierta
                             </span>
                           )}
-                          <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusToneClass(promo.statusTone)}`}>
+                          <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${statusToneClass(promo.statusTone)}`}>
                             {promo.statusLabel || promo.status}
                           </span>
                         </div>
@@ -151,7 +151,7 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
           <div class="mt-6 pt-4 border-t border-border-soft">
             <a
               href={`${base}gestora/${gestora.id}`}
-              class="w-full bg-brand-green text-surface text-center font-bold py-2.5 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover hover:-translate-y-[1px] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
+              class="w-full bg-brand-green text-surface text-center font-bold py-2.5 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover transition-colors flex items-center justify-center gap-2 text-sm"
             >
               <span>Ver ficha completa</span>
               <svg class="h-4 w-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24" aria-hidden="true">

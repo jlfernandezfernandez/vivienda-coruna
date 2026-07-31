@@ -100,11 +100,11 @@ const pageDescription = gestora.description || `Promociones y cooperativas gesti
                   <span class="text-sm font-bold text-ink">{promo.name}</span>
                   <div class="flex gap-1.5 flex-wrap">
                     {promo.buscaSocios === true && (
-                      <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-status-ok/10 text-brand-green border-status-ok/25">
+                      <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg border bg-status-ok/10 text-brand-green border-status-ok/15">
                         Captación abierta
                       </span>
                     )}
-                    <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusToneClass(promo.statusTone)}`}>
+                    <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${statusToneClass(promo.statusTone)}`}>
                       {promo.statusLabel || promo.status}
                     </span>
                   </div>

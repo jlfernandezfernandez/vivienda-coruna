@@ -1,37 +1,39 @@
 @import "tailwindcss";
 
 @theme {
-  /* Surfaces & Canvas */
-  --color-canvas: #fafaf7;
+  /* ── Design System: Vivienda Coruña ── */
+
+  /* Surfaces */
+  --color-canvas: #f8f8f5;
   --color-surface: #ffffff;
-  --color-surface-hover: #fcfcfa;
-  --color-border-soft: rgba(23, 40, 30, 0.06);
-  --color-border-medium: rgba(23, 40, 30, 0.12);
-  --color-border-strong: rgba(23, 40, 30, 0.2);
+  --color-surface-hover: #f5f5f0;
+  --color-border-soft: rgba(23, 40, 30, 0.07);
+  --color-border-medium: rgba(23, 40, 30, 0.14);
+  --color-border-strong: rgba(23, 40, 30, 0.22);
 
   /* Typography */
-  --color-ink: #161c19;
-  --color-ink-muted: #536057;
-  --color-ink-light: #6b7a6f;
+  --color-ink: #1a1f1c;
+  --color-ink-muted: #4a5750;
+  --color-ink-light: #7a8a7e;
 
   /* Brand */
-  --color-brand-green: #1f4d36;
-  --color-brand-green-hover: #163827;
-  --color-brand-green-soft: #eaf3ee;
+  --color-brand-green: #1a4d33;
+  --color-brand-green-hover: #143a25;
+  --color-brand-green-soft: #e8f1ec;
 
-  --color-brand-orange: #b45309;
-  --color-brand-orange-soft: #fffbeb;
+  --color-brand-orange: #a8450a;
+  --color-brand-orange-soft: #fef8ee;
 
-  --color-brand-blue: #0369a1;
-  --color-brand-blue-soft: #f0f9ff;
+  --color-brand-blue: #035a8a;
+  --color-brand-blue-soft: #eef7fc;
 
   /* Status */
-  --color-status-ok: #16a34a;
-  --color-status-error: #dc2626;
+  --color-status-ok: #15803d;
+  --color-status-error: #c1261f;
 
-  /* Shadows */
-  --shadow-premium: 0 4px 20px -2px rgba(23, 40, 30, 0.03), 0 10px 30px -4px rgba(23, 40, 30, 0.04);
-  --shadow-hover: 0 10px 30px -4px rgba(23, 40, 30, 0.06), 0 20px 50px -8px rgba(23, 40, 30, 0.08);
+  /* Shadows: subtle, layered */
+  --shadow-premium: 0 1px 3px rgba(23, 40, 30, 0.04), 0 4px 12px -2px rgba(23, 40, 30, 0.05);
+  --shadow-hover: 0 2px 8px rgba(23, 40, 30, 0.06), 0 8px 24px -4px rgba(23, 40, 30, 0.08);
 
   /* Fonts */
   --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -46,12 +48,13 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   body {
     min-height: 100dvh;
     margin: 0;
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1.6;
   }
 
@@ -62,7 +65,7 @@
 
   :focus-visible {
     outline: 2px solid var(--color-brand-green);
-    outline-offset: 3px;
+    outline-offset: 2px;
     border-radius: 4px;
   }
 
@@ -72,11 +75,11 @@
   ::-webkit-scrollbar-thumb:hover { background: rgba(23, 40, 30, 0.22); }
 }
 
-/* Pulsing dot for status indicators */
+/* Status pulse */
 @keyframes pulse-glowing {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4); }
-  70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.35); }
+  70% { transform: scale(1); box-shadow: 0 0 0 4px rgba(21, 128, 61, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(21, 128, 61, 0); }
 }
 
 .pulse-indicator-ok {
@@ -92,7 +95,7 @@
   }
 }
 
-/* Leaflet UI overrides */
+/* Leaflet UI */
 .leaflet-container { font-family: var(--font-sans) !important; }
 
 .leaflet-bar {
@@ -133,13 +136,13 @@
   padding: 4px 8px !important;
 }
 
-/* Opportunity card interactions */
+/* Card interactions */
 .opportunity-card {
   transition: box-shadow 150ms ease, border-color 150ms ease;
 }
 .opportunity-card:hover {
   box-shadow: var(--shadow-hover);
-  border-color: var(--color-border-strong);
+  border-color: var(--color-border-medium);
 }
 .opportunity-card a[href]:hover {
   text-decoration: underline;

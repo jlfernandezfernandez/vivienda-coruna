@@ -44,7 +44,7 @@ function timeSinceFounded(foundedAt: string | null): string | null {
 function partnersChip(partners: number | null): { label: string; classes: string } {
   if (partners == null) return { label: 'Socios N/D', classes: 'text-[10px] px-1.5 py-0.5 bg-canvas text-ink-muted border border-border-soft' };
   if (partners < 10) return { label: `${partners} socios`, classes: 'text-[10px] px-1.5 py-0.5 bg-canvas text-ink-muted border border-border-soft' };
-  if (partners <= 30) return { label: `${partners} socios`, classes: 'text-[11px] px-2 py-0.5 bg-brand-green-soft text-brand-green border border-brand-green/20' };
+  if (partners <= 30) return { label: `${partners} socios`, classes: 'text-[11px] px-2 py-0.5 bg-brand-green-soft text-brand-green border border-brand-green/10' };
   return { label: `${partners} socios`, classes: 'text-xs px-2.5 py-1 bg-brand-green text-surface border border-brand-green-hover' };
 }
 
@@ -144,7 +144,7 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
           <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Filtrar por municipio</span>
           <div class="flex flex-wrap gap-1.5 items-center" id="coop-muni-filter">
             <button
-              class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
+              class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/10 cursor-pointer transition-all"
               data-coop-muni="all"
               aria-pressed="true"
             >
@@ -186,11 +186,11 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
                       </span>
                       {/* Active/inactive badge */}
                       {c.active ? (
-                        <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-status-ok/10 text-brand-green border border-status-ok/25">
-                          <span class="h-1.5 w-1.5 rounded-full bg-status-ok"></span> Activa
+                        <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-lg bg-status-ok/10 text-brand-green border border-status-ok/15">
+                          <span class="h-1.5 w-1.5 rounded-lg bg-status-ok"></span> Activa
                         </span>
                       ) : (
-                        <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-canvas text-ink-light border border-border-soft">
+                        <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-lg bg-canvas text-ink-light border border-border-soft">
                           <span class="h-1.5 w-1.5 rounded-full bg-ink-light"></span> Inactiva
                         </span>
                       )}
@@ -200,7 +200,7 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
                     {/* foundingPartners chip */}
                     {c.foundingPartners != null && (
                       <p>
-                        <span class={`inline-flex items-center rounded-full font-semibold ${chip.classes}`}>
+                        <span class={`inline-flex items-center rounded-lg font-semibold ${chip.classes}`}>
                           {chip.label}
                         </span>
                       </p>
@@ -228,7 +228,7 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
                       <p class="pt-1">
                         <a
                           href={`${base}gestora/${gestoraMatch.id}`}
-                          class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-blue-soft text-brand-blue border border-brand-blue/20 hover:bg-brand-blue/10 transition-colors"
+                          class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-brand-blue-soft text-brand-blue border border-brand-blue/20 hover:bg-brand-blue/10 transition-colors"
                         >
                           Gestiona: {gestoraMatch.name}
                         </a>
@@ -298,7 +298,7 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
                     <span class="text-sm font-bold text-ink group-hover:text-brand-green transition-colors block truncate">{promo.name}</span>
                     <span class="text-[11px] text-ink-light">{gestora.name} · 📍 {promo.location || '—'}</span>
                   </div>
-                  <span class="inline-flex items-center rounded-full border bg-status-ok/10 text-brand-green border-status-ok/25 px-2.5 py-0.5 text-[11px] font-semibold flex-shrink-0">
+                  <span class="inline-flex items-center rounded-lg border bg-status-ok/10 text-brand-green border-status-ok/15 px-2.5 py-0.5 text-[11px] font-semibold flex-shrink-0">
                     Captación abierta
                   </span>
                 </a>
@@ -322,12 +322,12 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
         const selected = btn.getAttribute('data-coop-muni');
         // Toggle active styles
         buttons.forEach((b) => {
-          b.classList.remove('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/20');
+          b.classList.remove('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/10');
           b.classList.add('bg-surface', 'text-ink-muted', 'border-border-soft');
           b.setAttribute('aria-pressed', 'false');
         });
         btn.classList.remove('bg-surface', 'text-ink-muted', 'border-border-soft');
-        btn.classList.add('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/20');
+        btn.classList.add('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/10');
         btn.setAttribute('aria-pressed', 'true');
         // Show/hide groups
         groups.forEach((grp) => {
