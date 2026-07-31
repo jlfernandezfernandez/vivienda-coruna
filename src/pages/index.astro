@@ -135,7 +135,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
               id="search-input"
               aria-label="Buscar promociones"
               placeholder="Buscar promotora, calle, tipo..."
-              class="w-full pl-10 pr-4 h-full rounded-xl border border-border-soft bg-surface text-sm text-ink placeholder-ink-light focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all"
+              class="w-full pl-10 pr-4 h-full rounded-xl border border-border-soft bg-surface text-base sm:text-sm text-ink placeholder-ink-light focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all"
             />
             <svg class="absolute left-3.5 h-4 w-4 text-ink-light fill-none stroke-current stroke-2" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
@@ -144,7 +144,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           <select
             id="filter-municipio"
             aria-label="Filtrar por municipio"
-            class="h-10 rounded-xl border border-border-soft bg-surface px-3 text-sm font-semibold text-ink cursor-pointer focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all sm:w-52"
+            class="h-10 rounded-xl border border-border-soft bg-surface px-3 text-base sm:text-sm font-semibold text-ink cursor-pointer focus:outline-none focus:border-brand-green/45 focus:ring-1 focus:ring-brand-green/30 transition-all sm:w-52"
           >
             <option value="all">Todos los municipios</option>
             {municipalities.map(loc => (
