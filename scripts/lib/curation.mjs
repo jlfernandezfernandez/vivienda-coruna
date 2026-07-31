@@ -276,9 +276,21 @@ function validatePatchEvidence(db, entityKind, patch, evidence) {
     } else if (typeof value === 'number') {
       if (!numericEvidence(value, source)) throw new Error(`ungrounded_field:${field}`);
     } else if (typeof value === 'boolean') {
-      const pattern = field === 'buscaSocios'
-        ? (value ? /\b(?:busca|admite|incorpora)\s+(?:nuevos?\s+)?socios?\b/i : /\b(?:no busca|no admite|completa|sin plazas)\b/i)
-        : null;
+      const BOOLEAN_PATTERNS = {
+        buscaSocios: value
+          ? /\b(?:busca|admite|incorpora)\s+(?:nuevos?\s+)?socios?\b/i
+          : /\b(?:no busca|no admite|completa|sin plazas)\b/i,
+        garaje: value
+          ? /\b(?:con\s+)?garaje\b/i
+          : /\b(?:sin\s+garaje|no\s+tiene\s+garaje)\b/i,
+        trastero: value
+          ? /\b(?:con\s+)?trastero\b/i
+          : /\b(?:sin\s+trastero|no\s+tiene\s+trastero)\b/i,
+        terraza: value
+          ? /\b(?:con\s+)?terraza\b/i
+          : /\b(?:sin\s+terraza|no\s+tiene\s+terraza)\b/i,
+      };
+      const pattern = BOOLEAN_PATTERNS[field] || null;
       if (!pattern || !pattern.test(source)) throw new Error(`ungrounded_field:${field}`);
     } else {
       const normalizedValue = normalizedEvidence(value);
@@ -304,7 +316,6 @@ function normalizePatch(config, patch, fields = config.mutable) {
       if (field === 'publishedAt' && Number.isNaN(Date.parse(value))) throw new Error('invalid_format:publishedAt');
       if (field === 'status' && !STATUS_VALUES.has(value)) throw new Error('invalid_enum:status');
       if (field === 'type' && !OPPORTUNITY_TYPES.has(value)) throw new Error('invalid_enum:type');
-      if (field === 'municipality' && !MUNICIPALITIES.has(value)) throw new Error('invalid_enum:municipality');
     }
     if (typeof value === 'number') {
       if (!Number.isFinite(value) || value < 0 || !Number.isInteger(value)) throw new Error(`invalid_field_value:${field}`);
@@ -458,7 +469,9 @@ export function applyStagedCurationReviews(db) {
         applied += 1;
       } else if (row.action === 'update') {
         if (row.entityKind === 'opportunity') {
-          patch.evidenceText = parseJson(row.evidenceJson, []).map((item) => item.excerpt).join('\n').slice(0, 10_000);
+          const evidenceItems = parseJson(row.evidenceJson, []);
+          const rebuiltEvidenceText = evidenceItems.map((item) => item.excerpt).join('\n').slice(0, 10_000);
+          if (rebuiltEvidenceText) patch.evidenceText = rebuiltEvidenceText;
           patch.extractionMethod = 'hermes-curator';
           patch.enriched = 1;
         }

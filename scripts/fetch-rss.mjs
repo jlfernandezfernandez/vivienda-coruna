@@ -117,7 +117,7 @@ async function parseFeed(feed) {
 
   const buffer = Buffer.from(await response.arrayBuffer());
   let xml = buffer.toString('utf8');
-  if (xml.includes('\uFFFD') || xml.includes('Ã')) xml = buffer.toString('latin1');
+  if (xml.includes('\uFFFD')) xml = buffer.toString('latin1');
   const parsed = await parser.parseString(xml);
   return parsed.items || [];
 }

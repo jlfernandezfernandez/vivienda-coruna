@@ -50,8 +50,8 @@ const sections = [
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body class="bg-canvas text-ink selection:bg-brand-green-soft selection:text-brand-green">
-    <!-- Header: Non-sticky header with simple bottom border -->
-    <header class="w-full border-b border-border-soft bg-surface py-4" role="banner" aria-label="Cabecera del sitio">
+    <!-- Header: Sticky header with simple bottom border -->
+    <header class="w-full border-b border-border-soft bg-surface/95 backdrop-blur-md sticky top-0 z-50 py-4" role="banner" aria-label="Cabecera del sitio">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6">
         <!-- Logo Brand (Clean, simple, no "Monitor Metropolitano" subtitle) -->
         <a class="group flex items-center gap-2.5 no-underline" href={base}>
@@ -113,5 +113,22 @@ const sections = [
       </div>
       <slot />
     </main>
+
+    <!-- Footer -->
+    <footer class="w-full border-t border-border-soft bg-surface mt-16 py-8" role="contentinfo">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-light">
+        <p>
+          Datos del Rexistro de Cooperativas da Xunta de Galicia, IGVS y prensa local ·
+          actualización automática.
+        </p>
+        <div class="flex items-center gap-4">
+          <a href="https://github.com/jlfernandezfernandez/vivienda-coruna" target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors font-semibold">
+            Código abierto
+          </a>
+          <span aria-hidden="true">·</span>
+          <span>Área metropolitana de A Coruña</span>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>

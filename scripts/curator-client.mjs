@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { verifyReviewScreenshots } from './lib/screenshot-proof.mjs';
 
-const baseUrl = 'https://vivienda-api.jordixlab.com';
+const baseUrl = process.env.VIVIENDA_API_URL || 'https://vivienda-api.jordixlab.com';
 const keyPath = process.env.VIVIENDA_OPERATIONS_KEY_FILE || join(homedir(), '.hermes', 'secrets', 'vivienda_operations_key');
 const token = readFileSync(keyPath, 'utf8').trim();
 if (!token) throw new Error('operations key file is empty');

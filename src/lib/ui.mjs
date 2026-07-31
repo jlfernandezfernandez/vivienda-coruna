@@ -3,7 +3,7 @@ export function siteBase(baseUrl = '/') {
 }
 
 export function statusToneClass(tone) {
-  if (tone === 'positive') return 'bg-green-50 text-green-700 border border-green-100';
-  if (tone === 'warning') return 'bg-amber-50 text-amber-700 border border-amber-100';
-  return 'bg-brand-blue-soft text-brand-blue border border-brand-blue/10';
+  if (tone === 'positive') return 'bg-brand-green-soft text-brand-green border border-brand-green/10';
+  if (tone === 'warning') return 'bg-brand-orange-soft text-brand-orange border border-brand-orange/10';
+  return 'bg-canvas text-ink-muted border border-border-soft';
 }
