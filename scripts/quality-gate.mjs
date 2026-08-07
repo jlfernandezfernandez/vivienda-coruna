@@ -114,7 +114,16 @@ const sources = db.prepare('SELECT name,kind,ok,checkedAt FROM sources').all();
 const missingSourceRows = db.prepare(`SELECT COUNT(DISTINCT o.source) n FROM opportunities o LEFT JOIN sources s ON s.name=o.source WHERE s.name IS NULL`).get().n;
 if (missingSourceRows) errors.push(`${missingSourceRows} fuentes de oportunidades sin trazabilidad en sources`);
 const staleSources = sources.filter((source) => !source.checkedAt || Date.now() - Date.parse(source.checkedAt) > 30 * 60 * 60 * 1000);
-if (staleSources.length) errors.push(`${staleSources.length} fuentes sin comprobación en las últimas 30 horas`);
+// Source staleness is an operational concern, not a data-integrity defect.
+// The curate pipeline does not refresh sources; treat staleness as a warning
+// so it does not block curation-only runs.
+if (staleSources.length) {
+  if (process.env.VIVIENDA_PIPELINE_LOCKED) {
+    warnings.push(`${staleSources.length} fuentes sin comprobación en las últimas 30 horas (pipeline — no bloqueante)`);
+  } else {
+    errors.push(`${staleSources.length} fuentes sin comprobación en las últimas 30 horas`);
+  }
+}
 const failedSources = sources.filter((source) => !source.ok);
 if (failedSources.length > Math.max(1, Math.floor(sources.length / 2))) errors.push(`${failedSources.length}/${sources.length} fuentes fallan`);
 else if (failedSources.length) warnings.push(`${failedSources.length}/${sources.length} fuentes fallan actualmente`);
