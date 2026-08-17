@@ -47,6 +47,9 @@ const rejectedOpportunities = [
   ['d6eb6d2bfc0f1f85', 'Agregador EstateNearMe; Residencial Anceis requiere fuente oficial'],
   ['8fc5d00f7e1f57b6', 'Agregador EstateNearMe; Granxa da Torre requiere fuente oficial'],
   ['45576787635966eb', 'Artículo general de política de vivienda sin oportunidad, convocatoria ni proyecto accionable'],
+  ['16f236ba4b44c6b8', 'Portal índice viviendasnuevas.com; listado de promociones, no una oportunidad accionable'],
+  ['ff88fd98889e5cee', 'Agregador de subastas subastasdelboe.com; no es fuente primaria ni oportunidad de vivienda'],
+  ['e57e6e05321e86fe', 'Página de trámites municipales tramitesayuntamiento.com; formulario administrativo, no oportunidad'],
 ];
 
 const promotionLinks = [
