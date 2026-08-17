@@ -127,6 +127,71 @@ test('confirm reviews mark unchanged entities as reviewed without modifying thei
   }
 });
 
+test('derived geocoder/LLM columns do not re-queue a reviewed entity as a candidate', () => {
+  const db = database();
+  try {
+    const candidate = listCurationCandidates(db).find((item) => item.entityId === 'opp-1');
+    stageCurationReview(db, {
+      entityKind: 'opportunity', entityId: 'opp-1', action: 'confirm',
+      contentHash: candidate.contentHash, patch: {}, evidence,
+    });
+    applyStagedCurationReviews(db);
+    assert.equal(listCurationCandidates(db).some((item) => item.entityId === 'opp-1'), false);
+
+    // A geocoder/LLM backfill that only touches derived, non-curator-editable
+    // columns must not invalidate the prior review and re-queue the entity.
+    db.prepare(`UPDATE opportunities SET
+      lat = 43.36, lng = -8.41, municipality = 'A Coruña', barrio = 'Ensanche',
+      geoPrecision = 'barrio', piscina = 0, ascensor = 1,
+      entregaEstimada = '2027', tipoPromocion = 'Residencial'
+      WHERE id = ?`).run('opp-1');
+    assert.equal(listCurationCandidates(db).some((item) => item.entityId === 'opp-1'), false);
+  } finally {
+    db.close();
+  }
+});
+
+test('derived geocoder columns do not re-queue a reviewed promotion or cooperative', () => {
+  const db = database();
+  try {
+    db.prepare(`INSERT INTO gestoras (id,name,logo,website,phone,email,address,description)
+      VALUES (?,?,?,?,?,?,?,?)`).run('g1', 'Gestora Uno', '', 'https://g1.example/', '', '', '', '');
+    db.prepare(`INSERT INTO gestora_promotions
+      (id,gestoraId,name,location,status,details,link,municipality,scopeStatus)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(
+      'promo-1', 'g1', 'Residencial Uno', 'A Coruña', 'Comercialización', null, null, 'A Coruña', 'in_scope',
+    );
+    db.prepare(`INSERT INTO cooperatives
+      (cif,numRegistro,name,foundedAt,foundingPartners,address,postalCode,municipality,email,phone,firstSeenAt,lastSeenAt,active)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      'F00000001', '1-C', 'COOP UNO', '2026-01-01', 2, 'Rúa Uno', '15001', 'A Coruña', 'a@b.es', '600000000',
+      '2026-07-01T00:00:00.000Z', '2026-07-01T00:00:00.000Z', 1,
+    );
+
+    const promo = listCurationCandidates(db).find((item) => item.entityId === 'promo-1');
+    const coop = listCurationCandidates(db).find((item) => item.entityId === 'F00000001');
+    stageCurationReview(db, {
+      entityKind: 'promotion', entityId: 'promo-1', action: 'confirm',
+      contentHash: promo.contentHash, patch: {},
+      evidence: proof('https://g1.example/promo', 'Residencial Uno en A Coruña.'),
+    });
+    stageCurationReview(db, {
+      entityKind: 'cooperative', entityId: 'F00000001', action: 'confirm',
+      contentHash: coop.contentHash, patch: {},
+      evidence: proof('https://g1.example/coop', 'COOP UNO en A Coruña.'),
+    });
+    applyStagedCurationReviews(db);
+
+    db.prepare(`UPDATE gestora_promotions SET lat = 43.36, lng = -8.41, barrio = 'Ensanche', geoPrecision = 'barrio' WHERE id = ?`).run('promo-1');
+    db.prepare(`UPDATE cooperatives SET lat = 43.36, lng = -8.41, barrio = 'Ensanche', geoPrecision = 'barrio' WHERE cif = ?`).run('F00000001');
+
+    assert.equal(listCurationCandidates(db).some((item) => item.entityId === 'promo-1'), false);
+    assert.equal(listCurationCandidates(db).some((item) => item.entityId === 'F00000001'), false);
+  } finally {
+    db.close();
+  }
+});
+
 test('curation can add a missing gestora with evidence and does not queue it again unchanged', () => {
   const db = database();
   try {
