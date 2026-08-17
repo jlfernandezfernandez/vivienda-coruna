@@ -1,0 +1,73 @@
+---
+export interface Props {
+  title: string;
+  url?: string;
+  text?: string;
+  variant?: 'card' | 'detail';
+}
+
+const { title, url = '', text = 'Promoción de vivienda en A Coruña', variant = 'card' } = Astro.props;
+---
+
+<button
+  type="button"
+  class={`share-trigger-btn inline-flex items-center gap-1.5 font-bold transition-all cursor-pointer select-none ${
+    variant === 'detail'
+      ? 'px-3 py-1.5 rounded-xl bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green text-ink text-xs shadow-sm active:scale-95'
+      : 'px-2 py-1 rounded-lg text-ink-muted hover:text-brand-green hover:bg-canvas text-xs active:scale-95'
+  }`}
+  data-share-title={title}
+  data-share-url={url}
+  data-share-text={text}
+  aria-label={`Compartir ${title}`}
+  title="Compartir enlace"
+>
+  <svg class="h-3.5 w-3.5 stroke-current stroke-2 fill-none share-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+  </svg>
+  <span class="share-label">{variant === 'detail' ? 'Compartir' : ''}</span>
+</button>
+
+<script>
+  document.querySelectorAll('.share-trigger-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const title = btn.getAttribute('data-share-title') || document.title;
+      const text = btn.getAttribute('data-share-text') || '';
+      const rawUrl = btn.getAttribute('data-share-url');
+      const shareUrl = rawUrl ? new URL(rawUrl, window.location.href).href : window.location.href;
+
+      const label = btn.querySelector('.share-label');
+      const originalLabel = label?.textContent || '';
+
+      if (navigator.share) {
+        try {
+          await navigator.share({ title, text, url: shareUrl });
+          return;
+        } catch (err) {
+          // Fallback to clipboard
+        }
+      }
+
+      // Clipboard fallback
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        if (label) label.textContent = '¡Copiado!';
+        btn.classList.add('text-brand-green', 'bg-brand-green-soft');
+        
+        window.dispatchEvent(new CustomEvent('toast:show', {
+          detail: { message: 'Enlace copiado al portapapeles', type: 'success' }
+        }));
+
+        setTimeout(() => {
+          if (label) label.textContent = originalLabel;
+          btn.classList.remove('text-brand-green', 'bg-brand-green-soft');
+        }, 2000);
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('toast:show', {
+          detail: { message: 'No se pudo copiar el enlace', type: 'error' }
+        }));
+      }
+    });
+  });
+</script>

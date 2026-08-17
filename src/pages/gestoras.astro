@@ -1,31 +1,31 @@
 ---
 import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
-import { api } from '../lib/api/client.mjs';
-import { applyApiFailure } from '../lib/api/boundary.mjs';
-import { siteBase, statusToneClass } from '../lib/ui.mjs';
+import { getDatabase, getAllGestoras } from '../../scripts/lib/db.mjs';
+import { statusColors } from '../../scripts/lib/statuses.mjs';
+import { webBase } from '../../scripts/lib/municipios.mjs';
 
-let gestoras = [];
-try {
-  gestoras = await api.gestoras();
-} catch (error) {
-  applyApiFailure(Astro.response, error);
-}
-const base = siteBase(import.meta.env.BASE_URL);
+const db = getDatabase();
+const gestoras = getAllGestoras(db);
+const base = webBase(import.meta.env.BASE_URL);
 
-const pageTitle = 'Gestoras de cooperativas y promotoras en A Coruña | Vivienda Coruña';
-const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y promotoras activas en el área metropolitana de A Coruña: promociones, captación de socios y contacto.';
+const pageTitle = 'Directorio de Gestoras de Cooperativas y Promotoras en A Coruña | Vivienda Coruña';
+const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y promotoras activas en el área metropolitana de A Coruña: promociones, captación de socios y contacto directo.';
 ---
 
 <Layout title={pageTitle} description={pageDescription}>
   <div class="mx-auto max-w-6xl px-4 sm:px-6">
     <!-- Header -->
-    <div class="mb-6 border-b border-border-soft pb-6">
+    <div class="mb-8 border-b border-border-soft pb-6">
+      <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
+        <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
+        {gestoras.length} entidades registradas
+      </div>
       <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
-        Directorio de Gestoras
+        Directorio de Gestoras y Promotoras
       </h1>
       <p class="text-sm md:text-base text-ink-muted mt-3 leading-relaxed max-w-2xl">
-        Gestoras de cooperativas y promotoras con actividad detectada en el área metropolitana de A Coruña.
+        Gestoras de cooperativas de vivienda y promotoras inmobiliarias con actividad detectada en el área metropolitana de A Coruña.
       </p>
     </div>
 
@@ -34,134 +34,113 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
         Sin gestoras detectadas todavía.
       </div>
     ) : (
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {gestoras.map((gestora) => (
-        <div class="border border-border-soft bg-surface p-6 rounded-2xl shadow-premium flex flex-col justify-between hover:border-border-medium transition-colors duration-200">
-          <div>
-            <!-- Header -->
-            <div class="flex items-center gap-4 border-b border-border-soft pb-4 mb-4">
-              <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green-soft text-brand-green font-extrabold text-base border border-brand-green/10 shadow-sm flex-shrink-0">
-                {gestora.logo}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {gestoras.map((gestora) => (
+          <div class="border border-border-soft bg-surface p-6 rounded-2xl shadow-premium flex flex-col justify-between hover:shadow-hover transition-all duration-200">
+            <div>
+              <!-- Header -->
+              <div class="flex items-center gap-4 border-b border-border-soft pb-4 mb-4">
+                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-green-soft text-brand-green font-extrabold text-base border border-brand-green/10 shadow-sm flex-shrink-0">
+                  {gestora.logo}
+                </div>
+                <div class="min-w-0">
+                  <h2 class="text-lg font-bold text-ink truncate">
+                    <a href={`${base}gestora/${gestora.id}`} class="hover:text-brand-green transition-colors">
+                      {gestora.name}
+                    </a>
+                  </h2>
+                  {gestora.website && (
+                    <a
+                      href={gestora.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-xs text-brand-green hover:underline flex items-center gap-1 mt-0.5"
+                    >
+                      <span class="truncate">{gestora.website.replace('https://', '').replace('http://', '').replace(/\/$/, '')}</span>
+                      <svg class="h-3 w-3 stroke-current fill-none stroke-2 flex-shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
               </div>
-              <div class="min-w-0">
-                <h3 class="text-lg font-bold text-ink">
-                  <a href={`${base}gestora/${gestora.id}`} class="hover:text-brand-green transition-colors">
-                    {gestora.name}
-                  </a>
-                </h3>
-                {gestora.website && (
-                  <a
-                    href={gestora.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-xs text-brand-green hover:underline flex items-center gap-1 mt-0.5"
-                  >
-                    <span>{gestora.website.replace('https://', '').replace('http://', '')}</span>
-                    <svg class="h-3 w-3 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                    </svg>
-                  </a>
+
+              <!-- Description -->
+              <p class="text-xs sm:text-sm text-ink-muted leading-relaxed mb-4 line-clamp-3">
+                {gestora.description}
+              </p>
+
+              <!-- Contacts -->
+              <div class="space-y-1.5 mb-5 text-xs text-ink-muted bg-canvas p-3 rounded-xl border border-border-soft">
+                {gestora.address && (
+                  <div class="flex items-center gap-2">
+                    <span>📍</span>
+                    <span class="truncate">{gestora.address}</span>
+                  </div>
+                )}
+                {gestora.phone && (
+                  <div class="flex items-center gap-2">
+                    <span>📞</span>
+                    <a href={`tel:${gestora.phone.replace(/\s+/g, '')}`} class="font-semibold hover:text-brand-green transition-colors">{gestora.phone}</a>
+                  </div>
+                )}
+                {gestora.email && (
+                  <div class="flex items-center gap-2">
+                    <span>✉️</span>
+                    <a href={`mailto:${gestora.email}`} class="font-semibold hover:text-brand-green transition-colors truncate">{gestora.email}</a>
+                  </div>
+                )}
+                {!gestora.address && !gestora.phone && !gestora.email && (
+                  <p class="text-ink-light italic">Contacto extraído automáticamente.</p>
                 )}
               </div>
-            </div>
 
-            <!-- Description -->
-            <p class="text-sm text-ink-muted leading-relaxed mb-4">
-              {gestora.description}
-            </p>
-
-            <!-- Contacts (solo se muestran los datos verificados; vacío se omite) -->
-            <div class="space-y-2 mb-6">
-              {gestora.address && (
-                <div class="flex items-center gap-2.5 text-xs text-ink-muted">
-                  <span class="text-base">📍</span>
-                  <span>{gestora.address}</span>
-                </div>
-              )}
-              {gestora.phone && (
-                <div class="flex items-center gap-2.5 text-xs text-ink-muted">
-                  <span class="text-base">📞</span>
-                  <a href={`tel:${gestora.phone.replace(/\s+/g, '')}`} class="hover:text-brand-green transition-colors">{gestora.phone}</a>
-                </div>
-              )}
-              {gestora.email && (
-                <div class="flex items-center gap-2.5 text-xs text-ink-muted">
-                  <span class="text-base">✉️</span>
-                  <a href={`mailto:${gestora.email}`} class="hover:text-brand-green transition-colors">{gestora.email}</a>
-                </div>
-              )}
-              {!gestora.address && !gestora.phone && !gestora.email && (
-                <p class="text-xs text-ink-light italic">Contacto no verificado todavía.</p>
-              )}
-            </div>
-
-            <!-- Promotions in area -->
-            {gestora.promotions.length > 0 && (
-              <div class="border-t border-border-soft pt-4 mt-4">
-                <span class="text-xs font-bold text-ink uppercase tracking-wider block mb-3">
-                  Cooperativas y promociones en la zona
-                </span>
-                <div class="space-y-3">
-                  {gestora.promotions.map((promo) => (
-                    <div class="bg-canvas border border-border-soft p-3 rounded-xl flex flex-col gap-1.5 relative overflow-hidden">
-                      <div class="flex items-center justify-between gap-2 flex-wrap">
-                        <span class="text-sm font-bold text-ink">{promo.name}</span>
-                        <div class="flex gap-1.5 flex-wrap">
-                          {promo.buscaSocios === true && (
-                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg border bg-status-ok/10 text-brand-green border-status-ok/15">
-                              Captación abierta
-                            </span>
-                          )}
-                          <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${statusToneClass(promo.statusTone)}`}>
-                            {promo.statusLabel || promo.status}
+              <!-- Promotions in area -->
+              {gestora.promotions.length > 0 && (
+                <div class="border-t border-border-soft pt-4 mt-2">
+                  <span class="text-xs font-bold text-ink uppercase tracking-wider block mb-2.5">
+                    Promociones activas ({gestora.promotions.length})
+                  </span>
+                  <div class="space-y-2">
+                    {gestora.promotions.slice(0, 3).map((promo) => (
+                      <div class="bg-canvas border border-border-soft p-2.5 rounded-xl flex flex-col gap-1">
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="text-xs font-bold text-ink truncate">{promo.name}</span>
+                          <span class={`text-[10px] font-bold px-2 py-0.5 rounded-md ${statusColors(promo.status)}`}>
+                            {promo.status}
                           </span>
                         </div>
-                      </div>
-                      <div class="flex justify-between items-center text-xs text-ink-muted mt-0.5 gap-2">
-                        <span>📍 {promo.location || '—'}</span>
-                        {promo.details && <span class="text-right max-w-[60%] truncate">{promo.details}</span>}
-                      </div>
-                      {(promo.entregaEstimada || promo.aportacionInicial) && (
-                        <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-muted mt-1">
-                          {promo.entregaEstimada && <span>Entrega estimada: <strong class="text-ink">{promo.entregaEstimada}</strong></span>}
-                          {promo.aportacionInicial && <span>Aportación inicial: <strong class="text-ink">{promo.aportacionInicial.toLocaleString('es-ES')} €</strong></span>}
+                        <div class="flex justify-between items-center text-[11px] text-ink-muted">
+                          <span>📍 {promo.barrio ? `${promo.barrio}, ` : ''}{promo.location || 'Área'}</span>
+                          {promo.entregaEstimada && <span>📅 {promo.entregaEstimada}</span>}
                         </div>
-                      )}
-                      {promo.link && (
-                        <a
-                          href={promo.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="text-[11px] font-semibold text-brand-green hover:underline mt-2 self-start flex items-center gap-1"
-                        >
-                          Ver detalles de la promoción
-                          <svg class="h-3 w-3 stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                          </svg>
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                    {gestora.promotions.length > 3 && (
+                      <p class="text-[11px] text-ink-light font-semibold pt-1">
+                        +{gestora.promotions.length - 3} promociones más
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          <!-- Call to action -->
-          <div class="mt-6 pt-4 border-t border-border-soft">
-            <a
-              href={`${base}gestora/${gestora.id}`}
-              class="w-full bg-brand-green text-surface text-center font-bold py-2.5 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover transition-colors flex items-center justify-center gap-2 text-sm"
-            >
-              <span>Ver ficha completa</span>
-              <svg class="h-4 w-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
-            </a>
+            <!-- Call to action -->
+            <div class="mt-6 pt-4 border-t border-border-soft">
+              <a
+                href={`${base}gestora/${gestora.id}`}
+                class="w-full bg-brand-green text-surface text-center font-bold py-2.5 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
+              >
+                <span>Ver ficha completa y proyectos</span>
+                <svg class="h-4 w-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </a>
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
     )}
   </div>
 </Layout>

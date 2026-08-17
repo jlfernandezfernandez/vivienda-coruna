@@ -1,0 +1,64 @@
+---
+import { getDatabase, getMarketStats } from '../../scripts/lib/db.mjs';
+import { slugify, webBase } from '../../scripts/lib/municipios.mjs';
+
+const base = webBase(import.meta.env.BASE_URL);
+const db = getDatabase();
+const stats = getMarketStats(db).slice(0, 6); // Top 6 active areas
+---
+
+<section class="rounded-2xl border border-border-soft bg-surface p-5 sm:p-6 shadow-premium" aria-labelledby="thermometer-title">
+  <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border-soft pb-3 mb-4">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">📊</span>
+      <div>
+        <h3 id="thermometer-title" class="text-base font-extrabold text-ink">Termómetro del Mercado Metropolitano</h3>
+        <p class="text-xs text-ink-muted">Precios medios de salida y volumen de vivienda nueva por barrio / zona</p>
+      </div>
+    </div>
+    <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-light">
+      Actualizado en tiempo real
+    </span>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {stats.map((item) => (
+      <div class="flex flex-col justify-between p-4 rounded-xl bg-canvas border border-border-soft hover:border-brand-green/30 transition-all">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="font-extrabold text-sm text-ink truncate">{item.name}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-green-soft text-brand-green border border-brand-green/15">
+              {item.count} {item.count === 1 ? 'proyecto' : 'proyectos'}
+            </span>
+          </div>
+
+          <div class="space-y-1.5 my-2">
+            {item.avgPrice ? (
+              <div>
+                <span class="text-[11px] text-ink-muted block">Precio medio estimado</span>
+                <span class="text-lg font-extrabold text-brand-green">
+                  {item.avgPrice.toLocaleString('es-ES')} €
+                </span>
+              </div>
+            ) : (
+              <span class="text-xs text-ink-light italic">Precios según tipología</span>
+            )}
+
+            {item.minPrice && item.maxPrice && item.minPrice !== item.maxPrice && (
+              <p class="text-[11px] text-ink-muted">
+                Rango: <strong class="text-ink">{Math.round(item.minPrice / 1000)}k €</strong> a <strong class="text-ink">{Math.round(item.maxPrice / 1000)}k €</strong>
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-border-soft/60 flex items-center justify-between text-[11px] text-ink-light mt-2">
+          <span>{item.coopCount > 0 ? `🟢 ${item.coopCount} coop` : ''} {item.vppCount > 0 ? `🔴 ${item.vppCount} VPP` : ''}</span>
+          <a href={`${base}mapa`} class="text-brand-green font-bold hover:underline">
+            Ver mapa →
+          </a>
+        </div>
+      </div>
+    ))}
+  </div>
+</section>

@@ -3,7 +3,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { config } from './config.mjs';
 import { listCurationCandidates, listCurationReviews, stageCurationReview } from './curation.mjs';
-import { classifyPromotionLocation, municipalitySlug, MUNICIPALITIES, slugify } from './municipios.mjs';
+import { classifyPromotionLocation, municipalitySlug, MUNICIPALITIES, slugify, resolveMunicipality } from './municipios.mjs';
+import { resolveGeoLocation } from './geocoder.mjs';
 
 let dbInstance = null;
 
@@ -34,161 +35,7 @@ export function getDatabase(options = {}) {
     }
     if (readOnly) return dbInstance;
     
-    // Create tables schema
-    dbInstance.exec(`
-      CREATE TABLE IF NOT EXISTS opportunities (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        url TEXT NOT NULL,
-        source TEXT NOT NULL,
-        sourceKind TEXT NOT NULL,
-        publishedAt TEXT,
-        firstSeenAt TEXT NOT NULL,
-        lastSeenAt TEXT NOT NULL,
-        location TEXT,
-        type TEXT,
-        status TEXT,
-        summary TEXT,
-        precioMin INTEGER,
-        precioMax INTEGER,
-        habitacionesMin INTEGER,
-        banosMin INTEGER,
-        promotora TEXT,
-        totalViviendas INTEGER,
-        garaje INTEGER,
-        trastero INTEGER,
-        terraza INTEGER,
-        enriched INTEGER,
-        nombrePromocion TEXT,
-        evidenceText TEXT,
-        extractionMethod TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS sources (
-        name TEXT PRIMARY KEY,
-        url TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        ok INTEGER NOT NULL,
-        scanned INTEGER NOT NULL,
-        checkedAt TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS gestoras (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        logo TEXT NOT NULL,
-        website TEXT NOT NULL,
-        phone TEXT NOT NULL,
-        email TEXT NOT NULL,
-        address TEXT NOT NULL,
-        description TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS gestora_promotions (
-        id TEXT PRIMARY KEY,
-        gestoraId TEXT NOT NULL,
-        name TEXT NOT NULL,
-        location TEXT NOT NULL,
-        status TEXT NOT NULL,
-        details TEXT,
-        link TEXT,
-        entregaEstimada TEXT,
-        buscaSocios INTEGER,
-        aportacionInicial INTEGER,
-        municipality TEXT,
-        scopeStatus TEXT NOT NULL DEFAULT 'unverified',
-        FOREIGN KEY(gestoraId) REFERENCES gestoras(id) ON DELETE CASCADE
-      );
-
-      -- Ground truth del Rexistro de Cooperativas da Xunta (CSV aberto, diff por CIF).
-      CREATE TABLE IF NOT EXISTS cooperatives (
-        cif TEXT PRIMARY KEY,
-        numRegistro TEXT,
-        name TEXT NOT NULL,
-        foundedAt TEXT,
-        foundingPartners INTEGER,
-        address TEXT,
-        postalCode TEXT,
-        municipality TEXT,
-        email TEXT,
-        phone TEXT,
-        firstSeenAt TEXT NOT NULL,
-        lastSeenAt TEXT NOT NULL,
-        active INTEGER NOT NULL DEFAULT 1
-      );
-
-      CREATE TABLE IF NOT EXISTS entity_aliases (
-        entityKind TEXT NOT NULL,
-        aliasId TEXT NOT NULL,
-        canonicalId TEXT NOT NULL,
-        reason TEXT NOT NULL,
-        createdAt TEXT NOT NULL,
-        PRIMARY KEY(entityKind, aliasId)
-      );
-
-      CREATE TABLE IF NOT EXISTS curation_reviews (
-        id TEXT PRIMARY KEY,
-        entityKind TEXT NOT NULL CHECK(entityKind IN ('opportunity','gestora','promotion','cooperative')),
-        entityId TEXT NOT NULL,
-        action TEXT NOT NULL CHECK(action IN ('confirm','update','create')),
-        contentHash TEXT,
-        resultHash TEXT,
-        patchJson TEXT NOT NULL,
-        evidenceJson TEXT NOT NULL,
-        notes TEXT,
-        status TEXT NOT NULL DEFAULT 'staged' CHECK(status IN ('staged','applied','conflict')),
-        createdAt TEXT NOT NULL,
-        appliedAt TEXT
-      );
-      CREATE INDEX IF NOT EXISTS idx_curation_reviews_entity
-        ON curation_reviews(entityKind, entityId, createdAt DESC);
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_curation_reviews_one_staged
-        ON curation_reviews(entityKind, entityId) WHERE status = 'staged';
-
-      -- Cambios detectados entre corridas: base para "últimos cambios" en la web.
-      CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        detectedAt TEXT NOT NULL,
-        entityKind TEXT NOT NULL,
-        entityId TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        label TEXT,
-        oldValue TEXT,
-        newValue TEXT
-      );
-    `);
-
-    // Migration: add columns to pre-existing databases that predate them
-    const opportunityColumns = dbInstance.prepare(`PRAGMA table_info(opportunities)`).all().map((c) => c.name);
-    if (!opportunityColumns.includes('enriched')) {
-      dbInstance.exec(`ALTER TABLE opportunities ADD COLUMN enriched INTEGER`);
-    }
-    if (!opportunityColumns.includes('nombrePromocion')) {
-      dbInstance.exec(`ALTER TABLE opportunities ADD COLUMN nombrePromocion TEXT`);
-    }
-    if (!opportunityColumns.includes('promotionId')) {
-      dbInstance.exec(`ALTER TABLE opportunities ADD COLUMN promotionId TEXT`);
-    }
-    if (!opportunityColumns.includes('evidenceText')) {
-      dbInstance.exec(`ALTER TABLE opportunities ADD COLUMN evidenceText TEXT`);
-    }
-    if (!opportunityColumns.includes('extractionMethod')) {
-      dbInstance.exec(`ALTER TABLE opportunities ADD COLUMN extractionMethod TEXT`);
-    }
-    const sourceColumns = dbInstance.prepare(`PRAGMA table_info(sources)`).all().map((c) => c.name);
-    if (!sourceColumns.includes('checkedAt')) {
-      dbInstance.exec(`ALTER TABLE sources ADD COLUMN checkedAt TEXT`);
-    }
-    const cooperativeColumns = dbInstance.prepare(`PRAGMA table_info(cooperatives)`).all().map((c) => c.name);
-    if (!cooperativeColumns.includes('active')) {
-      dbInstance.exec(`ALTER TABLE cooperatives ADD COLUMN active INTEGER NOT NULL DEFAULT 1`);
-    }
-    const promotionColumns = dbInstance.prepare(`PRAGMA table_info(gestora_promotions)`).all().map((c) => c.name);
-    for (const col of ['entregaEstimada TEXT', 'buscaSocios INTEGER', 'aportacionInicial INTEGER', 'municipality TEXT', "scopeStatus TEXT NOT NULL DEFAULT 'unverified'"]) {
-      if (!promotionColumns.includes(col.split(' ')[0])) {
-        dbInstance.exec(`ALTER TABLE gestora_promotions ADD COLUMN ${col}`);
-      }
-    }
+    ensureSchema(dbInstance);
   }
   return dbInstance;
 }
@@ -248,18 +95,26 @@ export function saveOpportunity(db, op) {
   const alias = db.prepare("SELECT canonicalId FROM entity_aliases WHERE entityKind = 'opportunity' AND aliasId = ?").get(op.id);
   if (alias?.canonicalId === '__rejected__') return;
   if (alias) {
-    const canonical = db.prepare('SELECT title,url,source,sourceKind,publishedAt,firstSeenAt FROM opportunities WHERE id = ?').get(alias.canonicalId);
-    op = { ...op, id: alias.canonicalId, ...(canonical || {}) };
+    op = { ...op, id: alias.canonicalId };
   }
-  const old = db.prepare('SELECT status, precioMin FROM opportunities WHERE id = ?').get(op.id);
-  if (!old) {
-    logEvent(db, 'opportunity', op.id, 'new', op.title, null, op.type || null);
-  } else {
-    if (old.status && op.status && old.status !== op.status) {
-      logEvent(db, 'opportunity', op.id, 'status', op.title, old.status, op.status);
-    }
-    if (old.precioMin != null && op.precioMin != null && old.precioMin !== op.precioMin) {
-      logEvent(db, 'opportunity', op.id, 'price', op.title, String(old.precioMin), String(op.precioMin));
+
+  const existing = db.prepare('SELECT status, precioMin FROM opportunities WHERE id = ?').get(op.id);
+  const now = new Date().toISOString();
+
+  let lat = op.lat ?? null;
+  let lng = op.lng ?? null;
+  let municipality = op.municipality ?? null;
+  let barrio = op.barrio ?? null;
+  let geoPrecision = op.geoPrecision ?? null;
+
+  if (lat == null || lng == null) {
+    const geo = resolveGeoLocation(`${op.title} ${op.summary || ''} ${op.location || ''}`, resolveMunicipality(op.location));
+    if (geo) {
+      lat = geo.lat;
+      lng = geo.lng;
+      municipality = municipality || geo.municipality;
+      barrio = barrio || geo.barrio;
+      geoPrecision = geo.geoPrecision;
     }
   }
 
@@ -267,28 +122,50 @@ export function saveOpportunity(db, op) {
     INSERT INTO opportunities (
       id, title, url, source, sourceKind, publishedAt, firstSeenAt, lastSeenAt,
       location, type, status, summary, precioMin, precioMax, habitacionesMin,
-      banosMin, promotora, totalViviendas, garaje, trastero, terraza, enriched,
-      nombrePromocion, promotionId, evidenceText, extractionMethod
+      banosMin, promotora, totalViviendas, garaje, trastero, terraza, piscina,
+      ascensor, entregaEstimada, tipoPromocion, lat, lng, municipality, barrio,
+      geoPrecision, enriched, nombrePromocion, promotionId, evidenceText, extractionMethod
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-    ) ON CONFLICT(id) DO UPDATE SET
+      ?, ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      title = excluded.title,
+      url = excluded.url,
+      source = excluded.source,
+      sourceKind = excluded.sourceKind,
+      publishedAt = COALESCE(excluded.publishedAt, opportunities.publishedAt),
       lastSeenAt = excluded.lastSeenAt,
-      publishedAt = COALESCE(publishedAt, excluded.publishedAt),
-      status = excluded.status,
-      precioMin = excluded.precioMin,
-      precioMax = excluded.precioMax,
-      habitacionesMin = excluded.habitacionesMin,
-      banosMin = excluded.banosMin,
-      promotora = excluded.promotora,
-      totalViviendas = excluded.totalViviendas,
-      garaje = excluded.garaje,
-      trastero = excluded.trastero,
-      terraza = excluded.terraza,
-      enriched = excluded.enriched,
-      nombrePromocion = excluded.nombrePromocion,
-      promotionId = excluded.promotionId,
-      evidenceText = COALESCE(excluded.evidenceText, evidenceText),
-      extractionMethod = COALESCE(excluded.extractionMethod, extractionMethod)
+      location = COALESCE(excluded.location, opportunities.location),
+      type = COALESCE(excluded.type, opportunities.type),
+      status = COALESCE(excluded.status, opportunities.status),
+      summary = COALESCE(excluded.summary, opportunities.summary),
+      precioMin = COALESCE(excluded.precioMin, opportunities.precioMin),
+      precioMax = COALESCE(excluded.precioMax, opportunities.precioMax),
+      habitacionesMin = COALESCE(excluded.habitacionesMin, opportunities.habitacionesMin),
+      banosMin = COALESCE(excluded.banosMin, opportunities.banosMin),
+      promotora = COALESCE(excluded.promotora, opportunities.promotora),
+      totalViviendas = COALESCE(excluded.totalViviendas, opportunities.totalViviendas),
+      garaje = COALESCE(excluded.garaje, opportunities.garaje),
+      trastero = COALESCE(excluded.trastero, opportunities.trastero),
+      terraza = COALESCE(excluded.terraza, opportunities.terraza),
+      piscina = COALESCE(excluded.piscina, opportunities.piscina),
+      ascensor = COALESCE(excluded.ascensor, opportunities.ascensor),
+      entregaEstimada = COALESCE(excluded.entregaEstimada, opportunities.entregaEstimada),
+      tipoPromocion = COALESCE(excluded.tipoPromocion, opportunities.tipoPromocion),
+      lat = COALESCE(excluded.lat, opportunities.lat),
+      lng = COALESCE(excluded.lng, opportunities.lng),
+      municipality = COALESCE(excluded.municipality, opportunities.municipality),
+      barrio = COALESCE(excluded.barrio, opportunities.barrio),
+      geoPrecision = COALESCE(excluded.geoPrecision, opportunities.geoPrecision),
+      enriched = COALESCE(excluded.enriched, opportunities.enriched),
+      nombrePromocion = COALESCE(excluded.nombrePromocion, opportunities.nombrePromocion),
+      promotionId = COALESCE(excluded.promotionId, opportunities.promotionId),
+      evidenceText = COALESCE(excluded.evidenceText, opportunities.evidenceText),
+      extractionMethod = COALESCE(excluded.extractionMethod, opportunities.extractionMethod)
   `);
 
   stmt.run(
@@ -298,60 +175,74 @@ export function saveOpportunity(db, op) {
     op.source,
     op.sourceKind,
     op.publishedAt || null,
-    op.firstSeenAt,
-    op.lastSeenAt,
+    op.firstSeenAt || now,
+    op.lastSeenAt || now,
     op.location || null,
     op.type || null,
     op.status || null,
     op.summary || null,
-    op.precioMin !== undefined ? op.precioMin : null,
-    op.precioMax !== undefined ? op.precioMax : null,
-    op.habitacionesMin !== undefined ? op.habitacionesMin : null,
-    op.banosMin !== undefined ? op.banosMin : null,
+    op.precioMin ?? null,
+    op.precioMax ?? null,
+    op.habitacionesMin ?? null,
+    op.banosMin ?? null,
     op.promotora || null,
-    op.totalViviendas !== undefined ? op.totalViviendas : null,
-    op.garaje === true ? 1 : (op.garaje === false ? 0 : null),
-    op.trastero === true ? 1 : (op.trastero === false ? 0 : null),
-    op.terraza === true ? 1 : (op.terraza === false ? 0 : null),
+    op.totalViviendas ?? null,
+    op.garaje ? 1 : (op.garaje === false ? 0 : null),
+    op.trastero ? 1 : (op.trastero === false ? 0 : null),
+    op.terraza ? 1 : (op.terraza === false ? 0 : null),
+    op.piscina ? 1 : (op.piscina === false ? 0 : null),
+    op.ascensor ? 1 : (op.ascensor === false ? 0 : null),
+    op.entregaEstimada || null,
+    op.tipoPromocion || null,
+    lat,
+    lng,
+    municipality,
+    barrio,
+    geoPrecision,
     op.enriched ? 1 : 0,
     op.nombrePromocion || null,
     op.promotionId || null,
     op.evidenceText || null,
     op.extractionMethod || null
   );
+
+  if (existing) {
+    if (op.status && existing.status && op.status !== existing.status) {
+      logEvent(db, 'opportunity', op.id, 'status', `Estado cambiado: ${existing.status} → ${op.status}`, existing.status, op.status);
+    }
+    if (op.precioMin && existing.precioMin && op.precioMin !== existing.precioMin) {
+      logEvent(db, 'opportunity', op.id, 'price', `Precio: ${existing.precioMin.toLocaleString('es-ES')} € → ${op.precioMin.toLocaleString('es-ES')} €`, String(existing.precioMin), String(op.precioMin));
+    }
+  } else {
+    logEvent(db, 'opportunity', op.id, 'new', `Nueva oportunidad: ${op.title}`, null, null);
+  }
 }
 
-/**
- * Retrieves a single opportunity from the SQLite database.
- * 
- * @param {DatabaseSync} db - Database instance
- * @param {string} id - Opportunity ID
- * @returns {Object|null} Opportunity object or null
- */
 export function getOpportunity(db, id) {
-  const stmt = db.prepare('SELECT * FROM opportunities WHERE id = ?');
-  const rows = stmt.all(id);
-  if (rows.length === 0) return null;
-  const row = rows[0];
-  
-  return {
-    ...row,
-    garaje: row.garaje === 1 ? true : (row.garaje === 0 ? false : null),
-    trastero: row.trastero === 1 ? true : (row.trastero === 0 ? false : null),
-    terraza: row.terraza === 1 ? true : (row.terraza === 0 ? false : null),
-    enriched: row.enriched === 1,
-  };
+  const alias = db.prepare("SELECT canonicalId FROM entity_aliases WHERE entityKind = 'opportunity' AND aliasId = ?").get(id);
+  if (alias?.canonicalId === '__rejected__') return null;
+  const canonicalId = alias ? alias.canonicalId : id;
+
+  return db.prepare(`
+    SELECT * FROM opportunities
+    WHERE id = ?
+      AND id NOT IN (
+        SELECT aliasId FROM entity_aliases
+        WHERE entityKind = 'opportunity' AND canonicalId = '__rejected__'
+      )
+  `).get(canonicalId);
 }
 
-/**
- * Retrieves the latest opportunities ordered by date.
- * 
- * @param {DatabaseSync} db - Database instance
- * @param {number} limit - Maximum number of items
- * @returns {Array<Object>} List of opportunities
- */
 export function getAllOpportunities(db, limit = 150) {
-  const stmt = db.prepare(`
+  const hasAliases = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'entity_aliases'").get();
+  const aliasClause = hasAliases ? `
+    WHERE id NOT IN (
+      SELECT aliasId FROM entity_aliases
+      WHERE entityKind = 'opportunity' AND canonicalId = '__rejected__'
+    )
+  ` : '';
+
+  const rows = db.prepare(`
     SELECT * FROM (
       SELECT opportunities.*,
         ROW_NUMBER() OVER (
@@ -359,112 +250,93 @@ export function getAllOpportunities(db, limit = 150) {
           ORDER BY COALESCE(publishedAt, firstSeenAt) DESC, lastSeenAt DESC
         ) AS canonicalRank
       FROM opportunities
+      ${aliasClause}
     )
     WHERE canonicalRank = 1
-    ORDER BY COALESCE(publishedAt, firstSeenAt) DESC
+    ORDER BY COALESCE(publishedAt, firstSeenAt) DESC, lastSeenAt DESC
     LIMIT ?
-  `);
-  const rows = stmt.all(limit);
+  `).all(limit);
+
   return rows.map(({ canonicalRank: _canonicalRank, ...row }) => ({
     ...row,
     garaje: row.garaje === 1 ? true : (row.garaje === 0 ? false : null),
     trastero: row.trastero === 1 ? true : (row.trastero === 0 ? false : null),
     terraza: row.terraza === 1 ? true : (row.terraza === 0 ? false : null),
+    piscina: row.piscina === 1 ? true : (row.piscina === 0 ? false : null),
+    ascensor: row.ascensor === 1 ? true : (row.ascensor === 0 ? false : null),
     enriched: row.enriched === 1,
   }));
 }
 
-/**
- * Inserts or updates a source log entry.
- * 
- * @param {DatabaseSync} db - Database instance
- * @param {Object} source - Source log object
- */
 export function saveSource(db, source) {
-  const stmt = db.prepare(`
+  db.prepare(`
     INSERT INTO sources (name, url, kind, ok, scanned, checkedAt)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET
+      url = excluded.url,
+      kind = excluded.kind,
       ok = excluded.ok,
       scanned = excluded.scanned,
       checkedAt = excluded.checkedAt
-  `);
-  stmt.run(
+  `).run(
     source.name,
     source.url,
     source.kind,
     source.ok ? 1 : 0,
-    source.scanned,
-    new Date().toISOString()
+    source.scanned ?? 0,
+    source.checkedAt || new Date().toISOString()
   );
 }
 
-/**
- * Retrieves all source log entries.
- * 
- * @param {DatabaseSync} db - Database instance
- * @returns {Array<Object>} List of source entries
- */
 export function getAllSources(db) {
-  const stmt = db.prepare('SELECT * FROM sources');
-  const rows = stmt.all();
-  return rows.map(row => ({
+  return db.prepare('SELECT * FROM sources ORDER BY name ASC').all().map((row) => ({
     ...row,
     ok: row.ok === 1,
   }));
 }
 
-/**
- * Retrieves all cooperative managers along with their promotions.
- * 
- * @param {DatabaseSync} db - Database instance
- * @returns {Array<Object>} List of gestoras with promotions
- */
 export function getAllGestoras(db) {
-  const rows = db.prepare(`
-    SELECT g.*,
-      COALESCE(
-        (SELECT json_group_array(
-          json_object(
-            'id', p.id,
-            'name', p.name,
-            'location', p.location,
-            'status', p.status,
-            'details', p.details,
-            'link', p.link,
-            'entregaEstimada', p.entregaEstimada,
-            'buscaSocios', p.buscaSocios,
-            'aportacionInicial', p.aportacionInicial
-          )
-        )
-        FROM gestora_promotions p
-        WHERE p.gestoraId = g.id AND p.scopeStatus = 'in_scope'),
-        '[]'
-      ) AS promotionsJson
-    FROM gestoras g
+  const gestoras = db.prepare(`
+    SELECT * FROM gestoras
+    WHERE id NOT IN (
+      SELECT aliasId FROM entity_aliases
+      WHERE entityKind = 'gestora' AND canonicalId = '__rejected__'
+    )
+    ORDER BY name ASC
   `).all();
 
-  return rows.map(g => {
-    const promotions = JSON.parse(g.promotionsJson).map(p => ({
-      ...p,
-      buscaSocios: p.buscaSocios === 1 ? true : (p.buscaSocios === 0 ? false : null),
-    }));
-    const { promotionsJson: _promotionsJson, ...gestora } = g;
-    return { ...gestora, promotions };
-  });
+  const promotions = db.prepare(`
+    SELECT * FROM gestora_promotions
+    WHERE scopeStatus != 'out_of_scope'
+      AND id NOT IN (
+        SELECT aliasId FROM entity_aliases
+        WHERE entityKind = 'promotion' AND canonicalId = '__rejected__'
+      )
+    ORDER BY buscaSocios DESC, name ASC
+  `).all();
+
+  const byGestora = new Map();
+  for (const p of promotions) {
+    if (!byGestora.has(p.gestoraId)) byGestora.set(p.gestoraId, []);
+    byGestora.get(p.gestoraId).push(p);
+  }
+
+  return gestoras.map((g) => ({
+    ...g,
+    promotions: byGestora.get(g.id) || [],
+  }));
 }
 
-/**
- * Inserts or updates a gestora in the database.
- * 
- * @param {DatabaseSync} db - Database instance
- * @param {Object} g - Gestora object
- */
 export function saveGestora(db, g) {
-  const exists = db.prepare('SELECT 1 FROM gestoras WHERE id = ?').get(g.id);
-  if (!exists) logEvent(db, 'gestora', g.id, 'new', g.name, null, null);
+  const alias = db.prepare("SELECT canonicalId FROM entity_aliases WHERE entityKind = 'gestora' AND aliasId = ?").get(g.id);
+  if (alias?.canonicalId === '__rejected__') return;
+  if (alias) {
+    g = { ...g, id: alias.canonicalId };
+  }
 
-  const stmt = db.prepare(`
+  const existing = db.prepare('SELECT id FROM gestoras WHERE id = ?').get(g.id);
+
+  db.prepare(`
     INSERT INTO gestoras (id, name, logo, website, phone, email, address, description)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
@@ -475,129 +347,208 @@ export function saveGestora(db, g) {
       email = excluded.email,
       address = excluded.address,
       description = excluded.description
-  `);
-  stmt.run(
-    g.id,
-    g.name,
-    g.logo || '',
-    g.website || '',
-    g.phone || '',
-    g.email || '',
-    g.address || '',
-    g.description || ''
-  );
+  `).run(g.id, g.name, g.logo, g.website, g.phone, g.email, g.address, g.description);
+
+  if (!existing) {
+    logEvent(db, 'gestora', g.id, 'new', `Nueva gestora incorporada: ${g.name}`, null, null);
+  }
 }
 
-/**
- * Inserts or updates a promotion for a gestora in the database.
- * 
- * @param {DatabaseSync} db - Database instance
- * @param {Object} p - Promotion object
- */
 export function saveGestoraPromotion(db, p) {
   const alias = db.prepare("SELECT canonicalId FROM entity_aliases WHERE entityKind = 'promotion' AND aliasId = ?").get(p.id);
   if (alias?.canonicalId === '__rejected__') return;
   if (alias) {
-    const canonical = db.prepare('SELECT name FROM gestora_promotions WHERE id = ?').get(alias.canonicalId);
-    p = { ...p, id: alias.canonicalId, name: canonical?.name || p.name };
+    p = { ...p, id: alias.canonicalId };
   }
 
-  const old = db.prepare('SELECT status, location FROM gestora_promotions WHERE id = ?').get(p.id);
-  if (!old) {
-    logEvent(db, 'promotion', p.id, 'new', p.name, null, p.status || null);
-  } else if (old.status && p.status && old.status !== p.status) {
-    logEvent(db, 'promotion', p.id, 'status', p.name, old.status, p.status);
+  const existing = db.prepare('SELECT status, buscaSocios FROM gestora_promotions WHERE id = ?').get(p.id);
+  const scope = classifyPromotionLocation(p.location);
+
+  let lat = p.lat ?? null;
+  let lng = p.lng ?? null;
+  let municipality = p.municipality || scope.municipality || null;
+  let barrio = p.barrio ?? null;
+  let geoPrecision = p.geoPrecision ?? null;
+
+  if (lat == null || lng == null) {
+    const geo = resolveGeoLocation(`${p.name} ${p.details || ''} ${p.location || ''}`, municipality);
+    if (geo) {
+      lat = geo.lat;
+      lng = geo.lng;
+      municipality = municipality || geo.municipality;
+      barrio = barrio || geo.barrio;
+      geoPrecision = geo.geoPrecision;
+    }
   }
 
-  const effectiveLocation = p.location || old?.location || '';
-  const scope = classifyPromotionLocation(effectiveLocation);
-  const stmt = db.prepare(`
+  db.prepare(`
     INSERT INTO gestora_promotions (
-      id, gestoraId, name, location, status, details, link, entregaEstimada,
-      buscaSocios, aportacionInicial, municipality, scopeStatus
+      id, gestoraId, name, location, status, details, link,
+      entregaEstimada, buscaSocios, aportacionInicial, municipality,
+      barrio, lat, lng, geoPrecision, scopeStatus
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       gestoraId = excluded.gestoraId,
       name = excluded.name,
-      -- Prensa escribe placeholders ('' / 'Sin confirmar') que no deben pisar
-      -- datos reales del catálogo de la gestora.
-      location = COALESCE(NULLIF(excluded.location, ''), location),
-      status = COALESCE(NULLIF(excluded.status, 'Sin confirmar'), status),
-      details = COALESCE(NULLIF(excluded.details, ''), details),
+      location = excluded.location,
+      status = excluded.status,
+      details = excluded.details,
       link = excluded.link,
-      entregaEstimada = COALESCE(excluded.entregaEstimada, entregaEstimada),
-      buscaSocios = COALESCE(excluded.buscaSocios, buscaSocios),
-      aportacionInicial = COALESCE(excluded.aportacionInicial, aportacionInicial),
+      entregaEstimada = COALESCE(excluded.entregaEstimada, gestora_promotions.entregaEstimada),
+      buscaSocios = COALESCE(excluded.buscaSocios, gestora_promotions.buscaSocios),
+      aportacionInicial = COALESCE(excluded.aportacionInicial, gestora_promotions.aportacionInicial),
       municipality = excluded.municipality,
+      barrio = COALESCE(excluded.barrio, gestora_promotions.barrio),
+      lat = COALESCE(excluded.lat, gestora_promotions.lat),
+      lng = COALESCE(excluded.lng, gestora_promotions.lng),
+      geoPrecision = COALESCE(excluded.geoPrecision, gestora_promotions.geoPrecision),
       scopeStatus = excluded.scopeStatus
-  `);
-  stmt.run(
+  `).run(
     p.id,
     p.gestoraId,
     p.name,
     p.location,
     p.status,
-    p.details,
-    p.link,
+    p.details || null,
+    p.link || null,
     p.entregaEstimada || null,
-    p.buscaSocios === true ? 1 : (p.buscaSocios === false ? 0 : null),
-    p.aportacionInicial !== undefined && p.aportacionInicial !== null ? p.aportacionInicial : null,
-    scope.municipality,
+    p.buscaSocios ? 1 : 0,
+    p.aportacionInicial || null,
+    municipality,
+    barrio,
+    lat,
+    lng,
+    geoPrecision,
     scope.scopeStatus
   );
+
+  if (existing) {
+    if (existing.buscaSocios === 0 && p.buscaSocios) {
+      logEvent(db, 'promotion', p.id, 'buscaSocios', `Nueva fase de captación de socios: ${p.name}`, '0', '1');
+    }
+    if (p.status && existing.status && p.status !== existing.status) {
+      logEvent(db, 'promotion', p.id, 'status', `Estado: ${existing.status} → ${p.status}`, existing.status, p.status);
+    }
+  } else {
+    logEvent(db, 'promotion', p.id, 'new', `Nueva promoción en seguimiento: ${p.name} (${p.location})`, null, null);
+  }
 }
 
-/**
- * Upserts a cooperative from the official Xunta registry (keyed by CIF).
- *
- * @param {DatabaseSync} db
- * @param {Object} c - Cooperative row
- */
 export function saveCooperative(db, c) {
-  const exists = db.prepare('SELECT active FROM cooperatives WHERE cif = ?').get(c.cif);
-  if (!exists) logEvent(db, 'cooperative', c.cif, 'new', c.name, null, c.municipality || null);
-  else if (exists.active === 0) logEvent(db, 'cooperative', c.cif, 'reappeared', c.name, null, c.municipality || null);
+  const hasAliases = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'entity_aliases'").get();
+  if (hasAliases) {
+    const alias = db.prepare("SELECT canonicalId FROM entity_aliases WHERE entityKind = 'cooperative' AND aliasId = ?").get(c.cif);
+    if (alias?.canonicalId === '__rejected__') return;
+    if (alias) {
+      c = { ...c, cif: alias.canonicalId };
+    }
+  }
 
-  db.prepare(`
-    INSERT INTO cooperatives (cif, numRegistro, name, foundedAt, foundingPartners, address, postalCode, municipality, email, phone, firstSeenAt, lastSeenAt, active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-    ON CONFLICT(cif) DO UPDATE SET
-      numRegistro = excluded.numRegistro,
-      name = excluded.name,
-      foundedAt = excluded.foundedAt,
-      foundingPartners = excluded.foundingPartners,
-      address = excluded.address,
-      postalCode = excluded.postalCode,
-      municipality = excluded.municipality,
-      email = excluded.email,
-      phone = excluded.phone,
-      lastSeenAt = excluded.lastSeenAt,
-      active = 1
-  `).run(
-    c.cif,
-    c.numRegistro || null,
-    c.name,
-    c.foundedAt || null,
-    c.foundingPartners ?? null,
-    c.address || null,
-    c.postalCode || null,
-    c.municipality || null,
-    c.email || null,
-    c.phone || null,
-    c.firstSeenAt,
-    c.lastSeenAt
-  );
+  const existing = db.prepare('SELECT active, name FROM cooperatives WHERE cif = ?').get(c.cif);
+
+  let lat = c.lat ?? null;
+  let lng = c.lng ?? null;
+  let barrio = c.barrio ?? null;
+  let geoPrecision = c.geoPrecision ?? null;
+
+  if (lat == null || lng == null) {
+    const geo = resolveGeoLocation(`${c.name} ${c.address || ''} ${c.municipality || ''}`, c.municipality);
+    if (geo) {
+      lat = geo.lat;
+      lng = geo.lng;
+      barrio = geo.barrio;
+      geoPrecision = geo.geoPrecision;
+    }
+  }
+
+  if (!existing) {
+    logEvent(db, 'cooperative', c.cif, 'new', `Nueva cooperativa registrada: ${c.name} (${c.municipality || 'A Coruña'})`, null, null);
+  } else if (existing.active === 0) {
+    logEvent(db, 'cooperative', c.cif, 'reactivated', `Cooperativa reactivada en registro: ${c.name}`, '0', '1');
+  }
+
+  const coopCols = db.prepare(`PRAGMA table_info(cooperatives)`).all().map((col) => col.name);
+  const hasGeoCols = coopCols.includes('lat');
+
+  if (hasGeoCols) {
+    db.prepare(`
+      INSERT INTO cooperatives (
+        cif, numRegistro, name, foundedAt, foundingPartners, address,
+        postalCode, municipality, barrio, lat, lng, geoPrecision,
+        email, phone, firstSeenAt, lastSeenAt, active
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      ON CONFLICT(cif) DO UPDATE SET
+        numRegistro = COALESCE(excluded.numRegistro, cooperatives.numRegistro),
+        name = excluded.name,
+        foundedAt = COALESCE(excluded.foundedAt, cooperatives.foundedAt),
+        foundingPartners = COALESCE(excluded.foundingPartners, cooperatives.foundingPartners),
+        address = COALESCE(excluded.address, cooperatives.address),
+        postalCode = COALESCE(excluded.postalCode, cooperatives.postalCode),
+        municipality = COALESCE(excluded.municipality, cooperatives.municipality),
+        barrio = COALESCE(excluded.barrio, cooperatives.barrio),
+        lat = COALESCE(excluded.lat, cooperatives.lat),
+        lng = COALESCE(excluded.lng, cooperatives.lng),
+        geoPrecision = COALESCE(excluded.geoPrecision, cooperatives.geoPrecision),
+        email = COALESCE(excluded.email, cooperatives.email),
+        phone = COALESCE(excluded.phone, cooperatives.phone),
+        lastSeenAt = excluded.lastSeenAt,
+        active = 1
+    `).run(
+      c.cif,
+      c.numRegistro || null,
+      c.name,
+      c.foundedAt || null,
+      c.foundingPartners ?? null,
+      c.address || null,
+      c.postalCode || null,
+      c.municipality || null,
+      barrio,
+      lat,
+      lng,
+      geoPrecision,
+      c.email || null,
+      c.phone || null,
+      c.firstSeenAt,
+      c.lastSeenAt
+    );
+  } else {
+    db.prepare(`
+      INSERT INTO cooperatives (
+        cif, numRegistro, name, foundedAt, foundingPartners, address,
+        postalCode, municipality, email, phone, firstSeenAt, lastSeenAt, active
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      ON CONFLICT(cif) DO UPDATE SET
+        numRegistro = COALESCE(excluded.numRegistro, cooperatives.numRegistro),
+        name = excluded.name,
+        foundedAt = COALESCE(excluded.foundedAt, cooperatives.foundedAt),
+        foundingPartners = COALESCE(excluded.foundingPartners, cooperatives.foundingPartners),
+        address = COALESCE(excluded.address, cooperatives.address),
+        postalCode = COALESCE(excluded.postalCode, cooperatives.postalCode),
+        municipality = COALESCE(excluded.municipality, cooperatives.municipality),
+        email = COALESCE(excluded.email, cooperatives.email),
+        phone = COALESCE(excluded.phone, cooperatives.phone),
+        lastSeenAt = excluded.lastSeenAt,
+        active = 1
+    `).run(
+      c.cif,
+      c.numRegistro || null,
+      c.name,
+      c.foundedAt || null,
+      c.foundingPartners ?? null,
+      c.address || null,
+      c.postalCode || null,
+      c.municipality || null,
+      c.email || null,
+      c.phone || null,
+      c.firstSeenAt,
+      c.lastSeenAt
+    );
+  }
 }
 
-/**
- * Tras una importación del rexistro: las cooperativas cuyo lastSeenAt es anterior
- * a esta corrida ya no están en el CSV → evento 'disappeared'. Además, poda los
- * eventos con más de 90 días para que la tabla no crezca sin límite.
- *
- * @param {DatabaseSync} db
- * @param {string} seenAt - ISO timestamp de la corrida actual
- */
 export function finalizeRegistryImport(db, seenAt) {
   const disappeared = db.prepare('SELECT cif, name, municipality FROM cooperatives WHERE active = 1 AND lastSeenAt < ?').all(seenAt);
   for (const c of disappeared) {
@@ -607,14 +558,6 @@ export function finalizeRegistryImport(db, seenAt) {
   db.exec(`DELETE FROM events WHERE detectedAt < date('now', '-90 days')`);
 }
 
-/**
- * Purga datos obsoletos: oportunidades no vistas en 180 días, eventos > 90 días
- * y pipeline_runs completados > 30 días. Pensada para ejecutarse al final de
- * cada corrida exitosa del pipeline.
- *
- * @param {DatabaseSync} db
- * @returns {{ opportunities: number, events: number, pipelineRuns: number }}
- */
 export function purgeStaleData(db) {
   const opportunities = db.prepare(
     `DELETE FROM opportunities WHERE lastSeenAt < date('now', '-180 days')`
@@ -628,12 +571,6 @@ export function purgeStaleData(db) {
   return { opportunities, events, pipelineRuns };
 }
 
-/**
- * All registry cooperatives in the monitored area, newest first.
- *
- * @param {DatabaseSync} db
- * @returns {Array<Object>}
- */
 export function getAllCooperatives(db) {
   return db.prepare('SELECT * FROM cooperatives WHERE active = 1 ORDER BY foundedAt DESC').all();
 }
@@ -641,7 +578,6 @@ export function getAllCooperatives(db) {
 // ── Pipeline runs ──────────────────────────────────────────────────────────
 
 export function ensureSchema(db) {
-  // Full application schema — idempotent (IF NOT EXISTS)
   db.exec(`
     CREATE TABLE IF NOT EXISTS opportunities (
       id TEXT PRIMARY KEY,
@@ -665,6 +601,15 @@ export function ensureSchema(db) {
       garaje INTEGER,
       trastero INTEGER,
       terraza INTEGER,
+      piscina INTEGER,
+      ascensor INTEGER,
+      entregaEstimada TEXT,
+      tipoPromocion TEXT,
+      lat REAL,
+      lng REAL,
+      municipality TEXT,
+      barrio TEXT,
+      geoPrecision TEXT,
       enriched INTEGER,
       nombrePromocion TEXT,
       promotionId TEXT,
@@ -704,6 +649,10 @@ export function ensureSchema(db) {
       buscaSocios INTEGER,
       aportacionInicial INTEGER,
       municipality TEXT,
+      barrio TEXT,
+      lat REAL,
+      lng REAL,
+      geoPrecision TEXT,
       scopeStatus TEXT NOT NULL DEFAULT 'unverified',
       FOREIGN KEY(gestoraId) REFERENCES gestoras(id) ON DELETE CASCADE
     );
@@ -717,6 +666,10 @@ export function ensureSchema(db) {
       address TEXT,
       postalCode TEXT,
       municipality TEXT,
+      barrio TEXT,
+      lat REAL,
+      lng REAL,
+      geoPrecision TEXT,
       email TEXT,
       phone TEXT,
       firstSeenAt TEXT NOT NULL,
@@ -773,18 +726,6 @@ export function ensureSchema(db) {
       completedAt TEXT,
       error TEXT
     );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_idempotency
-      ON pipeline_runs(idempotencyKey) WHERE idempotencyKey IS NOT NULL;
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_one_running
-      ON pipeline_runs((1)) WHERE status = 'running';
-
-    CREATE INDEX IF NOT EXISTS idx_opp_promotionId ON opportunities(promotionId);
-    CREATE INDEX IF NOT EXISTS idx_opp_publishedAt ON opportunities(publishedAt);
-    CREATE INDEX IF NOT EXISTS idx_opp_sourceKind ON opportunities(sourceKind);
-    CREATE INDEX IF NOT EXISTS idx_promo_scopeStatus ON gestora_promotions(scopeStatus);
-    CREATE INDEX IF NOT EXISTS idx_promo_gestoraId ON gestora_promotions(gestoraId);
-    CREATE INDEX IF NOT EXISTS idx_events_detectedAt ON events(detectedAt DESC);
-    CREATE INDEX IF NOT EXISTS idx_coop_municipality_active ON cooperatives(municipality, active);
   `);
 
   // SQLite cannot alter CHECK constraints. Upgrade databases created before
@@ -793,6 +734,14 @@ export function ensureSchema(db) {
     "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'pipeline_runs'",
   ).get()?.sql || '';
   if (!pipelineSchema.includes("'curate'")) {
+    const legacyCols = db.prepare(`PRAGMA table_info(pipeline_runs)`).all().map(c => c.name);
+    const hasMode = legacyCols.includes('mode');
+    const hasIdempotency = legacyCols.includes('idempotencyKey');
+    const modeExpr = hasMode ? 'mode' : "'fast'";
+    const idempotencyExpr = hasIdempotency ? 'idempotencyKey' : 'NULL';
+    const createdAtExpr = legacyCols.includes('createdAt') ? 'createdAt' : "COALESCE(startedAt, datetime('now'))";
+    const completedAtExpr = legacyCols.includes('completedAt') ? 'completedAt' : (legacyCols.includes('endedAt') ? 'endedAt' : 'NULL');
+
     db.exec(`
       BEGIN IMMEDIATE;
       ALTER TABLE pipeline_runs RENAME TO pipeline_runs_legacy;
@@ -806,19 +755,67 @@ export function ensureSchema(db) {
         completedAt TEXT,
         error TEXT
       );
-      INSERT INTO pipeline_runs SELECT * FROM pipeline_runs_legacy;
+      INSERT INTO pipeline_runs (id, mode, status, idempotencyKey, createdAt, startedAt, completedAt, error)
+      SELECT id, ${modeExpr}, status, ${idempotencyExpr}, ${createdAtExpr}, startedAt, ${completedAtExpr}, error FROM pipeline_runs_legacy;
       DROP TABLE pipeline_runs_legacy;
-      CREATE UNIQUE INDEX idx_pipeline_runs_idempotency
-        ON pipeline_runs(idempotencyKey) WHERE idempotencyKey IS NOT NULL;
-      CREATE UNIQUE INDEX idx_pipeline_runs_one_running
-        ON pipeline_runs((1)) WHERE status = 'running';
       COMMIT;
     `);
   }
 
-  // A cron run without browser tools created 1x1 PNG placeholders. Preserve
-  // the audit rows but invalidate that exact batch so every entity is reviewed
-  // again with real, locally verified screenshots.
+  // Column migrations
+  const oppCols = db.prepare(`PRAGMA table_info(opportunities)`).all().map((c) => c.name);
+  for (const col of [
+    'piscina INTEGER',
+    'ascensor INTEGER',
+    'entregaEstimada TEXT',
+    'tipoPromocion TEXT',
+    'lat REAL',
+    'lng REAL',
+    'municipality TEXT',
+    'barrio TEXT',
+    'geoPrecision TEXT',
+    'enriched INTEGER',
+    'nombrePromocion TEXT',
+    'promotionId TEXT',
+    'evidenceText TEXT',
+    'extractionMethod TEXT'
+  ]) {
+    if (!oppCols.includes(col.split(' ')[0])) {
+      db.exec(`ALTER TABLE opportunities ADD COLUMN ${col}`);
+    }
+  }
+
+  const promoCols = db.prepare(`PRAGMA table_info(gestora_promotions)`).all().map((c) => c.name);
+  for (const col of [
+    'entregaEstimada TEXT',
+    'buscaSocios INTEGER',
+    'aportacionInicial INTEGER',
+    'municipality TEXT',
+    'barrio TEXT',
+    'lat REAL',
+    'lng REAL',
+    'geoPrecision TEXT',
+    "scopeStatus TEXT NOT NULL DEFAULT 'unverified'"
+  ]) {
+    if (!promoCols.includes(col.split(' ')[0])) {
+      db.exec(`ALTER TABLE gestora_promotions ADD COLUMN ${col}`);
+    }
+  }
+
+  const coopCols = db.prepare(`PRAGMA table_info(cooperatives)`).all().map((c) => c.name);
+  for (const col of [
+    'barrio TEXT',
+    'lat REAL',
+    'lng REAL',
+    'geoPrecision TEXT',
+    'active INTEGER NOT NULL DEFAULT 1'
+  ]) {
+    if (!coopCols.includes(col.split(' ')[0])) {
+      db.exec(`ALTER TABLE cooperatives ADD COLUMN ${col}`);
+    }
+  }
+
+  // Invalidate known placeholder screenshots
   const placeholderScreenshotSha256 = 'e878950f8091ec010cf5cc723bdea027a8539cf7147cfea199c2f666232dcd4e';
   db.prepare(`
     UPDATE curation_reviews
@@ -844,6 +841,22 @@ export function ensureSchema(db) {
         ) = ?
       )
   `).run(placeholderScreenshotSha256);
+
+  // Create indexes after ensuring all columns exist
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_idempotency
+      ON pipeline_runs(idempotencyKey) WHERE idempotencyKey IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_runs_one_running
+      ON pipeline_runs((1)) WHERE status = 'running';
+
+    CREATE INDEX IF NOT EXISTS idx_opp_promotionId ON opportunities(promotionId);
+    CREATE INDEX IF NOT EXISTS idx_opp_publishedAt ON opportunities(publishedAt);
+    CREATE INDEX IF NOT EXISTS idx_opp_sourceKind ON opportunities(sourceKind);
+    CREATE INDEX IF NOT EXISTS idx_promo_scopeStatus ON gestora_promotions(scopeStatus);
+    CREATE INDEX IF NOT EXISTS idx_promo_gestoraId ON gestora_promotions(gestoraId);
+    CREATE INDEX IF NOT EXISTS idx_events_detectedAt ON events(detectedAt DESC);
+    CREATE INDEX IF NOT EXISTS idx_coop_municipality_active ON cooperatives(municipality, active);
+  `);
 }
 
 export function createRun(db, mode, idempotencyKey) {
@@ -860,18 +873,15 @@ export function createRun(db, mode, idempotencyKey) {
 }
 
 export function getRunById(db, id) {
-  const row = db.prepare('SELECT * FROM pipeline_runs WHERE id = ?').get(id);
-  return row || null;
+  return db.prepare('SELECT * FROM pipeline_runs WHERE id = ?').get(id) || null;
 }
 
 export function listRuns(db) {
-  return db.prepare('SELECT * FROM pipeline_runs ORDER BY createdAt DESC').all();
+  return db.prepare('SELECT * FROM pipeline_runs ORDER BY createdAt DESC LIMIT 20').all();
 }
 
 export function getRunByIdempotencyKey(db, key) {
-  if (!key) return null;
-  const row = db.prepare('SELECT * FROM pipeline_runs WHERE idempotencyKey = ?').get(key);
-  return row || null;
+  return db.prepare('SELECT * FROM pipeline_runs WHERE idempotencyKey = ?').get(key) || null;
 }
 
 export function transitionRun(db, id, fromStatus, toStatus) {
@@ -896,57 +906,95 @@ export function getRunningRun(db) {
   return row || null;
 }
 
-// ── Repository (injectable into buildBackend) ──────────────────────────────
-
-function opportunityDto(row) {
-  if (!row) return null;
-  const scope = classifyPromotionLocation(row.location || '');
-  return {
-    ...row,
-    municipalitySlug: scope.municipality ? slugify(scope.municipality) : municipalitySlug(row.location),
-    statusLabel: row.status || null,
-    statusTone: statusTone(row.status),
-  };
-}
-
 function statusTone(status) {
-  if (status === 'Últimas unidades') return 'warning';
-  if (['Comercialización', 'En construcción', 'En preventa'].includes(status)) return 'positive';
+  if (!status) return 'neutral';
+  const normalized = status.toLowerCase();
+  if (normalized.includes('captaci') || normalized.includes('comercializ') || normalized.includes('obra')) {
+    return 'success';
+  }
+  if (normalized.includes('licencia') || normalized.includes('proyecto') || normalized.includes('trámite') || normalized.includes('tramite')) {
+    return 'warning';
+  }
   return 'neutral';
 }
 
+function opportunityDto(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    statusLabel: row.status || null,
+    statusTone: statusTone(row.status),
+    municipalitySlug: row.municipality ? municipalitySlug(row.municipality) : null,
+    publishedAtLabel: row.publishedAt || row.firstSeenAt,
+  };
+}
+
 function gestoraDto(gestora) {
+  if (!gestora) return null;
   return {
     ...gestora,
     promotions: (gestora.promotions || []).map((promotion) => ({
       ...promotion,
+      buscaSocios: promotion.buscaSocios === 1 ? true : (promotion.buscaSocios === 0 ? false : null),
       statusLabel: promotion.status || null,
       statusTone: statusTone(promotion.status),
     })),
   };
 }
 
-/**
- * Repository over either one caller-owned connection (tests/migrations) or a
- * connection factory (runtime). Factory connections close after each operation
- * so atomic database replacement is immediately visible.
- */
-function normalizedSearchText(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
 function gestoraWithPress(db, id) {
-  const gestora = getAllGestoras(db).find((item) => item.id === id);
+  const gestora = db.prepare(`
+    SELECT * FROM gestoras
+    WHERE id = ?
+      AND id NOT IN (
+        SELECT aliasId FROM entity_aliases
+        WHERE entityKind = 'gestora' AND canonicalId = '__rejected__'
+      )
+  `).get(id);
   if (!gestora) return null;
-  const needle = normalizedSearchText(gestora.name);
-  const press = getAllOpportunities(db, 150)
-    .filter((opportunity) => opportunity.sourceKind === 'market-alert')
-    .filter((opportunity) => normalizedSearchText([
-      opportunity.promotora,
-      opportunity.title,
-      opportunity.summary,
-    ].join(' ')).includes(needle))
-    .map(opportunityDto);
+
+  gestora.promotions = db.prepare(`
+    SELECT * FROM gestora_promotions
+    WHERE gestoraId = ?
+      AND scopeStatus != 'out_of_scope'
+      AND id NOT IN (
+        SELECT aliasId FROM entity_aliases
+        WHERE entityKind = 'promotion' AND canonicalId = '__rejected__'
+      )
+    ORDER BY buscaSocios DESC, name ASC
+  `).all(id);
+
+  const press = db.prepare(`
+    SELECT * FROM (
+      SELECT opportunities.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(promotionId, id)
+          ORDER BY COALESCE(publishedAt, firstSeenAt) DESC, lastSeenAt DESC
+        ) AS canonicalRank
+      FROM opportunities
+      WHERE (
+        promotora LIKE ?
+        OR title LIKE ?
+        OR summary LIKE ?
+      )
+      AND id NOT IN (
+        SELECT aliasId FROM entity_aliases
+        WHERE entityKind = 'opportunity' AND canonicalId = '__rejected__'
+      )
+    )
+    WHERE canonicalRank = 1
+    ORDER BY COALESCE(publishedAt, firstSeenAt) DESC
+    LIMIT 20
+  `).all(`%${gestora.name}%`, `%${gestora.name}%`, `%${gestora.name}%`).map(({ canonicalRank: _canonicalRank, ...row }) => ({
+    ...row,
+    garaje: row.garaje === 1 ? true : (row.garaje === 0 ? false : null),
+    trastero: row.trastero === 1 ? true : (row.trastero === 0 ? false : null),
+    terraza: row.terraza === 1 ? true : (row.terraza === 0 ? false : null),
+    piscina: row.piscina === 1 ? true : (row.piscina === 0 ? false : null),
+    ascensor: row.ascensor === 1 ? true : (row.ascensor === 0 ? false : null),
+    enriched: row.enriched === 1,
+  })).map(opportunityDto);
+
   return { ...gestoraDto(gestora), press };
 }
 
@@ -959,15 +1007,13 @@ export function createRepository(dbOrFactory, options = {}) {
       db.exec?.('PRAGMA foreign_keys = ON;');
       return operation(db);
     } finally {
-      db.close();
+      db.close?.();
     }
   };
   const municipalities = MUNICIPALITIES.map((name) => ({ name, slug: slugify(name) }));
 
-  // Instance-level TTL cache for dashboard() — 60 s, invalidated on successful
-  // pipeline runs via the module-level version counter.
   const DASHBOARD_CACHE_TTL_MS = 60_000;
-  let dashboardCache = null; // { result, timestamp, version }
+  let dashboardCache = null;
 
   return {
     health: () => withDb((db) => {
@@ -1030,6 +1076,8 @@ export function createRepository(dbOrFactory, options = {}) {
         garaje: row.garaje === 1 ? true : (row.garaje === 0 ? false : null),
         trastero: row.trastero === 1 ? true : (row.trastero === 0 ? false : null),
         terraza: row.terraza === 1 ? true : (row.terraza === 0 ? false : null),
+        piscina: row.piscina === 1 ? true : (row.piscina === 0 ? false : null),
+        ascensor: row.ascensor === 1 ? true : (row.ascensor === 0 ? false : null),
         enriched: row.enriched === 1,
       })).map(opportunityDto);
       const gestoraPromotions = db.prepare(
@@ -1090,3 +1138,201 @@ export function createRepository(dbOrFactory, options = {}) {
   };
 }
 
+// ── Geographic & Aggregation helpers for Frontend & Open Data APIs ─────────
+
+export function getMapFeatures(db, webBasePath = '/') {
+  const base = webBasePath.endsWith('/') ? webBasePath : `${webBasePath}/`;
+  const opps = getAllOpportunities(db, 150);
+  const gestoras = getAllGestoras(db);
+  const markers = [];
+
+  for (const op of opps) {
+    if (op.lat == null || op.lng == null) continue;
+    markers.push({
+      id: op.id,
+      title: op.nombrePromocion || op.title,
+      category: op.type || op.tipoPromocion || 'Obra Nueva',
+      type: op.type || op.tipoPromocion || 'Obra Nueva',
+      status: op.status,
+      precioMin: op.precioMin,
+      habitacionesMin: op.habitacionesMin,
+      totalViviendas: op.totalViviendas,
+      promotora: op.promotora,
+      municipality: op.municipality || op.location,
+      barrio: op.barrio,
+      lat: op.lat,
+      lng: op.lng,
+      url: `${base}oportunidad/${op.id}`,
+      color: op.type === 'Cooperativa' ? '#1f4d36' : (op.type === 'Vivienda protegida' ? '#be123c' : '#0369a1'),
+      kind: 'opportunity'
+    });
+  }
+
+  for (const g of gestoras) {
+    for (const pr of g.promotions) {
+      if (pr.lat == null || pr.lng == null) continue;
+      markers.push({
+        id: pr.id,
+        title: pr.name,
+        category: pr.buscaSocios === 1 ? 'Cooperativa' : 'Obra Nueva',
+        type: pr.buscaSocios === 1 ? 'Cooperativa' : 'Promoción nueva',
+        status: pr.status,
+        precioMin: pr.aportacionInicial ? pr.aportacionInicial * 4 : null,
+        totalViviendas: null,
+        promotora: g.name,
+        municipality: pr.municipality || pr.location,
+        barrio: pr.barrio,
+        lat: pr.lat,
+        lng: pr.lng,
+        url: `${base}gestora/${pr.gestoraId}`,
+        color: pr.buscaSocios === 1 ? '#1f4d36' : '#0369a1',
+        kind: 'promotion'
+      });
+    }
+  }
+
+  return markers;
+}
+
+export function getMarketStats(db) {
+  const opps = db.prepare(`
+    SELECT precioMin, precioMax, totalViviendas, type, municipality, barrio
+    FROM opportunities
+  `).all();
+
+  const promos = db.prepare(`
+    SELECT p.status, p.municipality, p.barrio, p.buscaSocios, p.aportacionInicial
+    FROM gestora_promotions p
+  `).all();
+
+  const groups = new Map();
+
+  function getOrInit(key, name, kind) {
+    if (!groups.has(key)) {
+      groups.set(key, {
+        name,
+        kind,
+        count: 0,
+        prices: [],
+        totalUnits: 0,
+        coopCount: 0,
+        vppCount: 0
+      });
+    }
+    return groups.get(key);
+  }
+
+  for (const op of opps) {
+    const loc = op.barrio || op.municipality || 'A Coruña';
+    const kind = op.barrio ? 'barrio' : 'municipio';
+    const entry = getOrInit(loc, loc, kind);
+
+    entry.count++;
+    if (op.precioMin) entry.prices.push(op.precioMin);
+    if (op.totalViviendas) entry.totalUnits += op.totalViviendas;
+    if (op.type === 'Cooperativa') entry.coopCount++;
+    if (op.type === 'Vivienda protegida') entry.vppCount++;
+  }
+
+  for (const pr of promos) {
+    const loc = pr.barrio || pr.municipality || 'A Coruña';
+    const kind = pr.barrio ? 'barrio' : 'municipio';
+    const entry = getOrInit(loc, loc, kind);
+
+    entry.count++;
+    if (pr.buscaSocios === 1) entry.coopCount++;
+  }
+
+  return Array.from(groups.values()).map(g => {
+    const validPrices = g.prices.sort((a, b) => a - b);
+    const minPrice = validPrices.length ? validPrices[0] : null;
+    const maxPrice = validPrices.length ? validPrices[validPrices.length - 1] : null;
+    const avgPrice = validPrices.length
+      ? Math.round(validPrices.reduce((acc, p) => acc + p, 0) / validPrices.length)
+      : null;
+
+    return {
+      name: g.name,
+      kind: g.kind,
+      count: g.count,
+      minPrice,
+      avgPrice,
+      maxPrice,
+      totalUnits: g.totalUnits,
+      coopCount: g.coopCount,
+      vppCount: g.vppCount
+    };
+  }).sort((a, b) => b.count - a.count);
+}
+
+export function getGeoJsonData(db, webBasePath = '/') {
+  const features = getMapFeatures(db, webBasePath);
+  return {
+    type: 'FeatureCollection',
+    generatedAt: new Date().toISOString(),
+    features: features.map(f => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [f.lng, f.lat]
+      },
+      properties: {
+        id: f.id,
+        title: f.title,
+        category: f.category,
+        type: f.type,
+        status: f.status,
+        precioMin: f.precioMin,
+        habitacionesMin: f.habitacionesMin,
+        totalViviendas: f.totalViviendas,
+        promotora: f.promotora,
+        municipality: f.municipality,
+        barrio: f.barrio,
+        url: f.url,
+        kind: f.kind
+      }
+    }))
+  };
+}
+
+export function backfillGeocoding(db) {
+  let oppUpdated = 0;
+  let promoUpdated = 0;
+  let coopUpdated = 0;
+
+  const ungeoOpp = db.prepare('SELECT id, title, location, summary FROM opportunities WHERE lat IS NULL').all();
+  const updateOppStmt = db.prepare('UPDATE opportunities SET lat = ?, lng = ?, municipality = ?, barrio = ?, geoPrecision = ? WHERE id = ?');
+  for (const op of ungeoOpp) {
+    const geo = resolveGeoLocation(`${op.title} ${op.summary || ''} ${op.location || ''}`, resolveMunicipality(op.location));
+    if (geo) {
+      updateOppStmt.run(geo.lat, geo.lng, geo.municipality, geo.barrio || null, geo.geoPrecision, op.id);
+      oppUpdated++;
+    }
+  }
+
+  const ungeoPromo = db.prepare('SELECT id, name, location, details FROM gestora_promotions WHERE lat IS NULL').all();
+  const updatePromoStmt = db.prepare('UPDATE gestora_promotions SET lat = ?, lng = ?, municipality = ?, barrio = ?, geoPrecision = ? WHERE id = ?');
+  for (const pr of ungeoPromo) {
+    const geo = resolveGeoLocation(`${pr.name} ${pr.details || ''} ${pr.location || ''}`, resolveMunicipality(pr.location));
+    if (geo) {
+      updatePromoStmt.run(geo.lat, geo.lng, geo.municipality, geo.barrio || null, geo.geoPrecision, pr.id);
+      promoUpdated++;
+    }
+  }
+
+  const ungeoCoop = db.prepare('SELECT cif, name, address, municipality FROM cooperatives WHERE lat IS NULL').all();
+  const updateCoopStmt = db.prepare('UPDATE cooperatives SET lat = ?, lng = ?, barrio = ?, geoPrecision = ? WHERE cif = ?');
+  for (const cp of ungeoCoop) {
+    const geo = resolveGeoLocation(`${cp.name} ${cp.address || ''} ${cp.municipality || ''}`, cp.municipality);
+    if (geo) {
+      updateCoopStmt.run(geo.lat, geo.lng, geo.barrio || null, geo.geoPrecision, cp.cif);
+      coopUpdated++;
+    }
+  }
+
+  return {
+    opportunitiesUpdated: oppUpdated,
+    promotionsUpdated: promoUpdated,
+    cooperativesUpdated: coopUpdated,
+  };
+}

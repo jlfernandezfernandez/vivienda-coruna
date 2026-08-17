@@ -1,0 +1,50 @@
+---
+// Global lightweight toast notification system (shadcn style, zero external runtime)
+---
+<div
+  id="toast-container"
+  class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"
+  aria-live="polite"
+></div>
+
+<script>
+  interface ToastOptions {
+    message: string;
+    type?: 'success' | 'info' | 'error';
+    duration?: number;
+  }
+
+  const container = document.getElementById('toast-container');
+
+  window.addEventListener('toast:show', ((e: CustomEvent<ToastOptions>) => {
+    if (!container) return;
+    const { message, type = 'success', duration = 3000 } = e.detail || {};
+
+    const toast = document.createElement('div');
+    toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-hover text-xs font-bold transition-all duration-300 transform translate-y-3 opacity-0 ${
+      type === 'success'
+        ? 'bg-surface text-ink border-brand-green/30 border-l-4 border-l-brand-green'
+        : type === 'error'
+        ? 'bg-surface text-ink border-brand-rose/30 border-l-4 border-l-brand-rose'
+        : 'bg-surface text-ink border-border-medium border-l-4 border-l-brand-blue'
+    }`;
+
+    const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+    toast.innerHTML = `
+      <span class="flex h-5 w-5 items-center justify-center rounded-full ${
+        type === 'success' ? 'bg-brand-green-soft text-brand-green' : 'bg-canvas text-ink-muted'
+      } text-xs font-extrabold">${icon}</span>
+      <span>${message}</span>
+    `;
+
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.classList.remove('translate-y-3', 'opacity-0');
+    });
+
+    setTimeout(() => {
+      toast.classList.add('translate-y-3', 'opacity-0');
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  }) as EventListener);
+</script>

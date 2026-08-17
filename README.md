@@ -1,140 +1,106 @@
-# Vivienda Coruña
+# Vivienda Coruña — Monitor de Cooperativas y Obra Nueva
 
-Monitor abierto de cooperativas, vivienda protegida y promociones nuevas en el área metropolitana de A Coruña.
+Monitor de código abierto y sin servidores para detectar señales tempranas de **cooperativas de viviendas, promociones de obra nueva y vivienda protegida (VPA/VPP)** en el área metropolitana de A Coruña.
 
-La aplicación prioriza señales tempranas, fuentes verificables y limpieza de datos. No pretende ser un portal inmobiliario generalista.
+---
 
-## Cobertura
+## 🎯 Qué cubre
 
-- A Coruña
-- Arteixo
-- Culleredo
-- Oleiros
-- Cambre
-- Sada
-- Bergondo
-- Carral
-- Abegondo
+El monitor filtra geográficamente de forma explícita para evitar falsos positivos provinciales y centrarse únicamente en la ciudad y su entorno metropolitano inmediato con resolución precisa por barrio y polígono:
 
-## Arquitectura
+* **A Coruña**: *Xuxán (Parque Ofimático)*, *Someso*, *San Pedro de Visma*, *Novo Mesoiro*, *Los Rosales*, *Matogrande*, *Cuatro Caminos*, *Monte Alto*, *Riazor*, *Ciudad Vieja*, *Eirís*, *Oza*, *Castrillón*, *A Zapateira*, etc.
+* **Oleiros**: *Perillo*, *Santa Cruz*, *Bastiagueiro*, *Mera*, *Montrove*, *Iñás*, *Nos*, *Dorneda*, *Xaz*.
+* **Culleredo**: *O Burgo*, *O Temple*, *Acea de Ama*, *Vilaboa*, *Portádego*, *Almeiras*.
+* **Arteixo**: *Meicende*, *Pastoriza*, *Vilarrodís*, *Sabón*, *Barrañán*.
+* **Cambre**: *A Barcala*, *Sigrás*, *Cecebre*.
+* **Sada**: *Fontán*, *Carnoedo*, *Soñeiro*.
+* **Bergondo**: *Guísamo*, *Gandarío*.
+* **Carral** & **Abegondo**.
+
+---
+
+## 🛠️ Arquitectura Híbrida y Datos (GitOps)
+
+El monitor utiliza un enfoque **Flat-File / GitOps** que permite archivar datos de forma ilimitada y servir el frontal de forma 100% gratuita y sin servidores dinámicos:
 
 ```text
-Fuentes RSS / IGVS / prensa
-              │
-              ▼
- backend · Fastify · pipeline ─── Firecrawl compartido
-              │
-              ▼
- /data/monitor.db · SQLite persistente
-              │ API HTTP de solo lectura
-              ▼
-       frontend · Astro SSR
+Fuentes RSS / DOG / IGVS / Prensa Local / Rexistro Xunta
+                         ↓
+              scripts/fetch-rss.mjs
+                         ↓
+  [Extractor Regex Gratis (80-90% de noticias sin coste LLM)]
+                         ↓
+  [OpenRouter / OpenAI LLM (Structured Outputs para casos complejos)]
+                         ↓
+  [Geocodificador Metropolitano (scripts/lib/geocoder.mjs)]
+                         ↓
+        src/data/monitor.db  ← [Base de Datos SQLite (Histórico Completo)]
+                         ↓
+          Astro Build        ← [Compilación Estática en build time]
+                         ↓
+         GitHub Pages        ← [Hosting Gratuito y sin Servidores]
 ```
 
-El Compose tiene tres servicios con responsabilidades explícitas:
+1. **Rastreador**: Consulta tablones oficiales de la Xunta (IGVS, DOG, Contratos Públicos) y canales de prensa local.
+2. **Descarga y Scrapeo**: Firecrawl (o descarga HTML directa para fuentes oficiales) para obtener artículos completos sin paywalls ni bloqueos.
+3. **Extracción Híbrida Zero-Token + IA**:
+   - **Fase 1 (Regex)**: Extrae de forma instantánea precios, dormitorios, baños, viviendas, garaje, trastero, terraza, piscina, ascensor, fecha de entrega y estado.
+   - **Fase 2 (LLM Structured Outputs)**: Extrae campos complejos o desestructurados con esquemas JSON estrictos.
+4. **Geocodificador Metropolitano (`geocoder.mjs`)**: Resuelve las ubicaciones detectadas a coordenadas WGS84 GPS precisas para alimentar el mapa interactivo.
+5. **Rexistro Oficial de Cooperativas**: Importa el CSV abierto de la Xunta de Galicia con diff por CIF para detectar cooperativas constituidas.
+6. **Directorio de Gestoras**: Descubre promotoras y gestoras activas, extrayendo su catálogo real y contacto.
+7. **Frontend Moderno (Astro + Leaflet + Tailwind v4)**:
+   - **Novedades y Alertas**: Feed con filtros avanzados por precio, habitaciones, baños, equipamiento y ubicación.
+   - **Mapa Interactivo (`/mapa`)**: Vista espacial completa con pines SVG y popups enriquecidos.
+   - **Cooperativas (`/cooperativas`)**: Proyectos en captación de socios y censo oficial.
+   - **Gestoras (`/gestoras`)**: Fichas de empresas y promociones asociadas.
+   - **100% Responsivo**: Switcher de vista Lista/Mapa para móviles y tablets.
 
-- `frontend`: presentación, filtros, mapa y SEO; no accede a SQLite.
-- `backend`: API, reglas de dominio, pipeline y operaciones para Hermes.
-- `database-init`: inicialización/migración idempotente del volumen.
+---
 
-SQLite sigue siendo la única base de datos. No se usan Redis, PostgreSQL ni una cola externa. El backend se despliega con una sola réplica escritora.
-
-Más detalle: [docs/architecture.md](docs/architecture.md).
-
-## Desarrollo
+## 🚀 Puesta en Marcha y Desarrollo Local
 
 ### Requisitos
+* Node.js 22 o superior (soporte nativo de `node:sqlite`).
 
-- Node.js 24 recomendado; mínimo 22.12.
-- Docker Compose opcional para ejecutar la topología completa.
-
+### Instalación
 ```bash
-git clone https://github.com/jlfernandezfernandez/vivienda-coruna.git
+git clone https://github.com/tu-usuario/vivienda-coruna.git
 cd vivienda-coruna
-cp .env.example .env
 npm ci
-npm test
-npm run quality
-npm run build
 ```
 
-Topología local:
-
+### Configuración local (`.env`)
 ```bash
-docker compose up --build
+cp .env.example .env
+```
+Rellena tus credenciales en `.env` (opcionales para desarrollo con datos en caché):
+* **`LLM_API_KEY`**: Tu API Key de OpenRouter o OpenAI.
+* **`FIRECRAWL_API_KEY`**: API Key de Firecrawl (opcional si usas instancia self-hosted).
+* **`FIRECRAWL_BASE_URL`**: URL base de Firecrawl (por defecto `https://api.firecrawl.dev`).
+
+### Comandos de desarrollo
+```bash
+npm test          # Ejecuta los 21 tests unitarios (geocoder, regex, pipeline, LLM)
+npm run refresh   # Ejecuta el rastreador, enriquece datos y actualiza monitor.db
+npm run dev       # Inicia el servidor de desarrollo local (Astro)
+npm run build     # Compila el HTML estático en /dist
+npm run preview   # Previsualiza la compilación de producción localmente
 ```
 
-- frontend: `http://127.0.0.1:4321`
-- backend: `http://127.0.0.1:3000`
+---
 
-## Datos y pipeline
+## 🤖 Automatización en Producción (GitHub Actions)
 
-El pipeline aplica esta secuencia:
+El flujo [.github/workflows/refresh-data.yml](.github/workflows/refresh-data.yml) se ejecuta automáticamente a diario:
+1. Consulta las fuentes y rastrea novedades.
+2. Enriquece los datos con regex y LLM.
+3. Geocodifica y guarda en SQLite `monitor.db`.
+4. Hace commit automático del archivo SQLite en Git.
+5. Despliega la versión estática en GitHub Pages.
 
-1. extracción determinista mediante regex;
-2. enriquecimiento LLM opcional;
-3. validación literal posterior al LLM;
-4. reconciliación de aliases;
-5. quality gate, integridad y claves foráneas;
-6. promoción atómica de una SQLite candidata.
+---
 
-Firecrawl se configura con `FIRECRAWL_BASE_URL` y permanece como servicio externo compartido. Sin `LLM_API_KEY`, el monitor sigue funcionando con extracción determinista.
+## ⚖️ Licencia
 
-En producción el pipeline no ejecuta Git, builds ni pushes. Hermes lo solicita mediante la API operacional autenticada y consulta el resultado durable en `pipeline_runs`.
-
-## API
-
-Lectura pública:
-
-- `/health`
-- `/ready`
-- `/api/v1/dashboard`
-- `/api/v1/opportunities/:id`
-- `/api/v1/gestoras`
-- `/api/v1/gestoras/:id`
-- `/api/v1/cooperatives`
-- `/api/v1/municipalities/:slug`
-
-Operación autenticada:
-
-- `POST /api/v1/operations/runs`
-- `GET /api/v1/operations/runs`
-- `GET /api/v1/operations/runs/:id`
-- `GET /api/v1/operations/diagnostics`
-- `GET /api/v1/operations/sources`
-- `GET /api/v1/operations/curation/candidates`
-- `GET /api/v1/operations/curation/reviews`
-- `POST /api/v1/operations/curation/reviews`
-
-No existe SQL remoto ni CRUD público.
-
-El curador semanal de Hermes revisa por hash todo dato nuevo o modificado,
-registra evidencia y publica mediante un run atómico `curate`. Contrato y
-controles: [docs/curation.md](docs/curation.md).
-
-## Despliegue
-
-Producción usa Coolify y dos imágenes GHCR separadas:
-
-- `ghcr.io/jlfernandezfernandez/vivienda-coruna-frontend`
-- `ghcr.io/jlfernandezfernandez/vivienda-coruna-backend`
-
-Cada despliegue fija `IMAGE_TAG=sha-<commit>`. GitHub Actions valida, construye y publica las imágenes; Hermes actualiza Coolify y ejecuta los smoke tests.
-
-El workflow legado de GitHub Pages se retiró tras verificar el cutover. El rollback fija Coolify al SHA anterior; la base se restaura solo desde un backup validado.
-
-Runbook completo: [docs/deployment.md](docs/deployment.md).
-
-## Calidad y seguridad
-
-- tests de contrato, dominio y fronteras de arquitectura;
-- SQLite con un único escritor;
-- secretos solo en Hermes, Coolify y GitHub;
-- operaciones con Bearer token y claves de idempotencia;
-- contenedores sin root, salvo el init mínimo del volumen;
-- imágenes por SHA, sin `latest`;
-- backups consistentes y restauración verificable.
-
-## Licencia
-
-[MIT](LICENSE)
+Proyecto distribuido bajo la licencia [MIT](LICENSE).

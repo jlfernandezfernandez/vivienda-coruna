@@ -1,0 +1,141 @@
+---
+import '../styles/global.css';
+import Layout from '../layouts/Layout.astro';
+import CoverageMap from '../components/CoverageMap.astro';
+import { getDatabase, getMapFeatures } from '../../scripts/lib/db.mjs';
+import { MUNICIPALITIES, webBase, slugify } from '../../scripts/lib/municipios.mjs';
+
+const base = webBase(import.meta.env.BASE_URL);
+const db = getDatabase();
+const markers = getMapFeatures(db, base);
+
+const pageTitle = 'Mapa de Promociones de Obra Nueva y Cooperativas en A Coruña | Vivienda Coruña';
+const pageDescription = 'Mapa interactivo con todas las promociones de obra nueva, cooperativas de viviendas y promociones públicas detectadas en el área metropolitana de A Coruña.';
+---
+
+<Layout title={pageTitle} description={pageDescription}>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6">
+    <!-- Header -->
+    <div class="mb-6 border-b border-border-soft pb-6">
+      <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
+        <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
+        {markers.length} ubicaciones geolocalizadas
+      </div>
+      <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
+        Mapa de Promociones y Cooperativas
+      </h1>
+      <p class="text-sm md:text-base text-ink-muted mt-2 max-w-2xl leading-relaxed">
+        Explora la ubicación exacta de las promociones de obra nueva, cooperativas en captación y suelo residencial en el área metropolitana de A Coruña.
+      </p>
+    </div>
+
+    <!-- Map Component (Full Height) -->
+    <div class="mb-10">
+      <CoverageMap markers={markers} heightClass="h-[480px] md:h-[580px]" showFilters={true} mapId="main-mapa-page" />
+    </div>
+
+    <!-- Quick stats grid -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
+      <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
+        <span class="text-2xl font-extrabold text-brand-green">
+          {markers.filter(m => m.type === 'Cooperativa' || (m.category && m.category.includes('Cooperativa'))).length}
+        </span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Cooperativas</p>
+      </div>
+      <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
+        <span class="text-2xl font-extrabold text-brand-blue">
+          {markers.filter(m => m.type === 'Promoción nueva' || m.type === 'Obra Nueva' || (m.category && m.category.includes('Obra Nueva'))).length}
+        </span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Obra Nueva</p>
+      </div>
+      <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
+        <span class="text-2xl font-extrabold text-brand-rose">
+          {markers.filter(m => m.type === 'Vivienda protegida' || (m.category && m.category.includes('VPP'))).length}
+        </span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">VPP Protegida</p>
+      </div>
+      <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
+        <span class="text-2xl font-extrabold text-brand-purple">
+          {markers.filter(m => m.type === 'Suelo' || (m.category && m.category.includes('Suelo'))).length}
+        </span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Suelo / Proyecto</p>
+      </div>
+    </div>
+
+    <!-- Directory list by municipality with direct links and click-to-map integration -->
+    <section class="border border-border-soft bg-surface p-6 rounded-2xl shadow-premium mb-6">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-border-soft">
+        <div>
+          <h2 class="text-lg font-bold text-ink">Catálogo de Ubicaciones por Municipio</h2>
+          <p class="text-xs text-ink-muted mt-0.5">Haz clic en 📍 para ubicar cualquier promoción directamente en el mapa superior</p>
+        </div>
+        <a href={base} class="text-xs font-bold text-brand-green hover:underline">
+          Ver todas las novedades en formato feed →
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {MUNICIPALITIES.map((muni) => {
+          const muniMarkers = markers.filter((m) => m.municipality === muni);
+          if (muniMarkers.length === 0) return null;
+          return (
+            <div class="flex flex-col gap-2 p-4 rounded-xl bg-canvas border border-border-soft">
+              <div class="flex items-center justify-between border-b border-border-soft pb-2">
+                <a href={`${base}municipio/${slugify(muni)}`} class="font-extrabold text-sm text-ink hover:text-brand-green transition-colors">
+                  {muni}
+                </a>
+                <a href={`${base}municipio/${slugify(muni)}`} class="text-xs font-bold px-2 py-0.5 rounded-full bg-brand-green-soft text-brand-green hover:bg-brand-green hover:text-surface transition-all">
+                  {muniMarkers.length}
+                </a>
+              </div>
+              <ul class="space-y-2 text-xs">
+                {muniMarkers.slice(0, 6).map((m) => (
+                  <li class="flex items-center justify-between gap-2 bg-surface p-2 rounded-lg border border-border-soft/60 hover:border-brand-green/30 transition-all">
+                    <div class="min-w-0 flex-1">
+                      <a href={m.url} class="font-semibold text-ink hover:text-brand-green transition-colors block truncate">
+                        {m.barrio ? `${m.barrio}: ` : ''}{m.title}
+                      </a>
+                      {m.precioMin && (
+                        <span class="text-[11px] font-bold text-brand-green">
+                          Desde {m.precioMin.toLocaleString('es-ES')} €
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      class="locate-on-map-btn px-2 py-1 rounded-md text-[11px] font-bold bg-canvas border border-border-soft hover:bg-brand-green hover:text-white hover:border-brand-green transition-all cursor-pointer flex-shrink-0 flex items-center gap-1"
+                      data-locate-id={m.id}
+                      title="Ubicar en el mapa superior"
+                    >
+                      <span>📍</span>
+                      <span class="hidden sm:inline">Ver</span>
+                    </button>
+                  </li>
+                ))}
+                {muniMarkers.length > 6 && (
+                  <li class="pt-1 text-center">
+                    <a href={`${base}municipio/${slugify(muni)}`} class="text-[11px] text-brand-green font-bold hover:underline">
+                      +{muniMarkers.length - 6} promociones más en {muni} →
+                    </a>
+                  </li>
+                )}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<script>
+  // Handle click on map locator buttons
+  document.querySelectorAll('[data-locate-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-locate-id');
+      if (id) {
+        window.dispatchEvent(new CustomEvent('map:focus-marker', { detail: { id } }));
+      }
+    });
+  });
+</script>

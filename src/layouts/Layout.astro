@@ -4,21 +4,26 @@ export interface Props {
   description?: string;
   jsonLd?: Record<string, unknown>;
 }
-import { siteBase } from '../lib/ui.mjs';
+import { webBase, MUNICIPALITIES, slugify } from '../../scripts/lib/municipios.mjs';
+import CommandPalette from '../components/CommandPalette.astro';
+import Toast from '../components/Toast.astro';
 
 const { title, description, jsonLd } = Astro.props;
-const base = siteBase(import.meta.env.BASE_URL);
-const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+const base = webBase(import.meta.env.BASE_URL);
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://jlfernandezfernandez.github.io/vivienda-coruna');
 
 // Sección activa a partir de la ruta (quitando el base path del despliegue).
 const rawPath = Astro.url.pathname;
 const relPath = rawPath.startsWith(base) ? `/${rawPath.slice(base.length)}` : rawPath;
-const activeSection = relPath.split('/')[1];
+const activeSection = relPath.split('/')[1] || '';
 const sections = [
   { href: base, label: 'Novedades', id: '' },
+  { href: `${base}mapa`, label: 'Mapa Interactivo', id: 'mapa' },
   { href: `${base}cooperativas`, label: 'Cooperativas', id: 'cooperativas' },
   { href: `${base}gestoras`, label: 'Gestoras', id: 'gestoras' },
 ];
+
+const currentYear = new Date().getFullYear();
 ---
 
 <!doctype html>
@@ -36,10 +41,12 @@ const sections = [
     {description && <meta property="og:description" content={description} />}
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalUrl} />
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    {description && <meta name="twitter:description" content={description} />}
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')} />}
     
-    <!-- Favicon declarations to ensure browser compatibility -->
+    <!-- Favicon declarations -->
     <link rel="icon" type="image/x-icon" href={`${base}favicon.ico`} />
     <link rel="icon" type="image/png" href={`${base}favicon.png`} />
     <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
@@ -49,50 +56,113 @@ const sections = [
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-canvas text-ink selection:bg-brand-green-soft selection:text-brand-green">
-    <!-- Header: Sticky header, compact -->
-    <header class="w-full border-b border-border-soft bg-surface/95 backdrop-blur-md sticky top-0 z-[1001] py-2.5" role="banner" aria-label="Cabecera del sitio">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6">
-        <a class="group flex items-center gap-2 no-underline" href={base}>
-          <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-green text-surface transition-transform group-hover:scale-105 duration-200 shadow-sm">
-            <svg class="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+  <body class="bg-canvas text-ink selection:bg-brand-green-soft selection:text-brand-green flex flex-col min-h-screen">
+    <!-- Skip to main content accessibility link -->
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-brand-green focus:text-surface focus:rounded-xl focus:shadow-hover focus:font-bold text-sm"
+    >
+      Saltar al contenido principal
+    </a>
+
+    <!-- Header -->
+    <header class="w-full border-b border-border-soft bg-surface/95 backdrop-blur-md sticky top-0 z-40" role="banner" aria-label="Cabecera del sitio">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 py-3.5">
+        <!-- Logo Brand -->
+        <a class="group flex items-center gap-3 no-underline" href={base}>
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-green text-surface transition-transform group-hover:scale-105 duration-200 shadow-sm">
+            <svg class="h-5 w-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
               <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
             </svg>
           </div>
-          <span class="text-base font-extrabold tracking-tight text-ink group-hover:text-brand-green transition-colors duration-200">Vivienda Coruña</span>
+          <div class="flex flex-col">
+            <span class="text-base sm:text-lg font-extrabold tracking-tight text-ink group-hover:text-brand-green transition-colors duration-200 leading-none">
+              Vivienda Coruña
+            </span>
+            <span class="text-[10px] sm:text-[11px] font-semibold text-ink-light leading-tight mt-0.5">
+              Monitor de Cooperativas y Obra Nueva
+            </span>
+          </div>
         </a>
 
-        <a
-          href="https://github.com/jlfernandezfernandez/vivienda-coruna"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-ink-muted hover:text-brand-green transition-colors duration-200"
-          aria-label="Código fuente en GitHub"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" width="16" height="16">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-          </svg>
-        </a>
+        <!-- Desktop Navigation & Search & GitHub link -->
+        <div class="flex items-center gap-3">
+          <!-- Command Palette Trigger Button -->
+          <button
+            type="button"
+            onclick="window.openCommandPalette && window.openCommandPalette()"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-canvas border border-border-soft hover:border-brand-green/30 text-ink-muted hover:text-ink text-xs font-semibold transition-all cursor-pointer shadow-sm"
+            title="Búsqueda rápida (Atajo: ⌘K o /)"
+          >
+            <svg class="h-3.5 w-3.5 text-ink-light stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
+            </svg>
+            <span class="hidden sm:inline">Buscar...</span>
+            <kbd class="px-1.5 py-0.5 rounded bg-surface border border-border-soft text-[10px] font-mono font-bold text-ink-light">⌘K</kbd>
+          </button>
+
+          <nav class="hidden md:flex items-center gap-1.5" aria-label="Navegación principal">
+            {sections.map((section) =>
+              section.id === activeSection ? (
+                <a
+                  href={section.href}
+                  aria-current="page"
+                  class="rounded-full bg-brand-green px-3.5 py-1.5 text-xs font-bold text-surface shadow-sm"
+                >
+                  {section.label}
+                </a>
+              ) : (
+                <a
+                  href={section.href}
+                  class="rounded-full border border-border-soft bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
+                >
+                  {section.label}
+                </a>
+              )
+            )}
+          </nav>
+
+          <div class="h-4 w-px bg-border-soft hidden md:block"></div>
+
+          <a
+            href="https://github.com/jlfernandezfernandez/vivienda-coruna"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-ink-muted hover:text-brand-green p-1.5 rounded-lg hover:bg-canvas transition-colors duration-200 flex items-center gap-1.5 text-xs font-semibold"
+            aria-label="Código fuente en GitHub (se abre en una nueva ventana)"
+            title="Ver código en GitHub"
+          >
+            <svg
+              class="h-4.5 w-4.5"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+              width="18"
+              height="18"
+            >
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+            </svg>
+            <span class="hidden sm:inline">GitHub</span>
+          </a>
+        </div>
       </div>
-    </header>
-    
-    <main class="py-4 sm:py-6">
-      <!-- Section navigation -->
-      <div class="mx-auto max-w-6xl px-4 sm:px-6">
-        <nav class="mb-6 flex flex-wrap gap-1.5" aria-label="Secciones">
+
+      <!-- Mobile Navigation Bar -->
+      <div class="md:hidden border-t border-border-soft px-4 py-2 bg-canvas overflow-x-auto no-scrollbar">
+        <nav class="flex gap-1.5 min-w-max" aria-label="Secciones móvil">
           {sections.map((section) =>
             section.id === activeSection ? (
               <a
                 href={section.href}
                 aria-current="page"
-                class="rounded-lg bg-brand-green px-3.5 py-1.5 text-sm font-bold text-surface"
+                class="rounded-full bg-brand-green px-3 py-1 text-xs font-bold text-surface shadow-sm"
               >
                 {section.label}
               </a>
             ) : (
               <a
                 href={section.href}
-                class="rounded-lg border border-border-soft bg-surface px-3.5 py-1.5 text-sm font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
+                class="rounded-full border border-border-soft bg-surface px-3 py-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors"
               >
                 {section.label}
               </a>
@@ -100,24 +170,79 @@ const sections = [
           )}
         </nav>
       </div>
+    </header>
+    
+    <main id="main-content" class="py-6 sm:py-8 flex-1">
       <slot />
     </main>
 
-    <!-- Footer -->
-    <footer class="w-full border-t border-border-soft bg-surface mt-16 py-8" role="contentinfo">
-      <div class="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-light">
-        <p>
-          Datos del Rexistro de Cooperativas da Xunta de Galicia, IGVS y prensa local ·
-          actualización automática.
-        </p>
-        <div class="flex items-center gap-4">
-          <a href="https://github.com/jlfernandezfernandez/vivienda-coruna" target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors font-semibold">
-            Código abierto
-          </a>
-          <span aria-hidden="true">·</span>
-          <span>Área metropolitana de A Coruña</span>
+    <!-- Comprehensive Semantic Footer -->
+    <footer class="w-full border-t border-border-soft bg-surface mt-16 py-12 text-ink-muted" role="contentinfo">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+          <!-- Col 1: Identity -->
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-green text-surface shadow-sm">
+                <svg class="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                </svg>
+              </div>
+              <span class="font-extrabold text-ink text-sm">Vivienda Coruña</span>
+            </div>
+            <p class="text-xs text-ink-muted leading-relaxed">
+              Monitor de código abierto para detectar señales tempranas de cooperativas de vivienda, captación de socios, licencias y promociones de obra nueva en el área metropolitana de A Coruña.
+            </p>
+            <div class="flex items-center gap-2 text-xs font-semibold text-brand-green mt-1">
+              <span class="flex h-2 w-2 rounded-full bg-status-ok pulse-indicator-ok"></span>
+              Actualizado a diario de forma autónoma
+            </div>
+          </div>
+
+          <!-- Col 2: Navigation -->
+          <div class="flex flex-col gap-2.5">
+            <span class="text-xs font-bold text-ink uppercase tracking-wider">Secciones</span>
+            <ul class="space-y-1.5 text-xs">
+              <li><a href={base} class="hover:text-brand-green transition-colors">Novedades y Alertas</a></li>
+              <li><a href={`${base}mapa`} class="hover:text-brand-green transition-colors">Mapa de Promociones</a></li>
+              <li><a href={`${base}cooperativas`} class="hover:text-brand-green transition-colors">Cooperativas Constituidas</a></li>
+              <li><a href={`${base}gestoras`} class="hover:text-brand-green transition-colors">Directorio de Gestoras</a></li>
+            </ul>
+          </div>
+
+          <!-- Col 3: Monitored Municipalities -->
+          <div class="flex flex-col gap-2.5">
+            <span class="text-xs font-bold text-ink uppercase tracking-wider">Área Metropolitana</span>
+            <div class="grid grid-cols-2 gap-1 text-xs">
+              {MUNICIPALITIES.map((muni) => (
+                <a href={`${base}municipio/${slugify(muni)}`} class="hover:text-brand-green transition-colors truncate">
+                  {muni}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <!-- Col 4: Data Sources & Open Data -->
+          <div class="flex flex-col gap-2.5">
+            <span class="text-xs font-bold text-ink uppercase tracking-wider">Datos Abiertos & Fuentes</span>
+            <ul class="space-y-1.5 text-xs">
+              <li><a href={`${base}api/promociones.geojson`} target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors font-semibold flex items-center gap-1"><span>📥 GeoJSON Metropolitano</span></a></li>
+              <li><a href={`${base}api/promociones.json`} target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors font-semibold flex items-center gap-1"><span>📦 API JSON Abierta</span></a></li>
+              <li><a href="https://igvs.xunta.gal" target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors">IGVS (Xunta de Galicia)</a></li>
+              <li><a href="https://abertos.xunta.gal" target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors">Rexistro de Cooperativas</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="border-t border-border-soft pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-light">
+          <p>© {currentYear} Vivienda Coruña. Proyecto de código abierto bajo licencia <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer" class="font-bold hover:text-brand-green transition-colors">MIT</a>.</p>
+          <p class="text-center sm:text-right">Los datos se recopilan de fuentes públicas para fines informativos.</p>
         </div>
       </div>
     </footer>
+
+    <!-- Global Command Palette & Toast Notifications -->
+    <CommandPalette />
+    <Toast />
   </body>
 </html>

@@ -1,14 +1,14 @@
 ---
 import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
-import { api } from '../lib/api/client.mjs';
-import { apiSafe } from '../lib/api/boundary.mjs';
-import { siteBase } from '../lib/ui.mjs';
+import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives } from '../../scripts/lib/db.mjs';
+import { webBase } from '../../scripts/lib/municipios.mjs';
 
-const [cooperatives, dashboard] = await apiSafe(Astro.response, () => Promise.all([api.cooperatives(), api.dashboard()]), [[], { opportunities: [], gestoras: [] }]);
-const { opportunities, gestoras } = dashboard;
-const coopOpportunities = opportunities.filter((o) => o.type === 'Cooperativa');
-const base = siteBase(import.meta.env.BASE_URL);
+const db = getDatabase();
+const cooperatives = getAllCooperatives(db);
+const coopOpportunities = getAllOpportunities(db, 150).filter((o) => o.type === 'Cooperativa');
+const gestoras = getAllGestoras(db);
+const base = webBase(import.meta.env.BASE_URL);
 
 const captacion = gestoras.flatMap((g) =>
   g.promotions
@@ -21,230 +21,128 @@ const formatDate = (d: string | null) =>
     ? new Date(`${d}T00:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Madrid' })
     : null;
 
-// --- Helpers for enrichment ---
-
-// Time since founding: "Constituida hace 4 meses" / "hace 2 años"
-function timeSinceFounded(foundedAt: string | null): string | null {
-  if (!foundedAt) return null;
-  const founded = new Date(`${foundedAt}T00:00:00`);
-  const now = new Date();
-  const months = (now.getFullYear() - founded.getFullYear()) * 12 + (now.getMonth() - founded.getMonth());
-  if (months < 0) return null;
-  if (months < 12) {
-    return months <= 1 ? 'Constituida hace 1 mes' : `Constituida hace ${months} meses`;
-  }
-  const years = Math.floor(months / 12);
-  const remMonths = months % 12;
-  if (years === 1 && remMonths === 0) return 'Constituida hace 1 año';
-  if (remMonths === 0) return `Constituida hace ${years} años`;
-  return `Constituida hace ${years} año${years > 1 ? 's' : ''} y ${remMonths} mes${remMonths > 1 ? 'es' : ''}`;
-}
-
-// foundingPartners chip size/color
-function partnersChip(partners: number | null): { label: string; classes: string } {
-  if (partners == null) return { label: 'Socios N/D', classes: 'text-[10px] px-1.5 py-0.5 bg-canvas text-ink-muted border border-border-soft' };
-  if (partners < 10) return { label: `${partners} socios`, classes: 'text-[10px] px-1.5 py-0.5 bg-canvas text-ink-muted border border-border-soft' };
-  if (partners <= 30) return { label: `${partners} socios`, classes: 'text-[11px] px-2 py-0.5 bg-brand-green-soft text-brand-green border border-brand-green/10' };
-  return { label: `${partners} socios`, classes: 'text-xs px-2.5 py-1 bg-brand-green text-surface border border-brand-green-hover' };
-}
-
-// Gestora cross-reference: match coop email domain to gestora email/website domain
-function extractDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
-  } catch {
-    return '';
-  }
-}
-function emailDomain(email: string): string {
-  const at = email.lastIndexOf('@');
-  return at >= 0 ? email.slice(at + 1).toLowerCase() : '';
-}
-
-// Build a map: domain → gestora (from both gestora.email and gestora.website)
-const gestoraByDomain = new Map<string, { id: string; name: string }>();
-for (const g of gestoras) {
-  const domains = new Set<string>();
-  if (g.email) {
-    const d = emailDomain(g.email);
-    if (d) domains.add(d);
-  }
-  if (g.website) {
-    const d = extractDomain(g.website);
-    if (d) domains.add(d);
-  }
-  for (const d of domains) {
-    gestoraByDomain.set(d, { id: g.id, name: g.name });
-  }
-}
-
-function matchGestora(coopEmail: string | null): { id: string; name: string } | null {
-  if (!coopEmail) return null;
-  const d = emailDomain(coopEmail);
-  if (!d) return null;
-  // exact match
-  if (gestoraByDomain.has(d)) return gestoraByDomain.get(d)!;
-  // suffix match: coop email domain ends with a known gestora domain (subdomain case)
-  for (const [known, gestora] of gestoraByDomain) {
-    if (d.endsWith(`.${known}`) || known.endsWith(`.${d}`)) return gestora;
-  }
-  return null;
-}
-
-// Group cooperativas by municipality (sorted by count desc, then name)
-const municipalities = [...new Set(cooperatives.map((c) => c.municipality).filter(Boolean))] as string[];
-const grouped = municipalities
-  .map((m) => ({ name: m, items: cooperatives.filter((c) => c.municipality === m) }))
-  .sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name, 'es'));
-
-const pageTitle = 'Cooperativas de vivienda en A Coruña — registro oficial y captación | Vivienda Coruña';
-const pageDescription = 'Cooperativas de vivienda constituidas en el área de A Coruña según el Rexistro de Cooperativas da Xunta, más señales en prensa y promociones en captación de socios.';
+const pageTitle = 'Cooperativas de vivienda en A Coruña — Registro Oficial y Captación | Vivienda Coruña';
+const pageDescription = 'Todas las cooperativas de vivienda constituidas en el área de A Coruña según el Rexistro Oficial de la Xunta de Galicia, proyectos en captación de socios y señales de prensa.';
 ---
 
 <Layout title={pageTitle} description={pageDescription}>
   <div class="mx-auto max-w-6xl px-4 sm:px-6">
     <!-- Header -->
-    <div class="mb-6 border-b border-border-soft pb-6">
+    <div class="mb-8 border-b border-border-soft pb-6">
+      <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
+        <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
+        Rexistro Oficial de Cooperativas de Galicia
+      </div>
       <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
-        Cooperativas de vivienda en A Coruña
+        Cooperativas de Vivienda en A Coruña
       </h1>
       <p class="text-sm md:text-base text-ink-muted mt-3 leading-relaxed max-w-2xl">
-        Datos del Rexistro de Cooperativas da Xunta de Galicia combinados con monitorización diaria de prensa y fuentes oficiales.
+        Listado completo de cooperativas residenciales constituidas en el área metropolitana, complementado con promociones que buscan socios y señales de prensa en tiempo real.
       </p>
     </div>
 
     <!-- Stats row -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-      <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+      <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
         <span class="text-3xl font-extrabold text-brand-green">{cooperatives.length}</span>
         <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Cooperativas en el Rexistro</p>
       </div>
-      <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
-        <span class="text-3xl font-extrabold text-brand-green">{coopOpportunities.length}</span>
-        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Señales en prensa y fuentes</p>
+      <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
+        <span class="text-3xl font-extrabold text-brand-blue">{coopOpportunities.length}</span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Señales detectadas</p>
       </div>
-      <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
-        <span class="text-3xl font-extrabold text-brand-green">{captacion.length}</span>
-        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Promociones en captación</p>
+      <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
+        <span class="text-3xl font-extrabold text-brand-orange">{captacion.length}</span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">En captación abierta</p>
       </div>
     </div>
 
-    <!-- Registry cooperatives grouped by municipality -->
+    <!-- Captación Abierta Section (Priority) -->
+    {captacion.length > 0 && (
+      <section class="mb-12" aria-labelledby="captacion-title">
+        <h2 id="captacion-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
+          <span>Promociones en captación de socios</span>
+          <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-status-ok/10 text-brand-green border border-status-ok/25 text-[11px] font-semibold">
+            {captacion.length} activas
+          </span>
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {captacion.map(({ gestora, promo }) => (
+            <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col justify-between hover:shadow-hover transition-all">
+              <div>
+                <div class="flex items-center justify-between gap-2 mb-2">
+                  <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">📍 {promo.location || 'Área metropolitana'}</span>
+                  <span class="inline-flex items-center rounded-lg bg-status-ok/10 text-brand-green border border-status-ok/25 px-2.5 py-0.5 text-[10px] font-bold">
+                    Captación abierta
+                  </span>
+                </div>
+                <h3 class="text-base font-bold text-ink mb-1">{promo.name}</h3>
+                <p class="text-xs text-ink-muted mb-3">Gestora: <strong class="text-ink font-semibold">{gestora.name}</strong></p>
+                {promo.details && <p class="text-xs text-ink-light mb-3">{promo.details}</p>}
+                {(promo.entregaEstimada || promo.aportacionInicial) && (
+                  <div class="flex flex-wrap gap-2 text-xs text-ink-muted mb-4 bg-canvas p-2.5 rounded-xl border border-border-soft">
+                    {promo.entregaEstimada && <span>📅 Entrega: <strong class="text-ink">{promo.entregaEstimada}</strong></span>}
+                    {promo.aportacionInicial && <span>💶 Aportación: <strong class="text-ink">{promo.aportacionInicial.toLocaleString('es-ES')} €</strong></span>}
+                  </div>
+                )}
+              </div>
+              <a
+                href={`${base}gestora/${gestora.id}`}
+                class="w-full bg-brand-green text-surface text-center font-bold py-2 px-3 rounded-xl text-xs hover:bg-brand-green-hover transition-colors"
+              >
+                Ver ficha de la gestora y contacto →
+              </a>
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- Registry cooperatives -->
     <section class="mb-12" aria-labelledby="registro-title">
       <h2 id="registro-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
         Cooperativas constituidas
         <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
-          Rexistro oficial
+          {cooperatives.length} inscritas
         </span>
       </h2>
-
-      <!-- Municipality filter -->
-      {municipalities.length > 1 && (
-        <div class="flex flex-col gap-2 mb-5">
-          <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Filtrar por municipio</span>
-          <div class="flex flex-wrap gap-1.5 items-center" id="coop-muni-filter">
-            <button
-              class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/10 cursor-pointer transition-all"
-              data-coop-muni="all"
-              aria-pressed="true"
-            >
-              Todos
-            </button>
-            {municipalities.map((loc) => (
-              <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
-                data-coop-muni={loc}
-                aria-pressed="false"
-              >
-                {loc}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {grouped.map((group) => (
-        <div class="mb-8 coop-muni-group" data-coop-muni-group={group.name}>
-          <h3 class="text-sm font-bold text-ink mb-3 flex items-center gap-2">
-            {group.name}
-            <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-lg bg-canvas border border-border-soft text-[11px] font-semibold text-ink-muted">
-              {group.items.length}
-            </span>
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {group.items.map((c) => {
-              const gestoraMatch = matchGestora(c.email);
-              const timeLabel = timeSinceFounded(c.foundedAt);
-              const chip = partnersChip(c.foundingPartners);
-              return (
-                <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
-                  <div class="flex items-start justify-between gap-3 mb-2">
-                    <h4 class="text-sm font-bold text-ink capitalize leading-snug">{c.name.toLowerCase()}</h4>
-                    <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
-                      <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-muted">
-                        {c.municipality}
-                      </span>
-                      {/* Active/inactive badge */}
-                      {c.active ? (
-                        <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-lg bg-status-ok/10 text-brand-green border border-status-ok/15">
-                          <span class="h-1.5 w-1.5 rounded-lg bg-status-ok"></span> Activa
-                        </span>
-                      ) : (
-                        <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-lg bg-canvas text-ink-light border border-border-soft">
-                          <span class="h-1.5 w-1.5 rounded-full bg-ink-light"></span> Inactiva
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div class="text-xs text-ink-muted space-y-1.5">
-                    {/* foundingPartners chip */}
-                    {c.foundingPartners != null && (
-                      <p>
-                        <span class={`inline-flex items-center rounded-lg font-semibold ${chip.classes}`}>
-                          {chip.label}
-                        </span>
-                      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {cooperatives.map((c) => (
+          <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col justify-between">
+            <div>
+              <div class="flex items-start justify-between gap-3 mb-2">
+                <h3 class="text-sm font-bold text-ink capitalize leading-snug">{c.name.toLowerCase()}</h3>
+                <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-muted flex-shrink-0">
+                  {c.municipality}
+                </span>
+              </div>
+              <div class="text-xs text-ink-muted space-y-1 mt-3">
+                {formatDate(c.foundedAt) && (
+                  <p>Constituida el <strong class="text-ink font-semibold">{formatDate(c.foundedAt)}</strong></p>
+                )}
+                {c.foundingPartners != null && (
+                  <p>{c.foundingPartners} socios fundadores</p>
+                )}
+                {c.address && <p class="text-ink-light">📍 {c.address}{c.postalCode ? `, ${c.postalCode}` : ''}</p>}
+                {(c.email || c.phone) && (
+                  <div class="flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-border-soft mt-2">
+                    {c.email && (
+                      <a href={`mailto:${c.email}`} class="font-semibold text-brand-green hover:underline">✉️ {c.email}</a>
                     )}
-                    {/* Time since founding */}
-                    {timeLabel && (
-                      <p class="text-ink-muted">{timeLabel}</p>
-                    )}
-                    {formatDate(c.foundedAt) && (
-                      <p>Constituida el <strong class="text-ink">{formatDate(c.foundedAt)}</strong></p>
-                    )}
-                    {c.address && <p>📍 {c.address}{c.postalCode ? `, ${c.postalCode}` : ''}</p>}
-                    {(c.email || c.phone) && (
-                      <p class="flex flex-wrap gap-x-3 gap-y-1 pt-1">
-                        {c.email && (
-                          <a href={`mailto:${c.email}`} class="font-semibold text-brand-green hover:underline">✉️ {c.email}</a>
-                        )}
-                        {c.phone && (
-                          <a href={`tel:${String(c.phone).replace(/\s+/g, '')}`} class="font-semibold text-brand-green hover:underline">📞 {c.phone}</a>
-                        )}
-                      </p>
-                    )}
-                    {/* Gestora cross-ref badge */}
-                    {gestoraMatch && (
-                      <p class="pt-1">
-                        <a
-                          href={`${base}gestora/${gestoraMatch.id}`}
-                          class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-brand-blue-soft text-brand-blue border border-brand-blue/20 hover:bg-brand-blue/10 transition-colors"
-                        >
-                          Gestiona: {gestoraMatch.name}
-                        </a>
-                      </p>
+                    {c.phone && (
+                      <a href={`tel:${String(c.phone).replace(/\s+/g, '')}`} class="font-semibold text-brand-green hover:underline">📞 {c.phone}</a>
                     )}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </section>
 
     <!-- Press signals -->
-    <section class="mb-12" aria-labelledby="prensa-title">
+    <section class="mb-8" aria-labelledby="prensa-title">
       <h2 id="prensa-title" class="text-lg font-bold text-ink mb-4">
         Señales de cooperativas en prensa y fuentes oficiales
       </h2>
@@ -261,11 +159,7 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
                   <div class="min-w-0">
                     <span class="text-sm font-bold text-ink group-hover:text-brand-green transition-colors block truncate">{o.title}</span>
                     <span class="text-[11px] text-ink-light">
-                      {o.location || 'Área de A Coruña'} · {o.sourceKind === 'market-alert'
-                        ? 'Prensa local'
-                        : o.sourceKind === 'firecrawl-search'
-                          ? new URL(o.url).hostname.replace(/^www\./, '')
-                          : o.source}
+                      {o.barrio ? `${o.barrio}, ` : ''}{o.location || 'Área de A Coruña'} · {o.sourceKind === 'market-alert' ? 'Prensa local' : o.source}
                     </span>
                   </div>
                   <span class="text-[11px] text-ink-light flex-shrink-0">
@@ -278,66 +172,5 @@ const pageDescription = 'Cooperativas de vivienda constituidas en el área de A 
         </div>
       )}
     </section>
-
-    <!-- Captación -->
-    <section class="mb-4" aria-labelledby="captacion-title">
-      <h2 id="captacion-title" class="text-lg font-bold text-ink mb-4">
-        Promociones en captación
-      </h2>
-      {captacion.length === 0 ? (
-        <div class="p-8 text-center rounded-2xl border border-border-soft text-ink-muted bg-surface text-sm">
-          Ninguna promoción con captación abierta detectada todavía.
-        </div>
-      ) : (
-        <div class="border border-border-soft bg-surface rounded-2xl shadow-premium overflow-hidden">
-          <ul class="divide-y divide-border-soft">
-            {captacion.map(({ gestora, promo }) => (
-              <li>
-                <a href={`${base}gestora/${gestora.id}`} class="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-surface-hover transition-colors">
-                  <div class="min-w-0">
-                    <span class="text-sm font-bold text-ink group-hover:text-brand-green transition-colors block truncate">{promo.name}</span>
-                    <span class="text-[11px] text-ink-light">{gestora.name} · 📍 {promo.location || '—'}</span>
-                  </div>
-                  <span class="inline-flex items-center rounded-lg border bg-status-ok/10 text-brand-green border-status-ok/15 px-2.5 py-0.5 text-[11px] font-semibold flex-shrink-0">
-                    Captación abierta
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </section>
   </div>
 </Layout>
-
-<script is:inline>
-  // Municipality filter for cooperativas page
-  const filterContainer = document.getElementById('coop-muni-filter');
-  if (filterContainer) {
-    const buttons = filterContainer.querySelectorAll('button[data-coop-muni]');
-    const groups = document.querySelectorAll('[data-coop-muni-group]');
-    buttons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const selected = btn.getAttribute('data-coop-muni');
-        // Toggle active styles
-        buttons.forEach((b) => {
-          b.classList.remove('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/10');
-          b.classList.add('bg-surface', 'text-ink-muted', 'border-border-soft');
-          b.setAttribute('aria-pressed', 'false');
-        });
-        btn.classList.remove('bg-surface', 'text-ink-muted', 'border-border-soft');
-        btn.classList.add('bg-brand-green-soft', 'text-brand-green', 'border-brand-green/10');
-        btn.setAttribute('aria-pressed', 'true');
-        // Show/hide groups
-        groups.forEach((grp) => {
-          if (selected === 'all' || grp.getAttribute('data-coop-muni-group') === selected) {
-            grp.style.display = '';
-          } else {
-            grp.style.display = 'none';
-          }
-        });
-      });
-    });
-  }
-</script>

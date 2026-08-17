@@ -1,4 +1,5 @@
 import { detectStatus } from './statuses.mjs';
+import { resolveGeoLocation } from './geocoder.mjs';
 
 /**
  * Regex-based housing data extractor.
@@ -30,8 +31,14 @@ export function extractWithRegex(text) {
     garaje: null,
     trastero: null,
     terraza: null,
+    piscina: null,
+    ascensor: null,
+    entregaEstimada: null,
+    tipoPromocion: null,
     estado: null,
     nombrePromocion: null,
+    barrio: null,
+    municipio: null,
   };
 
   // ── PRECIOS ──────────────────────────────────────────────────────────
@@ -83,6 +90,12 @@ export function extractWithRegex(text) {
       : numberWords[totalViv[1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')];
   }
 
+  // ── ENTREGA ESTIMADA ─────────────────────────────────────────────────
+  const entregaMatch = t.match(/(?:entrega|finalizaci[oó]n|llaves)\s*(?:prevista|estimada)?\s*(?:en|para)?\s*([1-4][Ttº]?\s*(?:de\s*)?202\d|202\d|primer|segundo|tercer|cuarto\s*trimestre\s*(?:de\s*)?202\d)/i);
+  if (entregaMatch) {
+    result.entregaEstimada = entregaMatch[1].trim();
+  }
+
   // ── GARAJE ───────────────────────────────────────────────────────────
   if (/\b(?:con\s+)?garaje\b/i.test(t) && !/\bsin garaje\b/i.test(t)) {
     result.garaje = true;
@@ -102,6 +115,27 @@ export function extractWithRegex(text) {
     result.terraza = true;
   }
 
+  // ── PISCINA ──────────────────────────────────────────────────────────
+  if (/\b(?:piscina|piscinas)\b/i.test(t) && !/\bsin piscina\b/i.test(t)) {
+    result.piscina = true;
+  }
+
+  // ── ASCENSOR ─────────────────────────────────────────────────────────
+  if (/\b(?:ascensor|ascensores)\b/i.test(t) && !/\bsin ascensor\b/i.test(t)) {
+    result.ascensor = true;
+  }
+
+  // ── TIPO PROMOCION ───────────────────────────────────────────────────
+  if (/\b(?:cooperativa|cohousing|autopromoci[oó]n)/i.test(t)) {
+    result.tipoPromocion = 'Cooperativa';
+  } else if (/\b(?:vpp|vpa|vivienda protegida|promoci[oó]n p[uú]blica)\b/i.test(t)) {
+    result.tipoPromocion = 'Vivienda protegida';
+  } else if (/\b(?:suelo|parcela|reparcelaci[oó]n|solar)\b/i.test(t)) {
+    result.tipoPromocion = 'Suelo';
+  } else if (/\b(?:obra nueva|promoci[oó]n residencial|residencial)\b/i.test(t)) {
+    result.tipoPromocion = 'Obra Nueva';
+  }
+
   // ── ESTADO ───────────────────────────────────────────────────────────
   result.estado = detectStatus(t);
   if (result.estado === 'Agotada/Vendida') {
@@ -109,9 +143,18 @@ export function extractWithRegex(text) {
     if (!soldHousing.test(t)) result.estado = null;
   }
 
-  // Los nombres propios y empresas no se extraen con regex: en prensa las
-  // expresiones son voraces y producen fragmentos. El LLM propone y el
-  // validador exige evidencia literal antes de persistirlos.
+  // ── NOMBRE PROMOCIÓN ─────────────────────────────────────────────────
+  const nombreMatch = t.match(/(?:Residencial|Edificio|Torre|Conjunto|Urbanizaci[oó]n|Cooperativa|Promoci[oó]n)\s+([\p{L}\p{N}\s'’.-]{3,40})/iu);
+  if (nombreMatch) {
+    result.nombrePromocion = nombreMatch[0].trim();
+  }
+
+  // ── GEOLOCALIZACIÓN ──────────────────────────────────────────────────
+  const geo = resolveGeoLocation(t);
+  if (geo) {
+    result.barrio = geo.barrio;
+    result.municipio = geo.municipality;
+  }
 
   // ── LLM NEEDED? ──────────────────────────────────────────────────────
   // If we got fewer than 3 non-null fields, the text is probably too

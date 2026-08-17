@@ -1,0 +1,214 @@
+---
+export interface Props {
+  initialPrice?: number | null;
+  isCooperative?: boolean;
+  title?: string;
+}
+
+const {
+  initialPrice = 220000,
+  isCooperative = false,
+  title = 'Simulador de Financiación y Aportación',
+} = Astro.props;
+
+const defaultPrice = initialPrice && initialPrice > 50000 ? initialPrice : 220000;
+---
+
+<div class="financial-simulator rounded-2xl border border-border-soft bg-surface p-5 sm:p-6 shadow-premium">
+  <div class="flex items-center justify-between border-b border-border-soft pb-3 mb-4">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">🧮</span>
+      <h3 class="text-base font-extrabold text-ink">{title}</h3>
+    </div>
+    <span class="inline-flex items-center rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/15">
+      Cálculo en directo
+    </span>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Controls (Left) -->
+    <div class="space-y-4">
+      <!-- Price Input & Slider -->
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <label for="sim-price" class="text-xs font-bold text-ink-muted uppercase tracking-wider">Precio de la vivienda</label>
+          <span id="sim-price-val" class="text-sm font-extrabold text-brand-green">{defaultPrice.toLocaleString('es-ES')} €</span>
+        </div>
+        <input
+          type="range"
+          id="sim-price"
+          min="100000"
+          max="600000"
+          step="5000"
+          value={defaultPrice}
+          class="w-full accent-brand-green cursor-pointer h-2 bg-canvas rounded-lg appearance-none border border-border-soft"
+        />
+      </div>
+
+      <!-- Down Payment Slider (Entrada) -->
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <label for="sim-down-payment" class="text-xs font-bold text-ink-muted uppercase tracking-wider">Entrada aportada</label>
+          <span id="sim-down-payment-val" class="text-xs font-bold text-ink">20% ({(defaultPrice * 0.2).toLocaleString('es-ES')} €)</span>
+        </div>
+        <input
+          type="range"
+          id="sim-down-payment"
+          min="10"
+          max="40"
+          step="5"
+          value="20"
+          class="w-full accent-brand-green cursor-pointer h-2 bg-canvas rounded-lg appearance-none border border-border-soft"
+        />
+      </div>
+
+      <!-- Years Slider (Plazo) -->
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <label for="sim-years" class="text-xs font-bold text-ink-muted uppercase tracking-wider">Plazo de amortización</label>
+          <span id="sim-years-val" class="text-xs font-bold text-ink">30 años</span>
+        </div>
+        <input
+          type="range"
+          id="sim-years"
+          min="15"
+          max="35"
+          step="5"
+          value="30"
+          class="w-full accent-brand-green cursor-pointer h-2 bg-canvas rounded-lg appearance-none border border-border-soft"
+        />
+      </div>
+
+      <!-- Interest Rate Slider (TIN) -->
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <label for="sim-interest" class="text-xs font-bold text-ink-muted uppercase tracking-wider">Tipo de interés estimado (TIN)</label>
+          <span id="sim-interest-val" class="text-xs font-bold text-ink">2.85 %</span>
+        </div>
+        <input
+          type="range"
+          id="sim-interest"
+          min="1.5"
+          max="5.0"
+          step="0.1"
+          value="2.85"
+          class="w-full accent-brand-green cursor-pointer h-2 bg-canvas rounded-lg appearance-none border border-border-soft"
+        />
+      </div>
+    </div>
+
+    <!-- Results Card (Right) -->
+    <div class="flex flex-col justify-between rounded-xl bg-canvas p-4 sm:p-5 border border-border-soft">
+      <!-- Monthly Quote -->
+      <div class="text-center pb-4 border-b border-border-soft">
+        <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Cuota mensual estimada</span>
+        <div class="flex items-baseline justify-center gap-1 mt-1">
+          <span id="sim-result-monthly" class="text-3xl sm:text-4xl font-extrabold text-brand-green tracking-tight">--</span>
+          <span class="text-sm font-bold text-ink-muted">/ mes</span>
+        </div>
+        <p class="text-[11px] text-ink-light mt-1">Hipoteca fija a tipo de mercado actual</p>
+      </div>
+
+      <!-- Breakdown Details -->
+      <div class="space-y-2 py-3 text-xs text-ink-muted border-b border-border-soft">
+        <div class="flex justify-between">
+          <span>Capital financiado:</span>
+          <strong id="sim-result-loan" class="text-ink font-bold">--</strong>
+        </div>
+        <div class="flex justify-between">
+          <span>Aportación de entrada:</span>
+          <strong id="sim-result-down" class="text-ink font-bold">--</strong>
+        </div>
+        <div class="flex justify-between">
+          <span>Impuestos y gastos estimados (12%):</span>
+          <strong id="sim-result-taxes" class="text-ink font-bold">--</strong>
+        </div>
+        <div class="flex justify-between pt-1 border-t border-border-soft/60 text-brand-orange">
+          <span class="font-bold">Ahorro previo total requerido:</span>
+          <strong id="sim-result-total-upfront" class="font-extrabold">--</strong>
+        </div>
+      </div>
+
+      <!-- Cooperative Advantage Note -->
+      <div class="pt-3">
+        <div class="rounded-lg bg-brand-green-soft/80 p-2.5 border border-brand-green/10 flex items-center justify-between">
+          <div class="text-[11px] text-brand-green leading-tight">
+            <strong>Ahorro estimado en cooperativa:</strong>
+            <span class="block text-ink-muted text-[10px]">Vivienda a estricto precio de coste (sin margen promotor ~15-20%)</span>
+          </div>
+          <span id="sim-result-coop-savings" class="text-xs font-extrabold text-brand-green whitespace-nowrap pl-2">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function setupSimulator() {
+    const priceInput = document.getElementById('sim-price') as HTMLInputElement;
+    const downPaymentInput = document.getElementById('sim-down-payment') as HTMLInputElement;
+    const yearsInput = document.getElementById('sim-years') as HTMLInputElement;
+    const interestInput = document.getElementById('sim-interest') as HTMLInputElement;
+
+    const priceVal = document.getElementById('sim-price-val');
+    const downPaymentVal = document.getElementById('sim-down-payment-val');
+    const yearsVal = document.getElementById('sim-years-val');
+    const interestVal = document.getElementById('sim-interest-val');
+
+    const resultMonthly = document.getElementById('sim-result-monthly');
+    const resultLoan = document.getElementById('sim-result-loan');
+    const resultDown = document.getElementById('sim-result-down');
+    const resultTaxes = document.getElementById('sim-result-taxes');
+    const resultTotalUpfront = document.getElementById('sim-result-total-upfront');
+    const resultCoopSavings = document.getElementById('sim-result-coop-savings');
+
+    if (!priceInput || !downPaymentInput || !yearsInput || !interestInput) return;
+
+    function calculate() {
+      const price = parseFloat(priceInput.value);
+      const downPct = parseFloat(downPaymentInput.value) / 100;
+      const years = parseInt(yearsInput.value, 10);
+      const interestRate = parseFloat(interestInput.value) / 100;
+
+      const downPayment = price * downPct;
+      const loanAmount = price - downPayment;
+      const monthlyRate = interestRate / 12;
+      const numMonths = years * 12;
+
+      // French amortization formula
+      let monthlyPayment = 0;
+      if (monthlyRate > 0) {
+        monthlyPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numMonths)) / (Math.pow(1 + monthlyRate, numMonths) - 1);
+      } else {
+        monthlyPayment = loanAmount / numMonths;
+      }
+
+      // Taxes: IVA 10% + AJD/Notaria/Registro 2% = ~12%
+      const taxesAndFees = price * 0.12;
+      const totalUpfront = downPayment + taxesAndFees;
+      const coopSavings = price * 0.18; // ~18% average developer margin saved
+
+      // Update UI displays
+      if (priceVal) priceVal.textContent = `${price.toLocaleString('es-ES')} €`;
+      if (downPaymentVal) downPaymentVal.textContent = `${Math.round(downPct * 100)}% (${Math.round(downPayment).toLocaleString('es-ES')} €)`;
+      if (yearsVal) yearsVal.textContent = `${years} años`;
+      if (interestVal) interestVal.textContent = `${(interestRate * 100).toFixed(2)} %`;
+
+      if (resultMonthly) resultMonthly.textContent = `${Math.round(monthlyPayment).toLocaleString('es-ES')} €`;
+      if (resultLoan) resultLoan.textContent = `${Math.round(loanAmount).toLocaleString('es-ES')} €`;
+      if (resultDown) resultDown.textContent = `${Math.round(downPayment).toLocaleString('es-ES')} €`;
+      if (resultTaxes) resultTaxes.textContent = `${Math.round(taxesAndFees).toLocaleString('es-ES')} €`;
+      if (resultTotalUpfront) resultTotalUpfront.textContent = `${Math.round(totalUpfront).toLocaleString('es-ES')} €`;
+      if (resultCoopSavings) resultCoopSavings.textContent = `~${Math.round(coopSavings).toLocaleString('es-ES')} €`;
+    }
+
+    priceInput.addEventListener('input', calculate);
+    downPaymentInput.addEventListener('input', calculate);
+    yearsInput.addEventListener('input', calculate);
+    interestInput.addEventListener('input', calculate);
+
+    calculate();
+  }
+
+  setupSimulator();
+</script>

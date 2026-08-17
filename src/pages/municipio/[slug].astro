@@ -1,16 +1,35 @@
 ---
 import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
-import { api } from '../../lib/api/client.mjs';
-import { apiSafe } from '../../lib/api/boundary.mjs';
-import { siteBase } from '../../lib/ui.mjs';
+import CoverageMap from '../../components/CoverageMap.astro';
+import { MUNICIPALITIES, resolveMunicipality, slugify, webBase } from '../../../scripts/lib/municipios.mjs';
+import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives, getMapFeatures } from '../../../scripts/lib/db.mjs';
 
-const [municipalityData, gestoras] = await apiSafe(Astro.response, () => Promise.all([api.municipality(Astro.params.slug), api.gestoras()]), [{ name: 'Municipio no disponible', opportunities: [], cooperatives: [], gestoraPromotions: [] }, []]);
-const municipality = municipalityData.name;
-const { opportunities, cooperatives } = municipalityData;
-const gestorasById = new Map(gestoras.map((gestora) => [gestora.id, gestora]));
-const promotions = municipalityData.gestoraPromotions.map((promo) => ({ gestora: gestorasById.get(promo.gestoraId) || { id: promo.gestoraId, name: '' }, promo }));
-const base = siteBase(import.meta.env.BASE_URL);
+export function getStaticPaths() {
+  const db = getDatabase();
+  const opportunities = getAllOpportunities(db, 150);
+  const cooperatives = getAllCooperatives(db);
+  const gestoras = getAllGestoras(db);
+  const allMarkers = getMapFeatures(db, webBase('/vivienda-coruna'));
+
+  return MUNICIPALITIES.map((municipality) => ({
+    params: { slug: slugify(municipality) },
+    props: {
+      municipality,
+      opportunities: opportunities.filter((o) => resolveMunicipality(o.location) === municipality),
+      cooperatives: cooperatives.filter((c) => c.municipality === municipality),
+      promotions: gestoras.flatMap((g) =>
+        g.promotions
+          .filter((p) => resolveMunicipality(p.location) === municipality)
+          .map((p) => ({ gestora: g, promo: p }))
+      ),
+      muniMarkers: allMarkers.filter((m) => m.municipality === municipality),
+    },
+  }));
+}
+
+const { municipality, opportunities, cooperatives, promotions, muniMarkers = [] } = Astro.props;
+const base = webBase(import.meta.env.BASE_URL);
 const total = opportunities.length + cooperatives.length + promotions.length;
 
 const pageTitle = `Cooperativas y obra nueva en ${municipality} | Vivienda Coruña`;
@@ -19,22 +38,44 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
 
 <Layout title={pageTitle} description={pageDescription}>
   <div class="mx-auto max-w-4xl px-4 sm:px-6">
-    <!-- Breadcrumbs -->
-    <nav aria-label="Migas" class="text-xs text-ink-muted mb-5 flex flex-wrap items-center gap-1">
-      <a href={base} class="hover:text-brand-green transition-colors font-semibold">Municipios</a>
-      <span aria-hidden="true">›</span>
-      <span class="text-ink-light truncate max-w-[16rem]" title={municipality}>{municipality}</span>
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-xs font-semibold text-ink-muted mb-5" aria-label="Miga de pan">
+      <a href={base} class="hover:text-brand-green transition-colors">Novedades</a>
+      <span class="text-border-strong">/</span>
+      <a href={`${base}mapa`} class="hover:text-brand-green transition-colors">Municipios</a>
+      <span class="text-border-strong">/</span>
+      <span class="text-ink font-bold">{municipality}</span>
     </nav>
 
     <!-- Header -->
-    <div class="mb-6 border-b border-border-soft pb-6">
+    <div class="mb-8 border-b border-border-soft pb-6">
+      <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
+        <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
+        Área Metropolitana de A Coruña
+      </div>
       <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
-        Cooperativas y obra nueva en {municipality}
+        Cooperativas y Obra Nueva en {municipality}
       </h1>
-      <p class="text-sm text-ink-muted mt-3">
-        {total} {total === 1 ? 'registro' : 'registros'}: {cooperatives.length} cooperativas · {promotions.length} promociones · {opportunities.length} señales
+      <p class="text-sm md:text-base text-ink-muted mt-3 leading-relaxed">
+        {total} {total === 1 ? 'registro detectado' : 'registros detectados'}: {cooperatives.length} cooperativas en registro · {promotions.length} promociones de gestoras · {opportunities.length} señales en prensa y boletines oficiales.
       </p>
     </div>
+
+    <!-- Interactive Municipal Map (if there are markers) -->
+    {muniMarkers.length > 0 && (
+      <div class="mb-10">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-bold text-ink flex items-center gap-2">
+            <span>Ubicaciones en {municipality}</span>
+            <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-brand-green-soft text-brand-green text-[11px] font-bold">
+              {muniMarkers.length}
+            </span>
+          </h2>
+          <span class="text-xs text-ink-muted">Haz clic en los puntos para ver detalles</span>
+        </div>
+        <CoverageMap markers={muniMarkers} heightClass="h-[300px] sm:h-[360px]" mapId={`map-${slugify(municipality)}`} />
+      </div>
+    )}
 
     {total === 0 ? (
       <div class="p-10 text-center rounded-2xl border border-border-soft text-ink-muted bg-surface text-sm">
@@ -53,7 +94,7 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               {cooperatives.map((c) => (
-                <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
+                <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
                   <h3 class="text-sm font-bold text-ink capitalize leading-snug mb-2">{c.name.toLowerCase()}</h3>
                   <div class="text-xs text-ink-muted space-y-1">
                     {c.foundedAt && (
@@ -61,6 +102,16 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
                     )}
                     {c.foundingPartners != null && <p>{c.foundingPartners} socios fundadores</p>}
                     {c.address && <p>📍 {c.address}</p>}
+                    {(c.email || c.phone) && (
+                      <div class="flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-border-soft mt-2">
+                        {c.email && (
+                          <a href={`mailto:${c.email}`} class="font-semibold text-brand-green hover:underline">✉️ {c.email}</a>
+                        )}
+                        {c.phone && (
+                          <a href={`tel:${String(c.phone).replace(/\s+/g, '')}`} class="font-semibold text-brand-green hover:underline">📞 {c.phone}</a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -72,7 +123,7 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
         {promotions.length > 0 && (
           <section aria-labelledby="promos-title">
             <h2 id="promos-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
-              Promociones en el municipio
+              Promociones y cooperativas en el municipio
               <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
                 {promotions.length}
               </span>
@@ -84,15 +135,15 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
                     <a href={`${base}gestora/${gestora.id}`} class="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-surface-hover transition-colors">
                       <div class="min-w-0">
                         <span class="text-sm font-bold text-ink group-hover:text-brand-green transition-colors block truncate">{promo.name}</span>
-                        <span class="text-[11px] text-ink-light">{gestora.name}</span>
+                        <span class="text-[11px] text-ink-light">Gestora: {gestora.name}</span>
                       </div>
                       <div class="flex gap-1.5 flex-shrink-0">
                         {promo.buscaSocios === true && (
-                          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg border bg-status-ok/10 text-brand-green border-status-ok/15">
+                          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-status-ok/10 text-brand-green border-status-ok/25">
                             Captación abierta
                           </span>
                         )}
-                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg border bg-ink-muted/10 text-ink-muted border-border-soft">
+                        <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-ink-muted/10 text-ink-muted border-border-soft">
                           {promo.status}
                         </span>
                       </div>
@@ -121,11 +172,7 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
                       <div class="min-w-0">
                         <span class="text-sm font-bold text-ink group-hover:text-brand-green transition-colors block truncate">{o.title}</span>
                         <span class="text-[11px] text-ink-light">
-                          {o.type || 'Señal'} · {o.sourceKind === 'market-alert'
-                            ? 'Prensa local'
-                            : o.sourceKind === 'firecrawl-search'
-                              ? new URL(o.url).hostname.replace(/^www\./, '')
-                              : o.source}
+                          {o.barrio ? `${o.barrio} · ` : ''}{o.type || 'Señal'} · {o.sourceKind === 'market-alert' ? 'Prensa local' : o.source}
                         </span>
                       </div>
                       <span class="text-[11px] text-ink-light flex-shrink-0">

@@ -1,0 +1,194 @@
+---
+import { getDatabase, getMapFeatures } from '../../scripts/lib/db.mjs';
+import { webBase } from '../../scripts/lib/municipios.mjs';
+
+const base = webBase(import.meta.env.BASE_URL);
+const db = getDatabase();
+const items = getMapFeatures(db, base);
+---
+
+<div
+  id="cmd-palette-backdrop"
+  class="fixed inset-0 bg-ink/40 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-150 flex items-start justify-center pt-16 sm:pt-24 px-4"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Buscador global"
+>
+  <div
+    id="cmd-palette-modal"
+    class="w-full max-w-xl bg-surface border border-border-medium rounded-2xl shadow-hover overflow-hidden flex flex-col transform scale-95 transition-transform duration-150"
+  >
+    <!-- Search Bar -->
+    <div class="p-3.5 border-b border-border-soft flex items-center gap-3">
+      <svg class="h-5 w-5 text-ink-light fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.602 10.602Z" />
+      </svg>
+      <input
+        type="text"
+        id="cmd-palette-input"
+        placeholder="Buscar promoción, barrio (Xuxán, Someso, Visma...), cooperativa o municipio..."
+        class="w-full bg-transparent text-sm font-semibold text-ink placeholder-ink-light focus:outline-none"
+        autocomplete="off"
+      />
+      <kbd class="px-2 py-0.5 rounded-md bg-canvas border border-border-soft text-[11px] font-mono font-bold text-ink-light hidden sm:inline-block">
+        ESC
+      </kbd>
+    </div>
+
+    <!-- Quick category shortcuts -->
+    <div class="px-3.5 py-2 bg-canvas border-b border-border-soft flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
+      <span class="text-[11px] font-bold text-ink-light uppercase mr-1">Ir a:</span>
+      <a href={`${base}mapa`} class="px-2 py-0.5 rounded-md bg-surface border border-border-soft text-ink-muted hover:text-brand-green font-semibold">🗺️ Mapa</a>
+      <a href={`${base}cooperativas`} class="px-2 py-0.5 rounded-md bg-surface border border-border-soft text-ink-muted hover:text-brand-green font-semibold">🟢 Cooperativas</a>
+      <a href={`${base}gestoras`} class="px-2 py-0.5 rounded-md bg-surface border border-border-soft text-ink-muted hover:text-brand-green font-semibold">🏢 Gestoras</a>
+    </div>
+
+    <!-- Results list -->
+    <div id="cmd-palette-results" class="max-h-[340px] overflow-y-auto divide-y divide-border-soft/60 p-1.5">
+      <!-- Injected by JavaScript -->
+    </div>
+
+    <!-- Footer help -->
+    <div class="p-2.5 bg-canvas border-t border-border-soft flex items-center justify-between text-[11px] font-medium text-ink-light">
+      <div class="flex items-center gap-3">
+        <span><kbd class="font-mono bg-surface px-1.5 py-0.5 rounded border border-border-soft">↑</kbd> <kbd class="font-mono bg-surface px-1.5 py-0.5 rounded border border-border-soft">↓</kbd> navegar</span>
+        <span><kbd class="font-mono bg-surface px-1.5 py-0.5 rounded border border-border-soft">↵</kbd> abrir</span>
+      </div>
+      <span>{items.length} promociones disponibles</span>
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ items, base }}>
+  const backdrop = document.getElementById('cmd-palette-backdrop');
+  const modal = document.getElementById('cmd-palette-modal');
+  const input = document.getElementById('cmd-palette-input');
+  const resultsContainer = document.getElementById('cmd-palette-results');
+  let selectedIndex = 0;
+  let currentFiltered = items;
+
+  function renderResults(filtered) {
+    currentFiltered = filtered;
+    selectedIndex = 0;
+
+    if (!resultsContainer) return;
+    if (filtered.length === 0) {
+      resultsContainer.innerHTML = `
+        <div class="p-8 text-center text-xs text-ink-muted">
+          No se encontraron resultados para tu búsqueda.
+        </div>
+      `;
+      return;
+    }
+
+    resultsContainer.innerHTML = filtered.slice(0, 8).map((item, idx) => {
+      const isSelected = idx === selectedIndex;
+      const priceText = item.precioMin ? `Desde ${item.precioMin.toLocaleString('es-ES')} €` : '';
+      const locationText = [item.barrio, item.municipality].filter(Boolean).join(' · ');
+
+      return `
+        <a
+          href="${item.url}"
+          data-index="${idx}"
+          class="cmd-item flex items-center justify-between p-2.5 rounded-xl text-xs transition-colors no-underline cursor-pointer ${
+            isSelected ? 'bg-brand-green-soft text-brand-green' : 'hover:bg-canvas text-ink'
+          }"
+        >
+          <div class="min-w-0 pr-2">
+            <div class="flex items-center gap-1.5 mb-0.5">
+              <span class="font-bold text-[10px] uppercase tracking-wider text-ink-light truncate">${locationText}</span>
+              ${item.status ? `<span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-surface border border-border-soft">${item.status}</span>` : ''}
+            </div>
+            <p class="font-bold truncate text-ink ${isSelected ? 'text-brand-green' : ''}">${item.title}</p>
+          </div>
+          ${priceText ? `<span class="font-extrabold text-brand-green text-[11px] flex-shrink-0">${priceText}</span>` : ''}
+        </a>
+      `;
+    }).join('');
+  }
+
+  function openPalette() {
+    if (!backdrop || !modal || !input) return;
+    backdrop.classList.remove('hidden');
+    requestAnimationFrame(() => {
+      backdrop.classList.remove('opacity-0');
+      modal.classList.remove('scale-95');
+      modal.classList.add('scale-100');
+    });
+    input.value = '';
+    renderResults(items);
+    input.focus();
+  }
+
+  function closePalette() {
+    if (!backdrop || !modal) return;
+    backdrop.classList.add('opacity-0');
+    modal.classList.remove('scale-100');
+    modal.classList.add('scale-95');
+    setTimeout(() => backdrop.classList.add('hidden'), 150);
+  }
+
+  // Keyboard shortcut listener (Cmd+K / Ctrl+K / slash)
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      backdrop?.classList.contains('hidden') ? openPalette() : closePalette();
+    } else if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target)?.tagName)) {
+      e.preventDefault();
+      openPalette();
+    } else if (e.key === 'Escape' && !backdrop?.classList.contains('hidden')) {
+      closePalette();
+    } else if (!backdrop?.classList.contains('hidden')) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, Math.min(currentFiltered.length - 1, 7));
+        highlightItem();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, 0);
+        highlightItem();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const selected = resultsContainer?.querySelector(`[data-index="${selectedIndex}"]`);
+        if (selected) window.location.href = selected.getAttribute('href');
+      }
+    }
+  });
+
+  function highlightItem() {
+    const itemsEl = resultsContainer?.querySelectorAll('.cmd-item');
+    itemsEl?.forEach((el, idx) => {
+      if (idx === selectedIndex) {
+        el.classList.add('bg-brand-green-soft', 'text-brand-green');
+        el.classList.remove('hover:bg-canvas', 'text-ink');
+      } else {
+        el.classList.remove('bg-brand-green-soft', 'text-brand-green');
+        el.classList.add('text-ink');
+      }
+    });
+  }
+
+  input?.addEventListener('input', (e) => {
+    const q = (e.target).value.toLowerCase().trim();
+    if (!q) {
+      renderResults(items);
+      return;
+    }
+    const filtered = items.filter((item) => {
+      const matchTitle = item.title?.toLowerCase().includes(q);
+      const matchBarrio = item.barrio?.toLowerCase().includes(q);
+      const matchMuni = item.municipality?.toLowerCase().includes(q);
+      const matchType = item.type?.toLowerCase().includes(q);
+      const matchPromotora = item.promotora?.toLowerCase().includes(q);
+      return matchTitle || matchBarrio || matchMuni || matchType || matchPromotora;
+    });
+    renderResults(filtered);
+  });
+
+  backdrop?.addEventListener('click', (e) => {
+    if (e.target === backdrop) closePalette();
+  });
+
+  // Global trigger
+  window.openCommandPalette = openPalette;
+</script>

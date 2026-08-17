@@ -3,10 +3,32 @@ import { classifyPromotionLocation } from './municipios.mjs';
 import { hasStatusEvidence, statusLabels, statusDescription } from './statuses.mjs';
 
 const COMMERCIAL_STATUS = [...statusLabels(), null];
+const PROMOTION_TYPES = ['Cooperativa', 'Obra Nueva', 'Vivienda protegida', 'Suelo', null];
 
 const HOUSING_SCHEMA = {
   type: 'object',
   properties: {
+    nombrePromocion: {
+      type: ['string', 'null'],
+      description: 'Nombre propio del proyecto/edificio/promoción principal (ej. "Mirador do Ézaro"), no el titular de la noticia. null si no se menciona.'
+    },
+    tipoPromocion: {
+      type: ['string', 'null'],
+      enum: PROMOTION_TYPES,
+      description: 'Categoría principal: "Cooperativa", "Obra Nueva", "Vivienda protegida" o "Suelo". null si no se puede clasificar con certeza.'
+    },
+    municipio: {
+      type: ['string', 'null'],
+      description: 'Municipio del área metropolitana (A Coruña, Oleiros, Culleredo, Arteixo, Cambre, Sada, Bergondo, Carral, Abegondo). null si no se menciona.'
+    },
+    barrio: {
+      type: ['string', 'null'],
+      description: 'Barrio, polígono o zona específica (ej. "Xuxán", "Someso", "San Pedro de Visma", "Los Rosales", "Matogrande", "Perillo", "Santa Cruz", "O Burgo"). null si no se menciona.'
+    },
+    direccion: {
+      type: ['string', 'null'],
+      description: 'Calle o dirección postal si aparece textualmente. null si no se menciona.'
+    },
     precioMin: {
       type: ['number', 'null'],
       description: 'Precio mínimo de la promoción en euros. null si no se menciona.'
@@ -31,6 +53,10 @@ const HOUSING_SCHEMA = {
       type: ['number', 'null'],
       description: 'Número total de viviendas de la promoción. null si no se menciona.'
     },
+    entregaEstimada: {
+      type: ['string', 'null'],
+      description: 'Fecha o año estimado de entrega tal como aparece ("2026", "2T 2027"). null si no se menciona.'
+    },
     garaje: {
       type: ['boolean', 'null'],
       description: 'true si se incluye garaje/aparcamiento, false si explícitamente se dice que no tiene, null si no se menciona.'
@@ -43,28 +69,39 @@ const HOUSING_SCHEMA = {
       type: ['boolean', 'null'],
       description: 'true si se incluye terraza, balcón, porche o jardín, false si explícitamente se dice que no tiene, null si no se menciona.'
     },
+    piscina: {
+      type: ['boolean', 'null'],
+      description: 'true si incluye piscina comunitaria/privada, false si no, null si no se menciona.'
+    },
+    ascensor: {
+      type: ['boolean', 'null'],
+      description: 'true si el edificio cuenta con ascensor, false si no, null si no se menciona.'
+    },
     estado: {
       type: ['string', 'null'],
       enum: COMMERCIAL_STATUS,
       description: 'Estado real de comercialización deducido del texto. null si el texto no da pistas.'
-    },
-    nombrePromocion: {
-      type: ['string', 'null'],
-      description: 'Nombre propio del proyecto/edificio/promoción principal (ej. "Mirador do Ézaro"), no el titular de la noticia, y nunca de otro proyecto solo mencionado de pasada. null si no se menciona un nombre propio del proyecto principal.'
     }
   },
   required: [
+    'nombrePromocion',
+    'tipoPromocion',
+    'municipio',
+    'barrio',
+    'direccion',
     'precioMin',
     'precioMax',
     'habitacionesMin',
     'banosMin',
     'promotora',
     'totalViviendas',
+    'entregaEstimada',
     'garaje',
     'trastero',
     'terraza',
-    'estado',
-    'nombrePromocion'
+    'piscina',
+    'ascensor',
+    'estado'
   ],
   additionalProperties: false
 };
@@ -200,23 +237,32 @@ export function validateExtractedHousingData(parsed, title, summary) {
  */
 export async function extractHousingData(title, summary) {
   const defaultData = {
+    nombrePromocion: null,
+    tipoPromocion: null,
+    municipio: null,
+    barrio: null,
+    direccion: null,
     precioMin: null,
     precioMax: null,
     habitacionesMin: null,
     banosMin: null,
     promotora: null,
     totalViviendas: null,
+    entregaEstimada: null,
     garaje: null,
     trastero: null,
     terraza: null,
+    piscina: null,
+    ascensor: null,
     estado: null,
-    nombrePromocion: null,
   };
 
-  const systemPrompt = `Eres un asistente experto en el sector inmobiliario español. Tu tarea es extraer información estructurada a partir del título y el resumen de una noticia sobre promociones de vivienda, cooperativas o parcelas de suelo residencial en España.
+  const systemPrompt = `Eres un asistente experto en el sector inmobiliario del área metropolitana de A Coruña (España). Tu tarea es extraer información estructurada a partir del título y el resumen de una noticia sobre promociones de vivienda, cooperativas o suelo residencial.
 Rellena cada uno de los campos requeridos en el objeto JSON de salida. Si un campo no se menciona en la noticia, asígnale el valor null.
-Para "estado", deduce el estado real de comercialización a partir del texto (no asumas "Comercialización" por defecto): ${statusDescription()}. Si el texto no da ninguna pista, deja null.
-"nombrePromocion" es el nombre propio del proyecto principal del que trata la noticia (ej. "Mirador do Ézaro"), NUNCA de otros proyectos o promotoras que la noticia solo mencione de pasada como contexto o comparación (habitual en prensa inmobiliaria: "en la misma zona destacan también..."). Si tienes dudas de si un nombre pertenece al proyecto principal de esta noticia, déjalo fuera.`;
+Para "municipio", extrae el municipio correspondiente (${AREA_LABELS.join(', ')}).
+Para "barrio", extrae el barrio, polígono o zona específica (ej. Xuxán, Someso, Visma, Los Rosales, Cuatro Caminos, Matogrande, Perillo, Santa Cruz, O Burgo).
+Para "estado", deduce el estado real de comercialización a partir del texto: ${statusDescription()}. Si el texto no da ninguna pista, deja null.
+"nombrePromocion" es el nombre propio del proyecto principal (ej. "Mirador do Ézaro"), nunca de otros proyectos mencionados de pasada.`;
 
   const userPrompt = `Noticia para analizar:
 Título: ${title}
@@ -229,17 +275,13 @@ Resumen: ${summary}`;
     return parsed ? validateExtractedHousingData(parsed, title, summary) : { ...defaultData, llmCallFailed: true };
   } catch (error) {
     console.warn(`[llm] Fallo al extraer datos con LLM (Structured Output): ${error.message}`);
-    // Marca el fallo como transitorio (cuota, red, etc.) para que el pipeline NO cachee este
-    // ítem como "ya procesado": debe reintentarse en la próxima corrida, no quedarse con nulls.
     return { ...defaultData, llmCallFailed: true };
   }
 }
 
 /**
  * From a set of web search results, extracts the names of housing cooperative
- * managers / developers that actually operate in the A Coruña area, so the
- * directory can discover new gestoras on its own instead of relying on a
- * hardcoded seed list. Grounded on the search results, no invented names.
+ * managers / developers that actually operate in the A Coruña area.
  *
  * @param {Array<{url: string, title: string}>} results - Search results
  * @returns {Promise<string[]>} Company names found (may be empty)
@@ -276,11 +318,7 @@ Devuelve SOLO nombres de empresas reales que aparezcan en los resultados. No inv
 }
 
 /**
- * Given search results for a company name, asks the LLM which one (if any) is
- * actually that company's own official site — search ranking can surface a
- * different, unrelated company in the same sector (e.g. searching "Nozar"
- * returning a competitor's site), so a plain substring match on the name is
- * not reliable enough.
+ * Given search results for a company name, asks the LLM which one is official site.
  *
  * @param {string} name - Developer/Gestora name being searched for
  * @param {Array<{url: string, title: string}>} results - Candidate search results
@@ -312,8 +350,7 @@ export async function pickOfficialWebsite(name, results) {
 }
 
 /**
- * Extracts real contact data for a gestora/promotora from actually-scraped page
- * content (grounded), instead of asking the model to recall it from memory.
+ * Extracts real contact data for a gestora/promotora from scraped page content.
  *
  * @param {string} name - Developer/Gestora name
  * @param {string} pageMarkdown - Scraped markdown of a page found for this company
@@ -355,18 +392,16 @@ Usa ÚNICAMENTE lo que aparece literalmente en el texto proporcionado. No invent
 }
 
 /**
- * Extracts the list of housing developments/cooperatives actually listed on a
- * gestora's own website (grounded), so the directory reflects the company's
- * real current catalog instead of only what a news article happened to cover.
+ * Extracts the list of housing developments listed on a gestora website.
  *
  * @param {string} name - Developer/Gestora name
- * @param {string} pageMarkdown - Scraped markdown of the gestora's site (or a projects page)
- * @returns {Promise<Array<{nombre: string, estado: string|null, location: string|null, totalViviendas: number|null, entregaEstimada: string|null, buscaSocios: boolean|null, aportacionInicial: number|null}>>}
+ * @param {string} pageMarkdown - Scraped markdown
+ * @returns {Promise<Array<Object>>}
  */
 export async function extractPromotionsFromText(name, pageMarkdown) {
   const systemPrompt = `Eres un asistente que extrae, de una página web ya rastreada de la empresa española '${name}', la lista de promociones/proyectos/cooperativas de vivienda que aparecen mencionados con nombre propio.
 Usa ÚNICAMENTE lo que aparece literalmente en el texto. No inventes proyectos ni completes con conocimiento propio. Si el texto no lista ninguna promoción con nombre propio, devuelve una lista vacía.
-No incluyas viviendas individuales sueltas en venta (pisos concretos de reventa), solo promociones/edificios/cooperativas con nombre de proyecto.
+No incluyas viviendas individuales sueltas en venta (pisos de segunda mano/reventa), solo promociones/edificios/cooperativas con nombre de proyecto.
 "buscaSocios" es true solo si el texto indica activamente que la promoción está en captación de socios o compradores ("inscríbete", "plazo abierto", "únete a la cooperativa", "venta en curso"); false si dice que está completa/adjudicada; null si no se dice.
 IMPORTANTE: esta empresa puede operar en toda España. Incluye SOLO promociones cuya ubicación esté en A Coruña ciudad o su área metropolitana inmediata (${AREA_LABELS.join(', ')}). Si la ubicación de una promoción no aparece o no es claramente una de esas zonas, NO la incluyas.`;
 
@@ -381,19 +416,20 @@ IMPORTANTE: esta empresa puede operar en toda España. Incluye SOLO promociones 
         items: {
           type: 'object',
           properties: {
-                    nombre: { type: 'string', description: 'Nombre propio de la promoción tal como aparece en el texto' },
-                    estado: {
-                      type: ['string', 'null'],
-                      enum: COMMERCIAL_STATUS,
-                      description: 'Estado deducido literalmente del texto. null si no se indica.'
-                    },
-                    location: { type: ['string', 'null'], description: 'Ubicación literal del texto. null si no aparece.' },
-                    totalViviendas: { type: ['number', 'null'], description: 'Total de viviendas si aparece en el texto. null si no aparece.' },
-                    entregaEstimada: { type: ['string', 'null'], description: 'Fecha o año estimado de entrega tal como aparece ("2027", "primer trimestre de 2026"). null si no aparece.' },
-                    buscaSocios: { type: ['boolean', 'null'], description: 'true si el texto indica captación abierta de socios/compradores, false si completa/adjudicada, null si no se dice.' },
-                    aportacionInicial: { type: ['number', 'null'], description: 'Aportación inicial en euros si aparece en el texto. null si no aparece.' }
-                  },
-                  required: ['nombre', 'estado', 'location', 'totalViviendas', 'entregaEstimada', 'buscaSocios', 'aportacionInicial'],
+            nombre: { type: 'string', description: 'Nombre propio de la promoción tal como aparece en el texto' },
+            estado: {
+              type: ['string', 'null'],
+              enum: COMMERCIAL_STATUS,
+              description: 'Estado deducido literalmente del texto. null si no se indica.'
+            },
+            location: { type: ['string', 'null'], description: 'Ubicación literal del texto (municipio o barrio). null si no aparece.' },
+            barrio: { type: ['string', 'null'], description: 'Barrio o zona específica si se menciona (ej. Xuxán, Someso, Visma, Perillo). null si no aparece.' },
+            totalViviendas: { type: ['number', 'null'], description: 'Total de viviendas si aparece en el texto. null si no aparece.' },
+            entregaEstimada: { type: ['string', 'null'], description: 'Fecha o año estimado de entrega tal como aparece ("2027", "primer trimestre de 2026"). null si no aparece.' },
+            buscaSocios: { type: ['boolean', 'null'], description: 'true si el texto indica captación abierta de socios/compradores, false si completa/adjudicada, null si no se dice.' },
+            aportacionInicial: { type: ['number', 'null'], description: 'Aportación inicial en euros si aparece en el texto. null si no aparece.' }
+          },
+          required: ['nombre', 'estado', 'location', 'barrio', 'totalViviendas', 'entregaEstimada', 'buscaSocios', 'aportacionInicial'],
           additionalProperties: false
         }
       }
