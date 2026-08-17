@@ -61,11 +61,8 @@ const coopPromotions = gestoras.flatMap((g) =>
 );
 const activeCoopCount = coopOpportunities.length + coopPromotions.length;
 
-// Load values from central config
-const siteTitle = config.site.title;
-const siteDescription = config.site.description;
-const headerTitle = config.site.headerTitle;
-const headerSubtitle = config.site.headerSubtitle;
+import { site } from '../lib/site.mjs';
+const { title: siteTitle, description: siteDescription, headerTitle, headerSubtitle } = site;
 const municipalities = MUNICIPALITIES;
 
 const shortDate = (d: string) =>
