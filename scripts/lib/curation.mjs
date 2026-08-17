@@ -22,7 +22,13 @@ const ENTITY_CONFIG = Object.freeze({
     ]),
     required: ['title', 'url', 'location'],
     defaults: { publishedAt: null, type: 'Promoción nueva', status: null, summary: null, enriched: 1, extractionMethod: 'hermes-curator' },
-    hashExcluded: new Set(['lastSeenAt']),
+    // Derived columns are written by the geocoder/LLM backfill, not by the
+    // curator. They must not invalidate a prior review and re-queue an entity
+    // whose semantic (curator-editable) content is unchanged.
+    hashExcluded: new Set([
+      'lastSeenAt', 'piscina', 'ascensor', 'entregaEstimada', 'tipoPromocion',
+      'lat', 'lng', 'municipality', 'barrio', 'geoPrecision',
+    ]),
   },
   gestora: {
     table: 'gestoras',
@@ -46,7 +52,7 @@ const ENTITY_CONFIG = Object.freeze({
     ]),
     required: ['gestoraId', 'name', 'location', 'status'],
     defaults: { details: null, link: null, entregaEstimada: null, buscaSocios: null, aportacionInicial: null },
-    hashExcluded: new Set(),
+    hashExcluded: new Set(['barrio', 'lat', 'lng', 'geoPrecision']),
   },
   cooperative: {
     table: 'cooperatives',
@@ -56,7 +62,7 @@ const ENTITY_CONFIG = Object.freeze({
     creatable: new Set(),
     required: [],
     defaults: {},
-    hashExcluded: new Set(['lastSeenAt']),
+    hashExcluded: new Set(['lastSeenAt', 'barrio', 'lat', 'lng', 'geoPrecision']),
   },
 });
 
