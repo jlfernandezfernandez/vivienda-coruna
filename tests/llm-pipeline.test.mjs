@@ -175,6 +175,13 @@ test('no asigna una cifra a un campo solo porque aparezca en otro contexto', () 
   assert.equal(parsed.totalViviendas, null);
 });
 
+test('totalViviendas se sustenta en el cuerpo aunque el título no mencione la cifra', () => {
+  const title = 'Oleiros abre el plazo para apuntarse a la cooperativa de la promoción Xardíns da Rabadeira';
+  const body = 'Sobre ellas se levantarán en total 26 viviendas, 20 de protección y 6 a precio libre.';
+  const parsed = validateExtractedHousingData({ totalViviendas: 26 }, title, body);
+  assert.equal(parsed.totalViviendas, 26);
+});
+
 test('no atribuye la dirección de una oficina cercana a la promoción', async () => {
   await withMockedFetch(
     async () => mockOpenAiResponse({ promociones: [{

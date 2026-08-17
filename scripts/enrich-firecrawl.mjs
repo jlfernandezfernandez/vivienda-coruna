@@ -25,8 +25,6 @@ const MUNICIPIOS = [
   'Sada', 'Bergondo', 'Carral', 'Abegondo',
 ];
 
-const PRESS_HOST_PATTERN = /(?:laopinioncoruna\.es|lavozdegalicia\.es|elidealgallego\.com|elespanol\.com|eldiariodearteixo\.com|news\.google\.com|que\.es|msn\.com|inmobiliario)/i;
-
 const SEARCH_QUERIES = [
   'cooperativa vivienda {municipio} 2026',
   'promoción obra nueva viviendas {municipio} 2026',
@@ -89,10 +87,6 @@ async function enrichOpportunity(db, item) {
     console.log(`  [Regex] ${regexFields} campos sin LLM para "${item.title.slice(0, 50)}..."`);
   }
 
-  const titleGroundedTotal = PRESS_HOST_PATTERN.test(item.url || '')
-    ? validateExtractedHousingData({ totalViviendas: llmData.totalViviendas }, item.title, '').totalViviendas
-    : llmData.totalViviendas;
-
   saveOpportunity(db, {
     ...item,
     precioMin: llmData.precioMin,
@@ -100,7 +94,7 @@ async function enrichOpportunity(db, item) {
     habitacionesMin: llmData.habitacionesMin,
     banosMin: llmData.banosMin,
     promotora: llmData.promotora,
-    totalViviendas: titleGroundedTotal,
+    totalViviendas: llmData.totalViviendas,
     garaje: llmData.garaje,
     trastero: llmData.trastero,
     terraza: llmData.terraza,

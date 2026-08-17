@@ -17,7 +17,6 @@ const updateGrounded = db.prepare(`
     status = ?, nombrePromocion = ?, enriched = ?
   WHERE id = ?
 `);
-const PRESS_HOST_PATTERN = /(?:laopinioncoruna\.es|lavozdegalicia\.es|elidealgallego\.com|elespanol\.com|eldiariodearteixo\.com|news\.google\.com|que\.es|msn\.com|inmobiliario)/i;
 
 let linked = 0;
 let invalidated = 0;
@@ -51,11 +50,6 @@ try {
       estado: row.status,
       nombrePromocion: row.nombrePromocion,
     }, row.title || '', evidence);
-    if (PRESS_HOST_PATTERN.test(row.url || '')) {
-      grounded.totalViviendas = validateExtractedHousingData(
-        { totalViviendas: grounded.totalViviendas }, row.title || '', '',
-      ).totalViviendas;
-    }
     const validated = [
       grounded.precioMin, grounded.precioMax, grounded.habitacionesMin, grounded.banosMin,
       grounded.promotora, grounded.totalViviendas,
