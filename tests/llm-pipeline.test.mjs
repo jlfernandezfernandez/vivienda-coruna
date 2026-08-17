@@ -24,15 +24,18 @@ function withMockedFetch(mockFn, run) {
 test('extractHousingData devuelve estado y campos verificables del LLM; descarta lo no literal', async () => {
   await withMockedFetch(
     async () => mockOpenAiResponse({
-      precioMin: 300000, precioMax: null, habitacionesMin: 3, banosMin: null,
-      promotora: 'Nozar', totalViviendas: 66, garaje: true, trastero: true, terraza: true,
-      estado: 'Últimas unidades', nombrePromocion: 'Edificio Montevideo',
+      nombrePromocion: 'Edificio Montevideo', tipoPromocion: 'Obra Nueva', municipio: 'A Coruña',
+      barrio: 'Ciudad Vieja', direccion: null, precioMin: 300000, precioMax: null,
+      habitacionesMin: 3, banosMin: null, promotora: 'Nozar', totalViviendas: 66,
+      entregaEstimada: null, garaje: true, trastero: true, terraza: true, piscina: null,
+      ascensor: null, estado: 'Últimas unidades',
     }),
     async () => {
       const data = await extractHousingData('Edificio Montevideo en A Coruña', 'Nozar comercializa 66 viviendas, edificio Montevideo, últimas unidades, desde 300.000 €.');
       assert.equal(data.estado, 'Últimas unidades');
       assert.equal(data.nombrePromocion, 'Edificio Montevideo');
       assert.equal(data.promotora, 'Nozar');
+      assert.equal(data.municipio, 'A Coruña');
     },
   );
 });

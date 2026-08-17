@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { ensureSchema } from './lib/db.mjs';
+import { backfillGeocoding, ensureSchema } from './lib/db.mjs';
 
 const target = resolve(process.env.DB_PATH || process.argv[2] || '/data/monitor.db');
 const seed = resolve(process.env.SEED_DATABASE_PATH || process.argv[3] || '/app/seed/monitor.db');
@@ -17,6 +17,7 @@ const db = new DatabaseSync(target);
 try {
   db.exec('PRAGMA foreign_keys = ON;');
   ensureSchema(db);
+  backfillGeocoding(db);
   const integrity = db.prepare('PRAGMA integrity_check').get().integrity_check;
   const foreignKeys = db.prepare('PRAGMA foreign_key_check').all();
   if (integrity !== 'ok' || foreignKeys.length > 0) {

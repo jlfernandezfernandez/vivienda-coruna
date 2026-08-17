@@ -103,12 +103,15 @@ export function saveOpportunity(db, op) {
 
   let lat = op.lat ?? null;
   let lng = op.lng ?? null;
-  let municipality = op.municipality ?? null;
+  let municipality = op.municipality ?? op.municipio ?? null;
   let barrio = op.barrio ?? null;
   let geoPrecision = op.geoPrecision ?? null;
 
   if (lat == null || lng == null) {
-    const geo = resolveGeoLocation(`${op.title} ${op.summary || ''} ${op.location || ''}`, resolveMunicipality(op.location));
+    const geo = resolveGeoLocation(
+      `${op.title} ${op.summary || ''} ${op.location || ''} ${op.barrio || ''} ${op.direccion || ''}`,
+      resolveMunicipality(municipality || op.location)
+    );
     if (geo) {
       lat = geo.lat;
       lng = geo.lng;
@@ -938,6 +941,7 @@ function gestoraDto(gestora) {
       buscaSocios: promotion.buscaSocios === 1 ? true : (promotion.buscaSocios === 0 ? false : null),
       statusLabel: promotion.status || null,
       statusTone: statusTone(promotion.status),
+      municipalitySlug: promotion.municipality ? municipalitySlug(promotion.municipality) : null,
     })),
   };
 }
@@ -1028,14 +1032,15 @@ export function createRepository(dbOrFactory, options = {}) {
       }
       const result = withDb((db) => {
         const opportunities = getAllOpportunities(db, 150).map(opportunityDto);
+        const gestoras = getAllGestoras(db).map(gestoraDto);
         return {
           opportunities,
           sources: getAllSources(db),
-          gestoras: getAllGestoras(db).map(gestoraDto),
+          gestoras,
           cooperatives: getAllCooperatives(db),
           events: getRecentEvents(db, 25),
           municipalities,
-          coverage: options.coverageBuilder?.(opportunities)
+          coverage: options.coverageBuilder?.(opportunities, gestoras)
             ?? options.coverage
             ?? { boundaries: [], markers: [] },
         };
@@ -1300,20 +1305,26 @@ export function backfillGeocoding(db) {
   let promoUpdated = 0;
   let coopUpdated = 0;
 
-  const ungeoOpp = db.prepare('SELECT id, title, location, summary FROM opportunities WHERE lat IS NULL').all();
+  const ungeoOpp = db.prepare('SELECT id, title, location, summary, barrio, evidenceText FROM opportunities WHERE lat IS NULL OR municipality IS NULL').all();
   const updateOppStmt = db.prepare('UPDATE opportunities SET lat = ?, lng = ?, municipality = ?, barrio = ?, geoPrecision = ? WHERE id = ?');
   for (const op of ungeoOpp) {
-    const geo = resolveGeoLocation(`${op.title} ${op.summary || ''} ${op.location || ''}`, resolveMunicipality(op.location));
+    const geo = resolveGeoLocation(
+      `${op.title} ${op.summary || ''} ${op.location || ''} ${op.barrio || ''} ${(op.evidenceText || '').slice(0, 1000)}`,
+      resolveMunicipality(op.location)
+    );
     if (geo) {
       updateOppStmt.run(geo.lat, geo.lng, geo.municipality, geo.barrio || null, geo.geoPrecision, op.id);
       oppUpdated++;
     }
   }
 
-  const ungeoPromo = db.prepare('SELECT id, name, location, details FROM gestora_promotions WHERE lat IS NULL').all();
+  const ungeoPromo = db.prepare('SELECT id, name, location, details, barrio FROM gestora_promotions WHERE lat IS NULL OR municipality IS NULL').all();
   const updatePromoStmt = db.prepare('UPDATE gestora_promotions SET lat = ?, lng = ?, municipality = ?, barrio = ?, geoPrecision = ? WHERE id = ?');
   for (const pr of ungeoPromo) {
-    const geo = resolveGeoLocation(`${pr.name} ${pr.details || ''} ${pr.location || ''}`, resolveMunicipality(pr.location));
+    const geo = resolveGeoLocation(
+      `${pr.name} ${pr.details || ''} ${pr.location || ''} ${pr.barrio || ''}`,
+      resolveMunicipality(pr.location)
+    );
     if (geo) {
       updatePromoStmt.run(geo.lat, geo.lng, geo.municipality, geo.barrio || null, geo.geoPrecision, pr.id);
       promoUpdated++;

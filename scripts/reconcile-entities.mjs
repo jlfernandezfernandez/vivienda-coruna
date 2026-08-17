@@ -1,4 +1,4 @@
-import { getDatabase, reclassifyPromotionScopes } from './lib/db.mjs';
+import { backfillGeocoding, getDatabase, reclassifyPromotionScopes } from './lib/db.mjs';
 import { extractPublishedAt } from './lib/monitor.mjs';
 import { requirePipelineWriter } from './lib/writer-lock.mjs';
 import { rejectedOpportunities, rejectedPromotions } from './lib/rejections.mjs';
@@ -161,6 +161,7 @@ db.prepare(`DELETE FROM events WHERE
   ))
 `).run();
 db.prepare("DELETE FROM gestoras WHERE id = 'carlos-luxury-realty' AND NOT EXISTS (SELECT 1 FROM gestora_promotions WHERE gestoraId = 'carlos-luxury-realty')").run();
+  backfillGeocoding(db);
   db.exec('COMMIT');
 } catch (error) {
   db.exec('ROLLBACK');

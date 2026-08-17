@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 
 import { buildBackend } from './app.mjs';
 import { createCoverageBuilder } from './coverage.mjs';
-import { createRepository, ensureSchema } from '../scripts/lib/db.mjs';
+import { backfillGeocoding, createRepository, ensureSchema } from '../scripts/lib/db.mjs';
 
 const projectRoot = resolve(new URL('..', import.meta.url).pathname);
 const databasePath = resolve(process.env.DB_PATH || '/data/monitor.db');
@@ -20,6 +20,7 @@ const bootstrap = new DatabaseSync(databasePath);
 try {
   bootstrap.exec('PRAGMA foreign_keys = ON;');
   ensureSchema(bootstrap);
+  backfillGeocoding(bootstrap);
 } finally {
   bootstrap.close();
 }

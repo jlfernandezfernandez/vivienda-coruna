@@ -1,5 +1,5 @@
 import { config, AREA_LABELS } from './config.mjs';
-import { classifyPromotionLocation } from './municipios.mjs';
+import { classifyPromotionLocation, resolveMunicipality } from './municipios.mjs';
 import { hasStatusEvidence, statusLabels, statusDescription } from './statuses.mjs';
 
 const COMMERCIAL_STATUS = [...statusLabels(), null];
@@ -212,8 +212,10 @@ export function validateExtractedHousingData(parsed, title, summary) {
   };
   let estado = parsed.estado && hasStatusEvidence(parsed.estado, source) ? parsed.estado : null;
   if (estado === 'Agotada/Vendida' && !/(?:viviendas|unidades|promocion).{0,60}(?:agotad|vendid)|(?:agotad|vendid).{0,60}(?:viviendas|unidades|promocion)|no quedan/i.test(normalizedSource)) estado = null;
+  const validMunicipality = parsed.municipio ? (resolveMunicipality(parsed.municipio) || classifyPromotionLocation(parsed.municipio).municipality) : null;
   return {
     ...parsed,
+    municipio: validMunicipality,
     precioMin,
     precioMax: precioMax && (!precioMin || precioMax >= precioMin) ? precioMax : null,
     habitacionesMin: fieldNumber(parsed.habitacionesMin, 1, 8, source, roomContext),
@@ -226,6 +228,55 @@ export function validateExtractedHousingData(parsed, title, summary) {
     promotora: isGroundedEntityName(parsed.promotora, source, 'company'),
     nombrePromocion: isGroundedEntityName(parsed.nombrePromocion, source, 'promotion'),
   };
+}
+
+/**
+ * Infers municipality and barrio from text with LLM when regex/dictionary cannot resolve it.
+ *
+ * @param {string} text - Title, summary, or description
+ * @returns {Promise<{municipio: string|null, barrio: string|null, direccion: string|null}>}
+ */
+export async function inferLocationWithLLM(text) {
+  if (!config.llm.apiKey || !text) return { municipio: null, barrio: null, direccion: null };
+
+  const systemPrompt = `Eres un asistente experto en geografía urbana del área metropolitana de A Coruña (España).
+A partir del texto proporcionado sobre una promoción de vivienda o noticia inmobiliaria, identifica el municipio (${AREA_LABELS.join(', ')}) y, si es posible, el barrio o zona específica (ej. Xuxán, Someso, Visma, Los Rosales, Cuatro Caminos, Matogrande, Perillo, Santa Cruz, O Burgo).
+Si el texto no se refiere al área metropolitana de A Coruña o no menciona ninguna ubicación, asigna null a los campos correspondientes.`;
+
+  const userPrompt = `Texto a analizar:\n${text.slice(0, 2000)}`;
+
+  const schema = {
+    type: 'object',
+    properties: {
+      municipio: {
+        type: ['string', 'null'],
+        description: 'Nombre del municipio del área metropolitana de A Coruña, o null si no se menciona o está fuera del área.'
+      },
+      barrio: {
+        type: ['string', 'null'],
+        description: 'Nombre del barrio, polígono o zona específica, o null.'
+      },
+      direccion: {
+        type: ['string', 'null'],
+        description: 'Calle o dirección aproximada si aparece textualmente, o null.'
+      }
+    },
+    required: ['municipio', 'barrio', 'direccion'],
+    additionalProperties: false
+  };
+
+  try {
+    const parsed = await askLLM('infer_location', schema, systemPrompt, userPrompt, 0);
+    if (!parsed) return { municipio: null, barrio: null, direccion: null };
+    return {
+      municipio: parsed.municipio ? (resolveMunicipality(parsed.municipio) || classifyPromotionLocation(parsed.municipio).municipality) : null,
+      barrio: parsed.barrio || null,
+      direccion: parsed.direccion || null,
+    };
+  } catch (error) {
+    console.warn(`[llm] Fallo al inferir ubicación con LLM: ${error.message}`);
+    return { municipio: null, barrio: null, direccion: null };
+  }
 }
 
 /**
