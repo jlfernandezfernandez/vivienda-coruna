@@ -1,13 +1,13 @@
 ---
 import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
-import { getDatabase, getAllGestoras } from '../../scripts/lib/db.mjs';
-import { statusColors } from '../../scripts/lib/statuses.mjs';
-import { webBase } from '../../scripts/lib/municipios.mjs';
+import { api } from '../lib/api/client.mjs';
+import { apiSafe } from '../lib/api/boundary.mjs';
+import { siteBase } from '../lib/ui.mjs';
+import { statusColors } from '../lib/statuses.mjs';
 
-const db = getDatabase();
-const gestoras = getAllGestoras(db);
-const base = webBase(import.meta.env.BASE_URL);
+const gestoras = await apiSafe(Astro.response, () => api.gestoras(), []);
+const base = siteBase(import.meta.env.BASE_URL);
 
 const pageTitle = 'Directorio de Gestoras de Cooperativas y Promotoras en A Coruña | Vivienda Coruña';
 const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y promotoras activas en el área metropolitana de A Coruña: promociones, captación de socios y contacto directo.';

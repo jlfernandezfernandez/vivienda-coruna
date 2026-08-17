@@ -1,10 +1,113 @@
 ---
-import { getDatabase, getMarketStats } from '../../scripts/lib/db.mjs';
-import { slugify, webBase } from '../../scripts/lib/municipios.mjs';
+import { slugify, webBase } from '../lib/municipios.mjs';
+import { api } from '../lib/api/client.mjs';
+import { apiSafe } from '../lib/api/boundary.mjs';
+
+export interface MarketStat {
+  name: string;
+  kind: string;
+  count: number;
+  minPrice: number | null;
+  avgPrice: number | null;
+  maxPrice: number | null;
+  totalUnits: number;
+  coopCount: number;
+  vppCount: number;
+}
+
+export interface Props {
+  stats?: MarketStat[];
+  opportunities?: any[];
+  gestoras?: any[];
+}
 
 const base = webBase(import.meta.env.BASE_URL);
-const db = getDatabase();
-const stats = getMarketStats(db).slice(0, 6); // Top 6 active areas
+let { stats, opportunities, gestoras } = Astro.props;
+
+if (!stats) {
+  if (!opportunities || !gestoras) {
+    const dashboard = await apiSafe(Astro.response, () => api.dashboard(), {
+      opportunities: [],
+      sources: [],
+      gestoras: [],
+      cooperatives: [],
+      events: [],
+      municipalities: [],
+      coverage: { boundaries: [], markers: [] },
+    });
+    opportunities = dashboard.opportunities || [];
+    gestoras = dashboard.gestoras || [];
+  }
+
+  const groups = new Map<string, {
+    name: string;
+    kind: string;
+    count: number;
+    prices: number[];
+    totalUnits: number;
+    coopCount: number;
+    vppCount: number;
+  }>();
+
+  function getOrInit(key: string, name: string, kind: string) {
+    if (!groups.has(key)) {
+      groups.set(key, {
+        name,
+        kind,
+        count: 0,
+        prices: [],
+        totalUnits: 0,
+        coopCount: 0,
+        vppCount: 0
+      });
+    }
+    return groups.get(key)!;
+  }
+
+  for (const op of (opportunities || [])) {
+    const loc = op.barrio || op.municipality || op.location || 'A Coruña';
+    const kind = op.barrio ? 'barrio' : 'municipio';
+    const entry = getOrInit(loc, loc, kind);
+
+    entry.count++;
+    if (op.precioMin) entry.prices.push(op.precioMin);
+    if (op.totalViviendas) entry.totalUnits += op.totalViviendas;
+    if (op.type === 'Cooperativa') entry.coopCount++;
+    if (op.type === 'Vivienda protegida') entry.vppCount++;
+  }
+
+  for (const g of (gestoras || [])) {
+    for (const pr of (g.promotions || [])) {
+      const loc = pr.barrio || pr.municipality || pr.location || 'A Coruña';
+      const kind = pr.barrio ? 'barrio' : 'municipio';
+      const entry = getOrInit(loc, loc, kind);
+
+      entry.count++;
+      if (pr.buscaSocios === true) entry.coopCount++;
+    }
+  }
+
+  stats = Array.from(groups.values()).map(g => {
+    const validPrices = g.prices.sort((a, b) => a - b);
+    const minPrice = validPrices.length ? validPrices[0] : null;
+    const maxPrice = validPrices.length ? validPrices[validPrices.length - 1] : null;
+    const avgPrice = validPrices.length
+      ? Math.round(validPrices.reduce((acc, p) => acc + p, 0) / validPrices.length)
+      : null;
+
+    return {
+      name: g.name,
+      kind: g.kind,
+      count: g.count,
+      minPrice,
+      avgPrice,
+      maxPrice,
+      totalUnits: g.totalUnits,
+      coopCount: g.coopCount,
+      vppCount: g.vppCount
+    };
+  }).sort((a, b) => b.count - a.count).slice(0, 6);
+}
 ---
 
 <section class="rounded-2xl border border-border-soft bg-surface p-5 sm:p-6 shadow-premium" aria-labelledby="thermometer-title">
@@ -33,29 +136,50 @@ const stats = getMarketStats(db).slice(0, 6); // Top 6 active areas
           </div>
 
           <div class="space-y-1.5 my-2">
-            {item.avgPrice ? (
-              <div>
-                <span class="text-[11px] text-ink-muted block">Precio medio estimado</span>
-                <span class="text-lg font-extrabold text-brand-green">
-                  {item.avgPrice.toLocaleString('es-ES')} €
+            <div class="flex items-baseline justify-between text-xs">
+              <span class="text-ink-muted">Precio medio:</span>
+              <span class="font-mono font-bold text-ink">
+                {item.avgPrice ? `${item.avgPrice.toLocaleString('es-ES')} €` : 'Consultar'}
+              </span>
+            </div>
+
+            {item.minPrice && (
+              <div class="flex items-baseline justify-between text-[11px] text-ink-light">
+                <span>Desde:</span>
+                <span class="font-mono font-semibold text-brand-green">
+                  {item.minPrice.toLocaleString('es-ES')} €
                 </span>
               </div>
-            ) : (
-              <span class="text-xs text-ink-light italic">Precios según tipología</span>
             )}
 
-            {item.minPrice && item.maxPrice && item.minPrice !== item.maxPrice && (
-              <p class="text-[11px] text-ink-muted">
-                Rango: <strong class="text-ink">{Math.round(item.minPrice / 1000)}k €</strong> a <strong class="text-ink">{Math.round(item.maxPrice / 1000)}k €</strong>
-              </p>
+            {item.totalUnits > 0 && (
+              <div class="flex items-baseline justify-between text-[11px] text-ink-light">
+                <span>Viviendas proyectadas:</span>
+                <span class="font-bold text-ink">{item.totalUnits} uds</span>
+              </div>
             )}
           </div>
         </div>
 
-        <div class="pt-3 border-t border-border-soft/60 flex items-center justify-between text-[11px] text-ink-light mt-2">
-          <span>{item.coopCount > 0 ? `🟢 ${item.coopCount} coop` : ''} {item.vppCount > 0 ? `🔴 ${item.vppCount} VPP` : ''}</span>
-          <a href={`${base}mapa`} class="text-brand-green font-bold hover:underline">
-            Ver mapa →
+        <div class="pt-3 mt-2 border-t border-border-soft flex items-center justify-between text-[11px]">
+          <div class="flex items-center gap-1.5">
+            {item.coopCount > 0 && (
+              <span class="px-1.5 py-0.5 rounded bg-brand-green-soft text-brand-green font-semibold">
+                {item.coopCount} coop
+              </span>
+            )}
+            {item.vppCount > 0 && (
+              <span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
+                {item.vppCount} VPP
+              </span>
+            )}
+          </div>
+
+          <a
+            href={item.kind === 'municipio' ? `${base}municipio/${slugify(item.name)}` : `${base}mapa?q=${encodeURIComponent(item.name)}`}
+            class="text-brand-green font-semibold hover:underline flex items-center gap-0.5"
+          >
+            Ver zona →
           </a>
         </div>
       </div>

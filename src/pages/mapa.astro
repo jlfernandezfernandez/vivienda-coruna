@@ -2,12 +2,26 @@
 import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
 import CoverageMap from '../components/CoverageMap.astro';
-import { getDatabase, getMapFeatures } from '../../scripts/lib/db.mjs';
-import { MUNICIPALITIES, webBase, slugify } from '../../scripts/lib/municipios.mjs';
+import { api } from '../lib/api/client.mjs';
+import { apiSafe } from '../lib/api/boundary.mjs';
+import { siteBase } from '../lib/ui.mjs';
+import { MUNICIPALITIES, slugify } from '../lib/municipios.mjs';
 
-const base = webBase(import.meta.env.BASE_URL);
-const db = getDatabase();
-const markers = getMapFeatures(db, base);
+const base = siteBase(import.meta.env.BASE_URL);
+const dashboard = await apiSafe(Astro.response, () => api.dashboard(), {
+  opportunities: [],
+  sources: [],
+  gestoras: [],
+  cooperatives: [],
+  events: [],
+  municipalities: [],
+  coverage: { boundaries: [], markers: [] },
+});
+
+const markers = (dashboard.coverage?.markers || []).map((marker: any) => ({
+  ...marker,
+  url: base + String(marker.url || '').replace(/^\//, '')
+}));
 
 const pageTitle = 'Mapa de Promociones de Obra Nueva y Cooperativas en A Coruña | Vivienda Coruña';
 const pageDescription = 'Mapa interactivo con todas las promociones de obra nueva, cooperativas de viviendas y promociones públicas detectadas en el área metropolitana de A Coruña.';

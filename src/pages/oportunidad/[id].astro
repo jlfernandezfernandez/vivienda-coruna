@@ -3,20 +3,45 @@ import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
 import MortgageSimulator from '../../components/MortgageSimulator.astro';
 import ShareButton from '../../components/ShareButton.astro';
-import { getDatabase, getAllOpportunities } from '../../../scripts/lib/db.mjs';
-import { municipalitySlug, webBase } from '../../../scripts/lib/municipios.mjs';
-import { statusColors } from '../../../scripts/lib/statuses.mjs';
+import { api } from '../../lib/api/client.mjs';
+import { apiSafe } from '../../lib/api/boundary.mjs';
+import { siteBase } from '../../lib/ui.mjs';
+import { municipalitySlug } from '../../lib/municipios.mjs';
+import { statusColors } from '../../lib/statuses.mjs';
 
-export function getStaticPaths() {
-  const db = getDatabase();
-  return getAllOpportunities(db, 150).map((row) => ({
-    params: { id: row.id },
-    props: { item: row },
-  }));
-}
-
-const { item } = Astro.props;
-const base = webBase(import.meta.env.BASE_URL);
+const base = siteBase(import.meta.env.BASE_URL);
+const item = await apiSafe(
+  Astro.response,
+  () => api.opportunity(Astro.params.id || ''),
+  {
+    id: '',
+    title: 'Oportunidad no disponible',
+    url: base,
+    source: '',
+    sourceKind: '',
+    publishedAt: null,
+    firstSeenAt: new Date(0).toISOString(),
+    location: null,
+    type: null,
+    status: null,
+    summary: '',
+    events: [],
+    precioMin: null,
+    precioMax: null,
+    habitacionesMin: null,
+    banosMin: null,
+    promotora: null,
+    totalViviendas: null,
+    garaje: null,
+    trastero: null,
+    terraza: null,
+    piscina: null,
+    ascensor: null,
+    entregaEstimada: null,
+    municipality: null,
+    barrio: null,
+  }
+);
 
 const isMarket = item.sourceKind === 'market-alert';
 const sourceLabel = isMarket ? 'Prensa local' : item.source;

@@ -2,35 +2,64 @@
 import '../../styles/global.css';
 import Layout from '../../layouts/Layout.astro';
 import CoverageMap from '../../components/CoverageMap.astro';
-import { MUNICIPALITIES, resolveMunicipality, slugify, webBase } from '../../../scripts/lib/municipios.mjs';
-import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives, getMapFeatures } from '../../../scripts/lib/db.mjs';
+import { api } from '../../lib/api/client.mjs';
+import { apiSafe } from '../../lib/api/boundary.mjs';
+import { siteBase } from '../../lib/ui.mjs';
 
-export function getStaticPaths() {
-  const db = getDatabase();
-  const opportunities = getAllOpportunities(db, 150);
-  const cooperatives = getAllCooperatives(db);
-  const gestoras = getAllGestoras(db);
-  const allMarkers = getMapFeatures(db, webBase('/vivienda-coruna'));
+const [municipalityData, gestoras] = await apiSafe(
+  Astro.response,
+  () => Promise.all([api.municipality(Astro.params.slug || ''), api.gestoras()]),
+  [{ name: 'Municipio no disponible', opportunities: [], cooperatives: [], gestoraPromotions: [] }, []]
+);
 
-  return MUNICIPALITIES.map((municipality) => ({
-    params: { slug: slugify(municipality) },
-    props: {
-      municipality,
-      opportunities: opportunities.filter((o) => resolveMunicipality(o.location) === municipality),
-      cooperatives: cooperatives.filter((c) => c.municipality === municipality),
-      promotions: gestoras.flatMap((g) =>
-        g.promotions
-          .filter((p) => resolveMunicipality(p.location) === municipality)
-          .map((p) => ({ gestora: g, promo: p }))
-      ),
-      muniMarkers: allMarkers.filter((m) => m.municipality === municipality),
-    },
-  }));
-}
+const municipality = municipalityData.name;
+const { opportunities, cooperatives } = municipalityData;
+const gestorasById = new Map((gestoras || []).map((gestora: any) => [gestora.id, gestora]));
+const promotions = (municipalityData.gestoraPromotions || []).map((promo: any) => ({
+  gestora: gestorasById.get(promo.gestoraId) || { id: promo.gestoraId, name: '' },
+  promo
+}));
 
-const { municipality, opportunities, cooperatives, promotions, muniMarkers = [] } = Astro.props;
-const base = webBase(import.meta.env.BASE_URL);
+const base = siteBase(import.meta.env.BASE_URL);
 const total = opportunities.length + cooperatives.length + promotions.length;
+
+const muniMarkers = [
+  ...opportunities.filter((o: any) => o.lat != null && o.lng != null).map((o: any) => ({
+    id: o.id,
+    title: o.nombrePromocion || o.title,
+    category: o.type || 'Obra Nueva',
+    type: o.type || 'Obra Nueva',
+    status: o.status,
+    precioMin: o.precioMin,
+    habitacionesMin: o.habitacionesMin,
+    totalViviendas: o.totalViviendas,
+    promotora: o.promotora,
+    municipality: o.municipality || municipality,
+    barrio: o.barrio,
+    lat: o.lat,
+    lng: o.lng,
+    url: `${base}oportunidad/${o.id}`,
+    color: o.type === 'Cooperativa' ? '#1f4d36' : (o.type === 'Vivienda protegida' ? '#be123c' : '#0369a1'),
+    kind: 'opportunity' as const,
+  })),
+  ...promotions.filter(({ promo }: any) => promo.lat != null && promo.lng != null).map(({ gestora, promo }: any) => ({
+    id: promo.id,
+    title: promo.name,
+    category: promo.buscaSocios === true ? 'Cooperativa' : 'Obra Nueva',
+    type: promo.buscaSocios === true ? 'Cooperativa' : 'Promoción nueva',
+    status: promo.status,
+    precioMin: promo.aportacionInicial ? promo.aportacionInicial * 4 : null,
+    totalViviendas: null,
+    promotora: gestora.name,
+    municipality: promo.municipality || municipality,
+    barrio: promo.barrio,
+    lat: promo.lat,
+    lng: promo.lng,
+    url: `${base}gestora/${gestora.id || promo.gestoraId}`,
+    color: promo.buscaSocios === true ? '#1f4d36' : '#0369a1',
+    kind: 'promotion' as const,
+  }))
+];
 
 const pageTitle = `Cooperativas y obra nueva en ${municipality} | Vivienda Coruña`;
 const pageDescription = `Actividad detectada en ${municipality}: cooperativas del Rexistro oficial, promociones de obra nueva y señales en prensa y fuentes oficiales.`;

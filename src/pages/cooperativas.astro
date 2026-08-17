@@ -1,14 +1,18 @@
 ---
 import '../styles/global.css';
 import Layout from '../layouts/Layout.astro';
-import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives } from '../../scripts/lib/db.mjs';
-import { webBase } from '../../scripts/lib/municipios.mjs';
+import { api } from '../lib/api/client.mjs';
+import { apiSafe } from '../lib/api/boundary.mjs';
+import { siteBase } from '../lib/ui.mjs';
 
-const db = getDatabase();
-const cooperatives = getAllCooperatives(db);
-const coopOpportunities = getAllOpportunities(db, 150).filter((o) => o.type === 'Cooperativa');
-const gestoras = getAllGestoras(db);
-const base = webBase(import.meta.env.BASE_URL);
+const [cooperatives, dashboard] = await apiSafe(
+  Astro.response,
+  () => Promise.all([api.cooperatives(), api.dashboard()]),
+  [[], { opportunities: [], gestoras: [] }]
+);
+const { opportunities, gestoras } = dashboard;
+const coopOpportunities = (opportunities || []).filter((o: any) => o.type === 'Cooperativa');
+const base = siteBase(import.meta.env.BASE_URL);
 
 const captacion = gestoras.flatMap((g) =>
   g.promotions

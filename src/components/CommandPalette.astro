@@ -1,10 +1,64 @@
 ---
-import { getDatabase, getMapFeatures } from '../../scripts/lib/db.mjs';
-import { webBase } from '../../scripts/lib/municipios.mjs';
+import { api } from '../lib/api/client.mjs';
+import { apiSafe } from '../lib/api/boundary.mjs';
+import { siteBase } from '../lib/ui.mjs';
 
-const base = webBase(import.meta.env.BASE_URL);
-const db = getDatabase();
-const items = getMapFeatures(db, base);
+interface Props {
+  items?: Array<{
+    id: string;
+    title: string;
+    category?: string;
+    type?: string;
+    status?: string | null;
+    precioMin?: number | null;
+    municipality?: string | null;
+    barrio?: string | null;
+    url?: string;
+  }>;
+}
+
+const base = siteBase(import.meta.env.BASE_URL);
+let { items } = Astro.props;
+
+if (!items || items.length === 0) {
+  const dashboard = await apiSafe(Astro.response, () => api.dashboard(), {
+    opportunities: [],
+    sources: [],
+    gestoras: [],
+    cooperatives: [],
+    events: [],
+    municipalities: [],
+    coverage: { boundaries: [], markers: [] },
+  });
+
+  const oppItems = (dashboard.opportunities || []).map(op => ({
+    id: op.id,
+    title: op.nombrePromocion || op.title,
+    category: op.type || 'Obra Nueva',
+    type: op.type || 'Obra Nueva',
+    status: op.status || null,
+    precioMin: op.precioMin || null,
+    municipality: op.municipality || op.location || null,
+    barrio: op.barrio || null,
+    url: `${base}oportunidad/${op.id}`,
+  }));
+
+  const promoItems = (dashboard.gestoras || []).flatMap(g =>
+    (g.promotions || []).map(pr => ({
+      id: pr.id,
+      title: pr.name,
+      category: pr.buscaSocios === true ? 'Cooperativa' : 'Obra Nueva',
+      type: pr.buscaSocios === true ? 'Cooperativa' : 'Promoción',
+      status: pr.status || null,
+      precioMin: pr.aportacionInicial ? pr.aportacionInicial * 4 : null,
+      municipality: pr.municipality || pr.location || null,
+      barrio: pr.barrio || null,
+      url: `${base}gestora/${pr.gestoraId || g.id}`,
+    }))
+  );
+
+  items = [...oppItems, ...promoItems];
+}
 ---
 
 <div
@@ -59,53 +113,13 @@ const items = getMapFeatures(db, base);
   </div>
 </div>
 
-<script define:vars={{ items, base }}>
+<script define:vars={{ rawItems: items }}>
   const backdrop = document.getElementById('cmd-palette-backdrop');
   const modal = document.getElementById('cmd-palette-modal');
   const input = document.getElementById('cmd-palette-input');
   const resultsContainer = document.getElementById('cmd-palette-results');
   let selectedIndex = 0;
-  let currentFiltered = items;
-
-  function renderResults(filtered) {
-    currentFiltered = filtered;
-    selectedIndex = 0;
-
-    if (!resultsContainer) return;
-    if (filtered.length === 0) {
-      resultsContainer.innerHTML = `
-        <div class="p-8 text-center text-xs text-ink-muted">
-          No se encontraron resultados para tu búsqueda.
-        </div>
-      `;
-      return;
-    }
-
-    resultsContainer.innerHTML = filtered.slice(0, 8).map((item, idx) => {
-      const isSelected = idx === selectedIndex;
-      const priceText = item.precioMin ? `Desde ${item.precioMin.toLocaleString('es-ES')} €` : '';
-      const locationText = [item.barrio, item.municipality].filter(Boolean).join(' · ');
-
-      return `
-        <a
-          href="${item.url}"
-          data-index="${idx}"
-          class="cmd-item flex items-center justify-between p-2.5 rounded-xl text-xs transition-colors no-underline cursor-pointer ${
-            isSelected ? 'bg-brand-green-soft text-brand-green' : 'hover:bg-canvas text-ink'
-          }"
-        >
-          <div class="min-w-0 pr-2">
-            <div class="flex items-center gap-1.5 mb-0.5">
-              <span class="font-bold text-[10px] uppercase tracking-wider text-ink-light truncate">${locationText}</span>
-              ${item.status ? `<span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-surface border border-border-soft">${item.status}</span>` : ''}
-            </div>
-            <p class="font-bold truncate text-ink ${isSelected ? 'text-brand-green' : ''}">${item.title}</p>
-          </div>
-          ${priceText ? `<span class="font-extrabold text-brand-green text-[11px] flex-shrink-0">${priceText}</span>` : ''}
-        </a>
-      `;
-    }).join('');
-  }
+  let currentResults = [];
 
   function openPalette() {
     if (!backdrop || !modal || !input) return;
@@ -116,7 +130,8 @@ const items = getMapFeatures(db, base);
       modal.classList.add('scale-100');
     });
     input.value = '';
-    renderResults(items);
+    selectedIndex = 0;
+    renderResults(rawItems.slice(0, 8));
     input.focus();
   }
 
@@ -125,70 +140,119 @@ const items = getMapFeatures(db, base);
     backdrop.classList.add('opacity-0');
     modal.classList.remove('scale-100');
     modal.classList.add('scale-95');
-    setTimeout(() => backdrop.classList.add('hidden'), 150);
+    setTimeout(() => {
+      backdrop.classList.add('hidden');
+    }, 150);
   }
 
-  // Keyboard shortcut listener (Cmd+K / Ctrl+K / slash)
+  function renderResults(list) {
+    currentResults = list;
+    if (!resultsContainer) return;
+    if (list.length === 0) {
+      resultsContainer.innerHTML = `
+        <div class="py-8 text-center text-xs text-ink-light">
+          No se encontraron promociones o ubicaciones con ese criterio.
+        </div>
+      `;
+      return;
+    }
+
+    resultsContainer.innerHTML = list.map((item, idx) => {
+      const isSelected = idx === selectedIndex;
+      const isCoop = item.category === 'Cooperativa' || item.type === 'Cooperativa';
+      const badgeClass = isCoop
+        ? 'bg-brand-green-soft text-brand-green border-brand-green/20'
+        : 'bg-brand-blue-soft text-brand-blue border-brand-blue/20';
+
+      return `
+        <a
+          href="${item.url || '#'}"
+          data-idx="${idx}"
+          class="flex items-center justify-between p-2.5 rounded-xl transition-colors ${
+            isSelected ? 'bg-canvas-card border border-brand-green/30 shadow-subtle' : 'hover:bg-canvas'
+          }"
+        >
+          <div class="min-w-0 pr-3">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="text-xs font-bold text-ink truncate">${item.title}</span>
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">
+                ${item.category || item.type || 'Promoción'}
+              </span>
+            </div>
+            <p class="text-[11px] text-ink-light truncate">
+              📍 ${item.barrio ? item.barrio + ' · ' : ''}${item.municipality || 'A Coruña'}
+              ${item.status ? ' · ' + item.status : ''}
+            </p>
+          </div>
+          <div class="text-right flex-shrink-0">
+            ${item.precioMin ? `<span class="text-xs font-bold text-ink font-mono">${item.precioMin.toLocaleString('es-ES')} €</span>` : '<span class="text-[11px] text-ink-light">Consultar</span>'}
+          </div>
+        </a>
+      `;
+    }).join('');
+  }
+
+  function handleFilter(query) {
+    const q = query.toLowerCase().trim();
+    if (!q) {
+      renderResults(rawItems.slice(0, 8));
+      return;
+    }
+
+    const filtered = rawItems.filter(item => {
+      const title = (item.title || '').toLowerCase();
+      const mun = (item.municipality || '').toLowerCase();
+      const bar = (item.barrio || '').toLowerCase();
+      const cat = (item.category || '').toLowerCase();
+      return title.includes(q) || mun.includes(q) || bar.includes(q) || cat.includes(q);
+    });
+
+    selectedIndex = 0;
+    renderResults(filtered.slice(0, 10));
+  }
+
   window.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      backdrop?.classList.contains('hidden') ? openPalette() : closePalette();
-    } else if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target)?.tagName)) {
+      if (backdrop?.classList.contains('hidden')) {
+        openPalette();
+      } else {
+        closePalette();
+      }
+    } else if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
       e.preventDefault();
       openPalette();
     } else if (e.key === 'Escape' && !backdrop?.classList.contains('hidden')) {
+      e.preventDefault();
       closePalette();
     } else if (!backdrop?.classList.contains('hidden')) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        selectedIndex = Math.min(selectedIndex + 1, Math.min(currentFiltered.length - 1, 7));
-        highlightItem();
+        selectedIndex = (selectedIndex + 1) % Math.max(1, currentResults.length);
+        renderResults(currentResults);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        selectedIndex = Math.max(selectedIndex - 1, 0);
-        highlightItem();
-      } else if (e.key === 'Enter') {
+        selectedIndex = (selectedIndex - 1 + currentResults.length) % Math.max(1, currentResults.length);
+        renderResults(currentResults);
+      } else if (e.key === 'Enter' && currentResults[selectedIndex]) {
         e.preventDefault();
-        const selected = resultsContainer?.querySelector(`[data-index="${selectedIndex}"]`);
-        if (selected) window.location.href = selected.getAttribute('href');
+        window.location.href = currentResults[selectedIndex].url || '#';
       }
     }
   });
 
-  function highlightItem() {
-    const itemsEl = resultsContainer?.querySelectorAll('.cmd-item');
-    itemsEl?.forEach((el, idx) => {
-      if (idx === selectedIndex) {
-        el.classList.add('bg-brand-green-soft', 'text-brand-green');
-        el.classList.remove('hover:bg-canvas', 'text-ink');
-      } else {
-        el.classList.remove('bg-brand-green-soft', 'text-brand-green');
-        el.classList.add('text-ink');
-      }
-    });
-  }
-
   input?.addEventListener('input', (e) => {
-    const q = (e.target).value.toLowerCase().trim();
-    if (!q) {
-      renderResults(items);
-      return;
-    }
-    const filtered = items.filter((item) => {
-      const matchTitle = item.title?.toLowerCase().includes(q);
-      const matchBarrio = item.barrio?.toLowerCase().includes(q);
-      const matchMuni = item.municipality?.toLowerCase().includes(q);
-      const matchType = item.type?.toLowerCase().includes(q);
-      const matchPromotora = item.promotora?.toLowerCase().includes(q);
-      return matchTitle || matchBarrio || matchMuni || matchType || matchPromotora;
-    });
-    renderResults(filtered);
+    handleFilter(e.target.value);
   });
 
   backdrop?.addEventListener('click', (e) => {
-    if (e.target === backdrop) closePalette();
+    if (e.target === backdrop) {
+      closePalette();
+    }
   });
 
-  // Global trigger
-  window.openCommandPalette = openPalette;
+  // Global trigger buttons (e.g. from header)
+  document.querySelectorAll('[data-open-cmd-palette]').forEach(btn => {
+    btn.addEventListener('click', () => openPalette());
+  });
 </script>

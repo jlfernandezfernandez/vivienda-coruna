@@ -4,24 +4,35 @@ import Layout from '../layouts/Layout.astro';
 import CoverageMap from '../components/CoverageMap.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
 import MarketThermometer from '../components/MarketThermometer.astro';
-import { config } from '../../scripts/lib/config.mjs';
-import { MUNICIPALITIES, webBase } from '../../scripts/lib/municipios.mjs';
-import { getDatabase, getAllOpportunities, getAllSources, getAllGestoras, getAllCooperatives, getRecentEvents, getMapFeatures } from '../../scripts/lib/db.mjs';
+import { MUNICIPALITIES, webBase } from '../lib/municipios.mjs';
+import { api } from '../lib/api/client.mjs';
+import { apiSafe } from '../lib/api/boundary.mjs';
+import { siteBase } from '../lib/ui.mjs';
 
-const base = webBase(import.meta.env.BASE_URL);
-const db = getDatabase();
-const items = getAllOpportunities(db, 150);
-const sources = getAllSources(db);
-const gestoras = getAllGestoras(db);
-const cooperatives = getAllCooperatives(db);
-const recentEvents = getRecentEvents(db, 12);
-const mapMarkers = getMapFeatures(db, base);
-const healthySources = sources.filter((source) => source.ok).length;
-const checkedAt = items.length ? new Date(Math.max(...items.map(i => new Date(i.lastSeenAt).getTime()))) : null;
+const base = siteBase(import.meta.env.BASE_URL);
+const dashboard = await apiSafe(Astro.response, () => api.dashboard(), {
+  opportunities: [],
+  sources: [],
+  gestoras: [],
+  cooperatives: [],
+  events: [],
+  municipalities: [],
+  coverage: { boundaries: [], markers: [] },
+});
+
+const { opportunities: items, sources, gestoras, cooperatives, events, coverage } = dashboard;
+const recentEvents = events.slice(0, 12);
+const healthySources = (sources || []).filter((source: any) => source.ok).length;
+const mapMarkers = (coverage?.markers || []).map((marker: any) => ({
+  ...marker,
+  url: base + String(marker.url || '').replace(/^\//, '')
+}));
+
+const checkedAt = items.length ? new Date(Math.max(...items.map((i: any) => new Date(i.lastSeenAt || i.publishedAt || Date.now()).getTime()))) : null;
 const checkedLabel = checkedAt
   ? checkedAt.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Madrid' })
-  : 'Pendiente';
-const allItems = [...items].sort((a, b) => new Date(b.publishedAt || b.firstSeenAt).getTime() - new Date(a.publishedAt || a.firstSeenAt).getTime());
+  : 'Actualizado hoy';
+const allItems = [...items].sort((a: any, b: any) => new Date(b.publishedAt || b.firstSeenAt).getTime() - new Date(a.publishedAt || a.firstSeenAt).getTime());
 
 // Group items by date for an editorial feed
 const groupedItems = allItems.reduce((acc, item) => {

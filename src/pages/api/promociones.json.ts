@@ -1,39 +1,44 @@
 import type { APIRoute } from 'astro';
-import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives, getAllSources } from '../../../scripts/lib/db.mjs';
-import { clusterAndFuseOpportunities } from '../../../scripts/lib/dedup.mjs';
+import { api } from '../../lib/api/client.mjs';
+import { apiSafe } from '../../lib/api/boundary.mjs';
 
-export const prerender = true;
+export const prerender = false;
 
 export const GET: APIRoute = async () => {
-  const db = getDatabase();
-  const rawOpportunities = getAllOpportunities(db, 500);
-  const fused = clusterAndFuseOpportunities(rawOpportunities);
-  const gestoras = getAllGestoras(db);
-  const cooperatives = getAllCooperatives(db);
-  const sources = getAllSources(db);
+  const dashboard = await apiSafe(null, () => api.dashboard(), {
+    opportunities: [],
+    sources: [],
+    gestoras: [],
+    cooperatives: [],
+    events: [],
+    municipalities: [],
+    coverage: { boundaries: [], markers: [] },
+  });
 
   const payload = {
-    status: 'success',
-    generatedAt: new Date().toISOString(),
-    metropolitanArea: 'A Coruña (A Coruña, Oleiros, Culleredo, Arteixo, Cambre, Sada, Bergondo, Carral, Abegondo)',
-    metrics: {
-      totalOpportunitiesFused: fused.length,
-      totalPromotionsGestora: gestoras.flatMap(g => g.promotions).length,
-      totalRegisteredCooperatives: cooperatives.length,
-      activeSources: sources.filter(s => s.ok).length
+    metadata: {
+      generatedAt: new Date().toISOString(),
+      source: 'Vivienda Coruña Open Data Initiative',
+      documentation: 'https://github.com/jlfernandezfernandez/vivienda-coruna',
+      license: 'ODbL / Open Data Commons Open Database License',
+      counts: {
+        opportunities: (dashboard.opportunities || []).length,
+        gestoras: (dashboard.gestoras || []).length,
+        cooperatives: (dashboard.cooperatives || []).length,
+        sources: (dashboard.sources || []).length
+      }
     },
-    data: {
-      opportunities: fused,
-      gestoras,
-      cooperatives
-    }
+    opportunities: dashboard.opportunities || [],
+    gestoras: dashboard.gestoras || [],
+    cooperatives: dashboard.cooperatives || [],
+    sources: dashboard.sources || []
   };
 
   return new Response(JSON.stringify(payload, null, 2), {
     status: 200,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
       'Access-Control-Allow-Origin': '*'
     }
   });

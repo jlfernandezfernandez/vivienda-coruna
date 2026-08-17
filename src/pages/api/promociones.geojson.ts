@@ -1,19 +1,27 @@
 import type { APIRoute } from 'astro';
-import { getDatabase, getAllOpportunities, getAllGestoras, getAllCooperatives } from '../../../scripts/lib/db.mjs';
-import { clusterAndFuseOpportunities } from '../../../scripts/lib/dedup.mjs';
+import { api } from '../../lib/api/client.mjs';
+import { apiSafe } from '../../lib/api/boundary.mjs';
 
-export const prerender = true;
+export const prerender = false;
 
 export const GET: APIRoute = async () => {
-  const db = getDatabase();
-  const rawOpportunities = getAllOpportunities(db, 500);
-  const fusedOpportunities = clusterAndFuseOpportunities(rawOpportunities);
-  const gestoras = getAllGestoras(db);
-  const cooperatives = getAllCooperatives(db);
+  const dashboard = await apiSafe(null, () => api.dashboard(), {
+    opportunities: [],
+    sources: [],
+    gestoras: [],
+    cooperatives: [],
+    events: [],
+    municipalities: [],
+    coverage: { boundaries: [], markers: [] },
+  });
+
+  const rawOpportunities = dashboard.opportunities || [];
+  const gestoras = dashboard.gestoras || [];
+  const cooperatives = dashboard.cooperatives || [];
 
   const features: any[] = [];
 
-  for (const op of fusedOpportunities) {
+  for (const op of rawOpportunities) {
     if (op.lat == null || op.lng == null) continue;
 
     features.push({
@@ -45,14 +53,14 @@ export const GET: APIRoute = async () => {
         piscina: op.piscina === true,
         ascensor: op.ascensor === true,
         publishedAt: op.publishedAt || op.firstSeenAt,
-        sourcesCount: op.sourcesCount || 1,
-        citations: op.citations || [{ source: op.source, url: op.url }]
+        source: op.source,
+        url: op.url
       }
     });
   }
 
   for (const g of gestoras) {
-    for (const p of g.promotions) {
+    for (const p of (g.promotions || [])) {
       if (p.lat == null || p.lng == null) continue;
 
       features.push({
@@ -65,20 +73,18 @@ export const GET: APIRoute = async () => {
           id: p.id,
           entityType: 'gestora_promotion',
           title: p.name,
-          nombrePromocion: p.name,
-          tipoPromocion: p.buscaSocios ? 'Cooperativa' : 'Obra Nueva',
-          status: p.buscaSocios ? 'Captación abierta' : (p.status || 'Comercialización'),
-          municipality: p.municipality || p.location,
-          barrio: p.barrio || null,
-          geoPrecision: p.geoPrecision || 'barrio',
-          promotora: g.name,
           gestoraId: g.id,
+          gestoraName: g.name,
+          location: p.location,
+          municipality: p.municipality || g.address || null,
+          barrio: p.barrio || null,
+          geoPrecision: p.geoPrecision || 'parcela',
+          status: p.status || 'En captación',
           buscaSocios: p.buscaSocios === true,
           aportacionInicial: p.aportacionInicial || null,
           entregaEstimada: p.entregaEstimada || null,
-          link: p.link || g.website,
-          sourcesCount: 1,
-          citations: [{ source: `Web Oficial ${g.name}`, url: p.link || g.website }]
+          details: p.details || null,
+          link: p.link || g.website || null
         }
       });
     }
@@ -94,23 +100,18 @@ export const GET: APIRoute = async () => {
         coordinates: [c.lng, c.lat]
       },
       properties: {
-        id: `coop:${c.cif}`,
-        entityType: 'registry_cooperative',
+        id: c.cif,
+        entityType: 'cooperative',
         title: c.name,
-        nombrePromocion: c.name,
-        tipoPromocion: 'Cooperativa',
-        status: 'Registrada',
-        municipality: c.municipality,
+        numRegistro: c.numRegistro || null,
+        municipality: c.municipality || 'A Coruña',
         barrio: c.barrio || null,
         geoPrecision: c.geoPrecision || 'municipio',
-        cif: c.cif,
-        numRegistro: c.numRegistro,
-        foundedAt: c.foundedAt,
-        foundingPartners: c.foundingPartners,
-        address: c.address,
-        postalCode: c.postalCode,
-        sourcesCount: 1,
-        citations: [{ source: 'Rexistro Oficial de Cooperativas da Xunta de Galicia', url: 'https://abertos.xunta.gal/' }]
+        address: c.address || null,
+        foundedAt: c.foundedAt || null,
+        foundingPartners: c.foundingPartners || null,
+        email: c.email || null,
+        phone: c.phone || null
       }
     });
   }
@@ -118,11 +119,10 @@ export const GET: APIRoute = async () => {
   const geojson = {
     type: 'FeatureCollection',
     metadata: {
-      title: 'Vivienda Coruña - Datos Abiertos de Vivienda Metropolitano',
-      description: 'Promociones residenciales, cooperativas y suelo en A Coruña y su área metropolitana.',
       generatedAt: new Date().toISOString(),
-      bbox: [-8.55, 43.20, -8.20, 43.40],
-      totalFeatures: features.length
+      source: 'Vivienda Coruña Open Data Initiative',
+      license: 'Open Data Commons Public Domain Dedication and License (PDDL)',
+      count: features.length
     },
     features
   };
@@ -131,7 +131,7 @@ export const GET: APIRoute = async () => {
     status: 200,
     headers: {
       'Content-Type': 'application/geo+json; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
       'Access-Control-Allow-Origin': '*'
     }
   });
