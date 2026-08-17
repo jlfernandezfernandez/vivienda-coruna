@@ -40,8 +40,8 @@ if (!envRes.ok) {
 }
 console.log(`[coolify-deploy] Environment variable IMAGE_TAG updated successfully.`);
 
-// 2. Queue service start / restart
-const startRes = await fetch(`${COOLIFY_URL}/api/v1/services/${SERVICE_UUID}/start`, {
+// 2. Queue service restart / deploy
+let deployRes = await fetch(`${COOLIFY_URL}/api/v1/services/${SERVICE_UUID}/restart`, {
   method: 'POST',
   headers: {
     Authorization: `Bearer ${COOLIFY_TOKEN}`,
@@ -49,9 +49,19 @@ const startRes = await fetch(`${COOLIFY_URL}/api/v1/services/${SERVICE_UUID}/sta
   },
 });
 
-if (!startRes.ok) {
-  const body = await startRes.text();
-  throw new Error(`Failed to trigger service deployment on Coolify (${startRes.status}): ${body}`);
+if (!deployRes.ok) {
+  deployRes = await fetch(`${COOLIFY_URL}/api/v1/deploy?uuid=${SERVICE_UUID}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${COOLIFY_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+if (!deployRes.ok) {
+  const body = await deployRes.text();
+  throw new Error(`Failed to trigger service deployment on Coolify (${deployRes.status}): ${body}`);
 }
 console.log(`[coolify-deploy] Deployment queued on Coolify. Monitoring health checks...`);
 
@@ -85,10 +95,10 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
   } catch {}
 
   try {
-    const frontRes = await fetch('https://vivienda.jordixlab.com/mapa', { signal: AbortSignal.timeout(4000) });
+    const frontRes = await fetch('https://vivienda.jordixlab.com/', { signal: AbortSignal.timeout(4000) });
     if (frontRes.ok) {
-      const html = await frontRes.text();
-      if (html.includes('ubicaciones geolocalizadas')) {
+      const frontVer = frontRes.headers.get('x-app-version');
+      if (frontVer === tag) {
         frontendReady = true;
       }
     }
