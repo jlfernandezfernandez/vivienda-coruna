@@ -338,3 +338,42 @@ test('schema migration preserves old pipeline runs and enables curate mode', () 
     db.close();
   }
 });
+
+test('rejected opportunities are excluded from curation candidates', () => {
+  const db = database();
+  try {
+    // Un falso positivo ya revisado y programado para rechazo no debe
+    // reaparecer como candidato: bloquearía la puerta de completitud de
+    // `curate` sin que exista una acción de API para rechazarlo.
+    db.prepare(`INSERT INTO opportunities (
+      id,title,url,source,sourceKind,publishedAt,firstSeenAt,lastSeenAt,location,type,status,summary,enriched,extractionMethod
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      '16f236ba4b44c6b8', 'Venta de obra nueva en A Coruña 2026 - viviendasnuevas.com',
+      'https://viviendasnuevas.com/lacoruna/a-coruna-la-coruna', 'Firecrawl · A Coruña',
+      'firecrawl-search', null, '2026-08-17T07:04:16.237Z', '2026-08-17T07:04:16.237Z',
+      'A Coruña', 'Promoción nueva', 'En construcción', 'Portal índice.', 1, 'regex-no-llm',
+    );
+    const candidates = listCurationCandidates(db);
+    assert.equal(candidates.some((item) => item.entityId === '16f236ba4b44c6b8'), false);
+  } finally {
+    db.close();
+  }
+});
+
+test('rejected promotions are excluded from curation candidates', () => {
+  const db = database();
+  try {
+    db.prepare(`INSERT INTO gestoras (id,name,logo,website,phone,email,address,description)
+      VALUES (?,?,?,?,?,?,?,?)`).run('metrovacesa', 'Metrovacesa', '', 'https://metrovacesa.com/', '', '', '', '');
+    db.prepare(`INSERT INTO gestora_promotions
+      (id,gestoraId,name,location,status,details,link,municipality,scopeStatus)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(
+      'promo:metrovacesa:abelia-residencial', 'metrovacesa', 'Abelia Residencial',
+      'Alicante', 'Comercialización', null, null, 'Alicante', 'out_of_scope',
+    );
+    const candidates = listCurationCandidates(db);
+    assert.equal(candidates.some((item) => item.entityId === 'promo:metrovacesa:abelia-residencial'), false);
+  } finally {
+    db.close();
+  }
+});

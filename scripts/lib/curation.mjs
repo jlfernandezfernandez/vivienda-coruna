@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import { validateExtractedHousingData } from './llm.mjs';
 import { classifyPromotionLocation } from './municipios.mjs';
 import { statusLabels } from './statuses.mjs';
+import { rejectedOpportunities, rejectedPromotions } from './rejections.mjs';
 
 const ENTITY_CONFIG = Object.freeze({
   opportunity: {
@@ -133,10 +134,22 @@ export function listCurationCandidates(db) {
     "SELECT entityKind,entityId,contentHash,id FROM curation_reviews WHERE status = 'staged'"
   ).all().map((row) => [`${row.entityKind}:${row.entityId}`, row]));
 
+  // Falsos positivos ya revisados y programados para rechazo en la
+  // reconciliación. No deben reaparecer como candidatos: su borrado es
+  // transaccional y ocurre dentro del pipeline, pero mientras tanto bloquearían
+  // la puerta de completitud de `curate` (curation_incomplete) sin que exista
+  // una acción de API para rechazarlos.
+  const rejectedIds = new Map([
+    ['opportunity', new Set(rejectedOpportunities.map(([id]) => id))],
+    ['promotion', new Set(rejectedPromotions.map(([id]) => id))],
+  ]);
+
   const candidates = [];
   for (const [entityKind, config] of Object.entries(ENTITY_CONFIG)) {
+    const rejected = rejectedIds.get(entityKind);
     for (const record of db.prepare(`SELECT * FROM ${config.table}`).all()) {
       const entityId = String(record[config.idField]);
+      if (rejected?.has(entityId)) continue;
       const contentHash = entityContentHash(entityKind, record);
       const key = `${entityKind}:${entityId}`;
       const lastReview = latest.get(key) || null;
