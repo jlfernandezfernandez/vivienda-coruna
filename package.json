@@ -15,6 +15,7 @@
     "enrich": "node scripts/enrich-firecrawl.mjs",
     "enrich:retry": "RETRY_ONLY=1 node scripts/enrich-firecrawl.mjs",
     "quality": "node scripts/quality-gate.mjs",
+    "deploy": "node scripts/deploy-coolify.mjs",
     "preview": "astro preview"
   },
   "dependencies": {

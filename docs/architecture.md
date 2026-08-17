@@ -36,9 +36,17 @@ backend · Fastify :3000 ─── Firecrawl compartido
 - Es el único propietario del volumen SQLite.
 - No contiene HTML ni decisiones visuales.
 
-### Firecrawl y LLM
+### Firecrawl, LLM y Geocodificación
 
-Firecrawl es infraestructura externa compartida y se configura con `FIRECRAWL_BASE_URL`. La extracción LLM es opcional: regex y validaciones deterministas siguen funcionando sin `LLM_API_KEY`.
+1. **Firecrawl:** Infraestructura externa compartida configurada con `FIRECRAWL_BASE_URL`.
+2. **Extracción y Validación:** El pipeline utiliza extracción regex determinista (~80% de casos) con fallback a LLM Structured Outputs (`extractHousingData`) y validación estricta contra el texto (`validateExtractedHousingData`).
+3. **Geocodificación Multinivel:**
+   - *Micro-sector/calle:* Coordenadas exactas para zonas específicas (ej. Xuxán, Visma, Someso).
+   - *Barrio:* Centroides de barrios metropolitanos.
+   - *Municipio:* Centroides de los 10 municipios del área.
+   - *Inferencia LLM:* [`inferLocationWithLLM`](../scripts/lib/llm.mjs) deduce municipio y barrio de noticias complejas.
+   - *Auto-backfill:* El backend y el pipeline runtime ejecutan [`backfillGeocoding`](../scripts/lib/db.mjs) en boot y reconciliación.
+4. **Generador de Cobertura:** [`backend/coverage.mjs`](../backend/coverage.mjs) ensambla coordenadas reales, anti-colisión en espiral y metadatos completos para oportunidades y promociones de gestoras.
 
 ## API v1
 

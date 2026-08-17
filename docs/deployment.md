@@ -43,7 +43,7 @@ Dominios internos asignados al servicio Coolify (el puerto es el del contenedor)
 
 NPMplus es el edge público: termina TLS con el certificado wildcard y reenvía ambos hosts a Traefik de Coolify (`192.168.0.73:80`) conservando la cabecera `Host`. Coolify no publica directamente los puertos 3000/4321 en la LAN.
 
-## CI/CD
+## CI/CD y Despliegue en Coolify
 
 `.github/workflows/containers.yml`:
 
@@ -51,10 +51,26 @@ NPMplus es el edge público: termina TLS con el certificado wildcard y reenvía 
 2. ejecuta tests, quality gate y build SSR;
 3. valida Compose;
 4. construye ambos Dockerfiles;
-5. publica dos imágenes GHCR por SHA;
-6. deja el deploy automático desactivado porque Cloudflare WAF bloquea los runners públicos.
+5. publica dos imágenes GHCR por SHA (`vivienda-coruna-backend:sha-<commit>` y `vivienda-coruna-frontend:sha-<commit>`).
 
-Tras publicar ambos paquetes, Hermes actualiza manualmente `IMAGE_TAG` mediante la CLI oficial de Coolify, reinicia el recurso y ejecuta smoke tests. El workflow legado de GitHub Pages se retiró después del cutover verificado.
+### Despliegue con un comando (`npm run deploy`)
+
+Para desplegar la versión actual del repositorio en el clúster Coolify:
+
+```bash
+npm run deploy
+```
+
+O especificando un tag de commit concreto:
+
+```bash
+node scripts/deploy-coolify.mjs sha-<commit-sha>
+```
+
+El script [`scripts/deploy-coolify.mjs`](../scripts/deploy-coolify.mjs):
+1. Actualiza `IMAGE_TAG` en el servicio Coolify (`o4m4tfd2zgjiq38qqug43p4p`) vía REST API (`PATCH /api/v1/services/{uuid}/envs`).
+2. Desencadena el redespliegue de los contenedores (`POST /api/v1/services/{uuid}/start`).
+3. Ejecuta smoke tests automáticos contra `https://vivienda-api.jordixlab.com/health`, `/ready` y `https://vivienda.jordixlab.com/mapa` hasta verificar la versión activa.
 
 ## Cutover inicial
 
