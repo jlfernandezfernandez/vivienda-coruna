@@ -10,6 +10,7 @@ import {
 import { extractHousingData, extractGestoraContactFromText, pickOfficialWebsite, extractPromotionsFromText, discoverGestoraNames, validateExtractedHousingData } from './lib/llm.mjs';
 import { extractWithRegex } from './lib/regex-extractor.mjs';
 import { EXTRACTOR_VERSION, shouldReprocessOpportunity, shouldUseComplementaryExtraction } from './lib/extraction-policy.mjs';
+import { DISCOVERY_RESULT_LIMIT, GESTORA_DISCOVERY_QUERIES } from './lib/discovery.mjs';
 import { requirePipelineWriter } from './lib/writer-lock.mjs';
 import { scrapeUrl, searchWeb, mapSite, fetchText } from './lib/scraper.mjs';
 import {
@@ -358,14 +359,9 @@ async function main() {
   // Varias queries y más resultados por query: una sola búsqueda superficial encontraba
   // apenas una gestora y se dejaba fuera cooperativas activas conocidas.
   console.log('\n[Descubrimiento] Buscando gestoras/promotoras en la zona...');
-  const discoveryQueries = [
-    'gestoras de cooperativas de viviendas en A Coruña',
-    'promotoras de obra nueva en A Coruña',
-    'cooperativas de viviendas en construcción A Coruña Oleiros Culleredo',
-  ];
   const discoveredNames = new Set();
-  for (const query of discoveryQueries) {
-    const found = await discoverGestoraNames(await searchWeb(query, 10));
+  for (const query of GESTORA_DISCOVERY_QUERIES) {
+    const found = await discoverGestoraNames(await searchWeb(query, DISCOVERY_RESULT_LIMIT));
     found.forEach((n) => discoveredNames.add(n));
   }
   for (const name of discoveredNames) {
@@ -376,7 +372,11 @@ async function main() {
   // Catálogo real de cada gestora: mapeamos su sitio (los proyectos no suelen estar en la
   // portada) y el LLM lee solo lo scrapeado. Firecrawl trae, el LLM lee, nadie inventa.
   console.log('\n[Catálogo] Actualizando promociones y contacto desde la web de cada gestora...');
-  const areaKeywords = AREA_LABELS.flatMap((label) => label.split(' · ')).map(stripAccents);
+  const areaLocations = [...new Set(AREA_LABELS.flatMap((label) => label.split(' · ')))];
+  const areaKeywords = areaLocations.map(stripAccents);
+  // Las URLs suelen usar "a-coruna" en vez de "a coruna". Comparar también el
+  // slug evita descartar justo las páginas de promoción del municipio principal.
+  const areaSlugs = areaLocations.map(slugify);
   const gestoras = db.prepare('SELECT id, name, logo, website, phone, email, address, description FROM gestoras').all();
 
   for (const gestora of gestoras) {
@@ -386,14 +386,15 @@ async function main() {
     // Subpáginas relevantes: las que nombran un municipio del área o las que parecen
     // de promociones/proyectos (muchas gestoras no ponen el municipio en la URL).
     // Priorizamos keywords de proyecto sobre páginas genéricas.
-    const projectKeywords = /promo|proyect|proxect|vivienda|obra|residencial|edificio|torre|conjunto|urbanizacion|parcela|solar|suelo|cooperativa|cohousing/i;
+    const projectKeywords = /promo|proyect|proxect|vivienda|obra|residencial|edificio|torre|conjunto|urbanizacion|parcela|solar|suelo|cooperativa|cohousing|inmueble|desarrollo|portfolio|en-venta|disponible|activos?/i;
     const contactUrl = siteUrls.find((url) => /contacto|contact/i.test(url));
     
     // Ordenar: primero las que matchean keywords de proyecto, luego las de municipio
     const scored = siteUrls.map((url) => {
       let score = 0;
       if (projectKeywords.test(url)) score += 10;
-      if (areaKeywords.some((kw) => stripAccents(url).includes(kw))) score += 5;
+      const normalizedUrl = stripAccents(decodeURIComponent(url));
+      if (areaKeywords.some((kw) => normalizedUrl.includes(kw)) || areaSlugs.some((slug) => normalizedUrl.includes(slug))) score += 5;
       if (/contacto|contact|blog|noticias|news|sobre-nosotros|quienes-somos|aviso-legal|politica/i.test(url)) score -= 20;
       return { url, score };
     });

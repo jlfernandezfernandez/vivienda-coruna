@@ -1,14 +1,21 @@
 import { createHash } from 'node:crypto';
 import { config, AREA_LABELS } from './lib/config.mjs';
-import { searchWeb, scrapeUrl } from './lib/scraper.mjs';
+import { searchWeb, scrapeUrl, mapSite } from './lib/scraper.mjs';
 import { extractWithRegex } from './lib/regex-extractor.mjs';
-import { extractHousingData, validateExtractedHousingData } from './lib/llm.mjs';
+import {
+  EXTRACTOR_VERSION,
+  shouldReprocessOpportunity,
+  shouldUseComplementaryExtraction,
+} from './lib/extraction-policy.mjs';
+import { extractHousingData, extractPromotionsFromText, validateExtractedHousingData } from './lib/llm.mjs';
+import { crawlGestoraCatalog } from './lib/discovery.mjs';
 import { requirePipelineWriter } from './lib/writer-lock.mjs';
 import {
   getDatabase,
   saveOpportunity,
   getAllOpportunities,
   saveSource,
+  saveGestoraPromotion,
 } from './lib/db.mjs';
 import {
   cleanText,
@@ -27,7 +34,10 @@ const MUNICIPIOS = [
 
 const SEARCH_QUERIES = [
   'cooperativa vivienda {municipio} 2026',
+  'cooperativa vivienda protegida {municipio} busca socios',
   'promoción obra nueva viviendas {municipio} 2026',
+  'promotora obra nueva {municipio} promociones en venta',
+  'gestora cooperativa viviendas {municipio}',
   'licencia de obras viviendas {municipio} 2026',
   'reparcelación suelo residencial {municipio}',
   'concurso de suelo vivienda {municipio}',
@@ -75,9 +85,10 @@ async function enrichOpportunity(db, item) {
   // Fase 1: Regex (gratis)
   const regexData = extractWithRegex(item.title + '\n' + contentToAnalyze);
   const regexFields = regexData._regexFieldsFound || 0;
+  const useComplementaryExtraction = shouldUseComplementaryExtraction(regexData, item.sourceKind);
 
   let llmData;
-  if (regexData._llmNeeded) {
+  if (useComplementaryExtraction) {
     const llmResult = await extractHousingData(item.title, contentToAnalyze);
     const regexValues = Object.fromEntries(Object.entries(regexData).filter(([key, value]) => !key.startsWith('_') && value !== null && value !== undefined));
     llmData = validateExtractedHousingData({ ...llmResult, ...regexValues, llmCallFailed: llmResult.llmCallFailed }, item.title, contentToAnalyze);
@@ -108,9 +119,10 @@ async function enrichOpportunity(db, item) {
     status: llmData.estado || item.status,
     nombrePromocion: llmData.nombrePromocion,
     evidenceText: contentToAnalyze.slice(0, 10000),
-    extractionMethod: regexData._llmNeeded
+    extractionMethod: useComplementaryExtraction
       ? (llmData.llmCallSkipped ? 'regex-no-llm' : 'regex+llm')
       : 'regex',
+    extractorVersion: EXTRACTOR_VERSION,
     enriched: llmData.llmCallSkipped || !llmData.llmCallFailed,
   });
 }
@@ -123,12 +135,20 @@ async function main() {
   // Reintenta campos previamente rechazados o llamadas LLM transitorias. Sin esto,
   // las URLs conocidas se saltaban para siempre y un dato malo no podía recuperarse.
   const retryNoLlm = config.llm.apiKey ? " OR extractionMethod = 'regex-no-llm'" : '';
-  const pending = db.prepare(`
+  const retryCandidates = db.prepare(`
     SELECT * FROM opportunities
     WHERE COALESCE(enriched, 0) = 0${retryNoLlm}
+       OR (enriched = 1 AND precioMin IS NULL AND COALESCE(extractorVersion, '') <> ?)
     ORDER BY lastSeenAt DESC
     LIMIT 25
-  `).all();
+  `).all(EXTRACTOR_VERSION);
+  // Mantener la política en una función compartida evita que la consulta y el
+  // comportamiento diverjan cuando vuelva a cambiar la versión del extractor.
+  const pending = retryCandidates.filter((item) => (
+    !item.enriched
+    || (config.llm.apiKey && item.extractionMethod === 'regex-no-llm')
+    || shouldReprocessOpportunity(item)
+  ));
   for (const item of pending) {
     await enrichOpportunity(db, item);
   }
@@ -145,7 +165,7 @@ async function main() {
       const query = queryTpl.replace('{municipio}', municipio);
       const sourceName = `Firecrawl · ${municipio}`;
       try {
-        const results = await searchWeb(query, 5, { strict: true });
+        const results = await searchWeb(query, 10, { strict: true });
         scanned += results.length;
         console.log(`✓ ${sourceName}: "${query}" → ${results.length} resultados`);
 
@@ -177,9 +197,29 @@ async function main() {
     await sleep(MUNICIPIO_PAUSE_MS); // Pausa entre municipios
   }
 
+  // Las búsquedas encuentran noticias y portadas, pero numerosas promociones
+  // solo están enlazadas desde subpáginas del catálogo de la gestora.
+  console.log('\n[Catálogos de gestoras] Buscando promociones en webs oficiales...');
+  const gestoras = db.prepare("SELECT id, name, website FROM gestoras WHERE COALESCE(website, '') <> ''").all();
+  let catalogPromotions = 0;
+  for (const gestora of gestoras) {
+    try {
+      const result = await crawlGestoraCatalog(gestora, {
+        mapSite,
+        scrapeUrl,
+        extractPromotionsFromText,
+        savePromotion: (promotion) => saveGestoraPromotion(db, promotion),
+      });
+      catalogPromotions += result.promotionsFound;
+      console.log(`  ✓ ${gestora.name}: ${result.promotionsFound} promociones verificadas en ${result.pagesScanned} páginas.`);
+    } catch (error) {
+      console.error(`  ✗ ${gestora.name}: ${error.message}`);
+    }
+  }
+
   const total = getAllOpportunities(db, 500).length;
   const enriched = db.prepare('SELECT count(*) as n FROM opportunities WHERE enriched=1').all()[0].n;
-  console.log(`\n${newCount} nuevas desde Firecrawl Search. Total: ${total} (${enriched} enriquecidas)`);
+  console.log(`\n${newCount} nuevas desde Firecrawl Search y ${catalogPromotions} promociones verificadas en catálogos. Total: ${total} (${enriched} enriquecidas)`);
 }
 
 main().catch((err) => {
