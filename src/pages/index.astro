@@ -80,8 +80,8 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
   description={siteDescription}
 >
   <div class="mx-auto max-w-6xl px-4 sm:px-6">
-    <!-- Page Header -->
-    <div class="mb-8 md:mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border-soft pb-6">
+    <!-- Page Header and compact monitor status -->
+    <div class="mb-8 md:mb-10 border-b border-border-soft pb-6">
       <div class="max-w-2xl">
         <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
           <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
@@ -94,28 +94,11 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           {headerSubtitle}
         </p>
       </div>
-
-      <!-- Crawler health metric card -->
-      <div class="flex-shrink-0 flex flex-col justify-between border border-border-soft bg-surface p-5 rounded-2xl shadow-premium min-w-[280px]">
-        <div class="flex items-center justify-between border-b border-border-soft pb-2.5">
-          <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Estado del Monitor</span>
-          <span class="flex h-2.5 w-2.5 rounded-full bg-status-ok pulse-indicator-ok" aria-hidden="true"></span>
-        </div>
-        <div class="text-xs text-ink-muted space-y-1.5 mt-3">
-          <div class="flex justify-between">
-            <span>Última comprobación:</span>
-            <strong class="text-ink font-semibold">{checkedLabel}</strong>
-          </div>
-          <div class="flex justify-between">
-            <span>Fuentes operativas:</span>
-            <strong class="text-ink font-semibold">{healthySources} de {sources.length}</strong>
-          </div>
-          <div class="flex justify-between">
-            <span>Ubicaciones en mapa:</span>
-            <strong class="text-ink font-semibold">{mapMarkers.length}</strong>
-          </div>
-        </div>
-      </div>
+      <p class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+        <span class="flex items-center gap-1.5 font-semibold text-ink"><span class="h-2 w-2 rounded-full bg-status-ok pulse-indicator-ok" aria-hidden="true"></span>Monitor activo</span>
+        <span aria-hidden="true">·</span><span>{checkedLabel}</span>
+        <span aria-hidden="true">·</span><span>{healthySources}/{sources.length} fuentes operativas</span>
+      </p>
     </div>
 
     <!-- Cooperativas activas ahora -->
@@ -180,10 +163,6 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
       )}
     </section>
 
-    <!-- Market Thermometer / Price Gauge -->
-    <div class="mb-8">
-      <MarketThermometer />
-    </div>
 
     <!-- Mobile View Switcher (Lista vs Mapa) -->
     <div class="lg:hidden mb-6 flex rounded-xl bg-canvas p-1 border border-border-soft max-w-sm mx-auto">
@@ -210,7 +189,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
       <div class="lg:col-span-2 flex flex-col gap-6" id="feed-container">
 
         <!-- Card 1: Búsqueda y Ubicación -->
-        <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col gap-4">
+        <div class="order-2 border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col gap-4">
           <!-- Text Search input -->
           <div class="relative flex items-center h-10 w-full">
             <input
@@ -320,7 +299,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
         </div>
 
         <!-- Card 2: Filtros Avanzados (colapsable) -->
-        <details class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium group">
+        <details class="order-3 border border-border-soft bg-surface p-5 rounded-2xl shadow-premium group">
           <summary class="text-xs font-bold text-ink-muted uppercase tracking-wider cursor-pointer list-none flex items-center justify-between">
             <span>Filtros avanzados (precio, habitaciones y equipamiento)</span>
             <svg class="h-4 w-4 text-ink-light transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -405,7 +384,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
         </details>
 
         <!-- Feed Header -->
-        <div class="flex items-center justify-between pb-2 px-1 mt-2">
+        <div class="order-0 flex items-center justify-between pb-2 px-1 mt-2">
           <h2 class="text-lg font-bold text-ink flex items-center gap-2">
             Novedades detectadas
             <span
@@ -424,7 +403,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
             Sin novedades en esta comprobación.
           </div>
         ) : (
-          <div class="flex flex-col gap-8" id="opportunities-feed">
+          <div class="order-1 flex flex-col gap-8" id="opportunities-feed">
             {groupedEntries.map(([dateKey, itemsGroup]: [string, any]) => (
               <div class="date-group flex flex-col gap-3" data-date={dateKey}>
                 <h3 class="text-sm font-bold text-ink-muted border-b border-border-soft pb-2 mt-2">
@@ -441,7 +420,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
         <!-- Search Empty State -->
         <div
           id="empty-search-state"
-          class="hidden p-12 text-center rounded-2xl border border-border-soft bg-surface"
+          class="order-1 hidden p-12 text-center rounded-2xl border border-border-soft bg-surface"
         >
           <svg class="mx-auto h-10 w-10 text-ink-light fill-none stroke-current stroke-2" viewBox="0 0 24 24" width="40" height="40">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
@@ -525,6 +504,15 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
 
       </aside>
     </div>
+
+    <!-- Secondary market context -->
+    <section class="mt-10 border-t border-border-soft pt-8" aria-label="Contexto de mercado">
+      <div class="mb-4 flex items-baseline justify-between gap-4">
+        <h2 class="text-base font-bold text-ink">Contexto de mercado</h2>
+        <span class="text-xs text-ink-light">{mapMarkers.length} ubicaciones geolocalizadas</span>
+      </div>
+      <MarketThermometer />
+    </section>
   </div>
 </Layout>
 

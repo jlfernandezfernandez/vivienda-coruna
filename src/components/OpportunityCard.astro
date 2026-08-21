@@ -66,7 +66,12 @@ const base = webBase(import.meta.env.BASE_URL);
 const displayMuni = municipality || location;
 const muniSlug = municipalitySlug(displayMuni);
 const isMarket = sourceKind === 'market-alert';
-const sourceLabel = isMarket ? 'Prensa local' : source;
+const normalizedSource = String(source || '').trim();
+const sourceLabel = isMarket
+  ? 'Prensa local'
+  : /^firecrawl(?:\s*[·-]\s*)?$/i.test(normalizedSource)
+    ? 'Web pública'
+    : normalizedSource.replace(/^firecrawl\s*[·-]\s*/i, '') || 'Fuente pública';
 const sourceBadgeBg = isMarket
   ? 'bg-brand-orange-soft text-brand-orange border border-brand-orange/15'
   : 'bg-brand-green-soft text-brand-green border border-brand-green/15';
@@ -242,8 +247,5 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
       </div>
     </div>
 
-    {enriched && (
-      <p class="mt-2 text-[10px] text-ink-light">Datos extraídos con IA · verifica en la fuente original</p>
-    )}
   </div>
 </article>
