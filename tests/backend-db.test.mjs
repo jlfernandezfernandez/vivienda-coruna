@@ -353,3 +353,36 @@ test('gestora detail includes matching press opportunities', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('repository exposes reviews by id and opportunities with incomplete prices', () => {
+  const { db, dir } = tempDb();
+  try {
+    db.prepare(`INSERT INTO opportunities
+      (id,title,url,source,sourceKind,firstSeenAt,lastSeenAt,precioMin,precioMax)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(
+      'missing-min', 'Sin mínimo', 'https://example.test/min', 'test', 'official',
+      '2026-08-01T00:00:00Z', '2026-08-02T00:00:00Z', null, 300000,
+    );
+    db.prepare(`INSERT INTO opportunities
+      (id,title,url,source,sourceKind,firstSeenAt,lastSeenAt,precioMin,precioMax)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(
+      'complete', 'Completa', 'https://example.test/complete', 'test', 'official',
+      '2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 200000, 300000,
+    );
+    db.prepare(`INSERT INTO curation_reviews
+      (id,entityKind,entityId,action,patchJson,evidenceJson,status,createdAt)
+      VALUES (?,?,?,?,?,?,?,?)`).run(
+      'review-db-1', 'opportunity', 'missing-min', 'confirm', '{}', '[]', 'applied', '2026-08-03T00:00:00Z',
+    );
+
+    const repo = createRepository(db);
+    assert.equal(repo.curationReviewById('review-db-1').id, 'review-db-1');
+    assert.deepEqual(repo.curationReviewById('review-db-1').patch, {});
+    assert.equal(repo.curationReviewById('missing'), null);
+    assert.deepEqual(repo.opportunitiesWithoutPrice().map(({ entityId }) => entityId), ['missing-min']);
+    assert.match(repo.opportunitiesWithoutPrice()[0].contentHash, /^[a-f0-9]{64}$/);
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

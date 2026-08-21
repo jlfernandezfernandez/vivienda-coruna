@@ -24,6 +24,8 @@ function fakeRepository() {
     sources: () => [{ name: 'src1', url: 'https://example.com', kind: 'rss', ok: true, scanned: 10, checkedAt: new Date().toISOString() }],
     curationCandidates: () => [{ entityKind: 'opportunity', entityId: 'op-1', contentHash: 'a'.repeat(64), record: { id: 'op-1' } }],
     curationReviews: () => [{ id: 'review-1', status: 'staged' }],
+    curationReviewById: (id) => (id === 'review-1' ? { id, status: 'staged', patch: { precioMin: 210000 } } : null),
+    opportunitiesWithoutPrice: () => [{ entityKind: 'opportunity', entityId: 'op-2', contentHash: 'b'.repeat(64), record: { id: 'op-2', title: 'Residencial sin precio', precioMin: null, precioMax: null } }],
     stageCurationReview: (review) => ({ id: 'review-1', status: 'staged', ...review }),
     diagnostics: () => ({ database: 'ok', opportunities: 42 }),
   };
@@ -460,5 +462,55 @@ test('curation API masks unexpected repository errors', async () => {
   });
   assert.equal(response.statusCode, 500);
   assert.deepEqual(response.json(), { error: 'internal_error' });
+  await app.close();
+});
+
+test('curation API returns one review by id and 404 for an unknown review', async () => {
+  const app = buildBackend({ repository: fakeRepository(), operationsApiKey: operationsToken });
+  const headers = { authorization: `Bearer ${operationsToken}` };
+
+  const found = await app.inject({
+    method: 'GET', url: '/api/v1/operations/curation/reviews/review-1', headers,
+  });
+  assert.equal(found.statusCode, 200);
+  assert.equal(found.json().id, 'review-1');
+  assert.deepEqual(found.json().patch, { precioMin: 210000 });
+
+  const missing = await app.inject({
+    method: 'GET', url: '/api/v1/operations/curation/reviews/missing', headers,
+  });
+  assert.equal(missing.statusCode, 404);
+  assert.deepEqual(missing.json(), { error: 'not_found' });
+  await app.close();
+});
+
+test('curation API lists opportunities with an incomplete price range', async () => {
+  const app = buildBackend({ repository: fakeRepository(), operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/v1/operations/curation/opportunities-without-price',
+    headers: { authorization: `Bearer ${operationsToken}` },
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().opportunities[0].entityId, 'op-2');
+  assert.match(response.json().opportunities[0].contentHash, /^[a-f0-9]{64}$/);
+  await app.close();
+});
+
+test('curation write endpoint rejects requests without OPERATIONS_API_KEY bearer auth', async () => {
+  let writes = 0;
+  const repository = {
+    ...fakeRepository(),
+    stageCurationReview: () => { writes += 1; return { id: 'unexpected' }; },
+  };
+  const app = buildBackend({ repository, operationsApiKey: operationsToken });
+  const response = await app.inject({
+    method: 'POST', url: '/api/v1/operations/curation/reviews', payload: {},
+  });
+
+  assert.equal(response.statusCode, 401);
+  assert.deepEqual(response.json(), { error: 'unauthorized' });
+  assert.equal(writes, 0);
   await app.close();
 });

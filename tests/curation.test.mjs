@@ -5,6 +5,7 @@ import test from 'node:test';
 import { createRun, ensureSchema } from '../scripts/lib/db.mjs';
 import {
   applyStagedCurationReviews,
+  getCurationReview,
   listCurationCandidates,
   stageCurationReview,
 } from '../scripts/lib/curation.mjs';
@@ -438,6 +439,67 @@ test('rejected promotions are excluded from curation candidates', () => {
     );
     const candidates = listCurationCandidates(db);
     assert.equal(candidates.some((item) => item.entityId === 'promo:metrovacesa:abelia-residencial'), false);
+  } finally {
+    db.close();
+  }
+});
+
+test('curation can create and update promotion price ranges', () => {
+  const db = database();
+  try {
+    stageCurationReview(db, {
+      entityKind: 'gestora', entityId: 'gestora-precios', action: 'create',
+      patch: { name: 'Gestora Precios', website: 'https://precios.example' },
+      evidence: proof('https://precios.example', 'Gestora Precios, sitio oficial.'),
+    });
+    const createdReview = stageCurationReview(db, {
+      entityKind: 'promotion', entityId: 'promo-precios', action: 'create',
+      patch: {
+        gestoraId: 'gestora-precios', name: 'Residencial Precios', location: 'A Coruña',
+        status: 'Comercialización', precioMin: 210000, precioMax: 320000,
+      },
+      evidence: proof(
+        'https://precios.example/residencial',
+        'Gestora Precios presenta Residencial Precios en A Coruña. Comercialización. Precios desde 210.000 hasta 320.000 euros.',
+      ),
+    });
+    assert.equal(getCurationReview(db, createdReview.id).id, createdReview.id);
+    assert.equal(getCurationReview(db, createdReview.id).patch.precioMin, 210000);
+    assert.deepEqual(applyStagedCurationReviews(db), { applied: 2, confirmed: 0 });
+    const storedPrices = db.prepare('SELECT precioMin,precioMax FROM gestora_promotions WHERE id=?').get('promo-precios');
+    assert.equal(storedPrices.precioMin, 210000);
+    assert.equal(storedPrices.precioMax, 320000);
+
+    const contentHash = getCurationReview(db, createdReview.id).resultHash;
+    stageCurationReview(db, {
+      entityKind: 'promotion', entityId: 'promo-precios', action: 'update',
+      contentHash, patch: { precioMin: 220000 },
+      evidence: proof('https://precios.example/residencial', 'Nuevo precio mínimo 220.000 euros.'),
+    });
+    applyStagedCurationReviews(db);
+    assert.equal(db.prepare('SELECT precioMin FROM gestora_promotions WHERE id=?').get('promo-precios').precioMin, 220000);
+    assert.equal(getCurationReview(db, 'missing'), null);
+  } finally {
+    db.close();
+  }
+});
+
+test('curation rejects inverted promotion price ranges', () => {
+  const db = database();
+  try {
+    db.prepare(`INSERT INTO gestoras (id,name,logo,website,phone,email,address,description)
+      VALUES (?,?,?,?,?,?,?,?)`).run('gestora-rango', 'Gestora Rango', '', 'https://rango.example/', '', '', '', '');
+    assert.throws(() => stageCurationReview(db, {
+      entityKind: 'promotion', entityId: 'promo-rango', action: 'create',
+      patch: {
+        gestoraId: 'gestora-rango', name: 'Residencial Rango', location: 'A Coruña',
+        status: 'Comercialización', precioMin: 400000, precioMax: 300000,
+      },
+      evidence: proof(
+        'https://rango.example/promo',
+        'Gestora Rango presenta Residencial Rango en A Coruña. Comercialización. Precios 400.000 y 300.000 euros.',
+      ),
+    }), /invalid_price_range/);
   } finally {
     db.close();
   }

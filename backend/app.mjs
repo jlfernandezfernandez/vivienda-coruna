@@ -120,6 +120,16 @@ export function buildBackend({
     reviews: repository.curationReviews(),
   }));
 
+  app.get('/api/v1/operations/curation/reviews/:id', async (request, reply) => {
+    const review = repository.curationReviewById(request.params.id);
+    return review ?? reply.code(404).send({ error: 'not_found' });
+  });
+
+  app.get('/api/v1/operations/curation/opportunities-without-price', async () => ({
+    generatedAt: new Date().toISOString(),
+    opportunities: repository.opportunitiesWithoutPrice(),
+  }));
+
   app.post('/api/v1/operations/curation/reviews', { bodyLimit: 16 * 1024 }, async (request, reply) => {
     if (repository.activeRun?.()) return reply.code(409).send({ error: 'operation_in_progress' });
     try {

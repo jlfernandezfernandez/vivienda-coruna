@@ -44,11 +44,11 @@ const ENTITY_CONFIG = Object.freeze({
     idField: 'id',
     mutable: new Set([
       'gestoraId', 'name', 'location', 'status', 'details', 'link',
-      'entregaEstimada', 'buscaSocios', 'aportacionInicial',
+      'entregaEstimada', 'buscaSocios', 'aportacionInicial', 'precioMin', 'precioMax',
     ]),
     creatable: new Set([
       'gestoraId', 'name', 'location', 'status', 'details', 'link', 'entregaEstimada',
-      'buscaSocios', 'aportacionInicial',
+      'buscaSocios', 'aportacionInicial', 'precioMin', 'precioMax',
     ]),
     required: ['gestoraId', 'name', 'location', 'status'],
     defaults: { details: null, link: null, entregaEstimada: null, buscaSocios: null, aportacionInicial: null },
@@ -386,7 +386,7 @@ function validateReviewInput(db, input) {
   if (input.entityKind === 'opportunity') validateGroundedOpportunityPatch(patch, input.evidence);
   validatePatchEvidence(db, input.entityKind, patch, input.evidence);
 
-  if (input.entityKind === 'opportunity' && input.action !== 'confirm') {
+  if (['opportunity', 'promotion'].includes(input.entityKind) && input.action !== 'confirm') {
     const merged = { ...(current || {}), ...patch };
     if (merged.precioMin != null && merged.precioMax != null && merged.precioMin > merged.precioMax) {
       throw new Error('invalid_price_range');
@@ -522,4 +522,22 @@ export function applyStagedCurationReviews(db) {
 
 export function listCurationReviews(db) {
   return db.prepare('SELECT * FROM curation_reviews ORDER BY createdAt DESC LIMIT 500').all().map(presentReview);
+}
+
+export function getCurationReview(db, id) {
+  return presentReview(db.prepare('SELECT * FROM curation_reviews WHERE id = ?').get(id));
+}
+
+export function listOpportunitiesWithoutPrice(db) {
+  return db.prepare(`
+    SELECT * FROM opportunities
+    WHERE precioMin IS NULL OR precioMax IS NULL
+    ORDER BY COALESCE(publishedAt, firstSeenAt) DESC, id
+    LIMIT 500
+  `).all().map((record) => ({
+    entityKind: 'opportunity',
+    entityId: String(record.id),
+    contentHash: entityContentHash('opportunity', record),
+    record,
+  }));
 }
