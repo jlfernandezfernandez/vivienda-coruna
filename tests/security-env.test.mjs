@@ -5,14 +5,11 @@ import http from 'node:http';
 import { join } from 'node:path';
 import test from 'node:test';
 
-function runDeployScript(args = [], envOverrides = {}) {
+function runDeployScript(args = [], envOverrides = {}, { inheritEnv = true } = {}) {
   return new Promise((resolve) => {
     const scriptPath = join(import.meta.dirname, '../scripts/deploy-coolify.mjs');
     const child = spawn('node', [scriptPath, ...args], {
-      env: {
-        ...process.env,
-        ...envOverrides,
-      },
+      env: inheritEnv ? { ...process.env, ...envOverrides } : envOverrides,
     });
 
     let stdout = '';
@@ -95,7 +92,7 @@ test('Tier 1: deploy-coolify.mjs throws immediately when COOLIFY_TOKEN is unset 
   const envWithoutToken = { ...process.env };
   delete envWithoutToken.COOLIFY_TOKEN;
 
-  const result = await runDeployScript([], envWithoutToken);
+  const result = await runDeployScript([], envWithoutToken, { inheritEnv: false });
 
   assert.notEqual(result.exitCode, 0, 'Script must fail when COOLIFY_TOKEN is unset');
   assert.match(

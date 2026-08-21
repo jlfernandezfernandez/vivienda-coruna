@@ -337,15 +337,10 @@ test('Adversarial Quality Gate: Source staleness exact boundary (29 hours vs 31 
 // 3. ADVERSARIAL SECRET & ENVIRONMENT VALIDATION
 // ════════════════════════════════════════════════════════════════════════════
 
-function executeDeployScript(envOverrides = {}) {
+function executeDeployScript(environment = process.env) {
   return new Promise((resolve) => {
     const scriptPath = join(import.meta.dirname, '../scripts/deploy-coolify.mjs');
-    const child = spawn('node', [scriptPath], {
-      env: {
-        ...process.env,
-        ...envOverrides,
-      },
-    });
+    const child = spawn('node', [scriptPath], { env: environment });
 
     let stdout = '';
     let stderr = '';
@@ -584,7 +579,7 @@ test('Adversarial Secret: deploy-coolify rejects missing COOLIFY_TOKEN immediate
 });
 
 test('Adversarial Secret: deploy-coolify rejects empty string COOLIFY_TOKEN immediately', async () => {
-  const res = await executeDeployScript({ COOLIFY_TOKEN: '' });
+  const res = await executeDeployScript({ ...process.env, COOLIFY_TOKEN: '' });
   assert.notEqual(res.exitCode, 0);
   assert.match(res.stderr + res.stdout, /COOLIFY_TOKEN environment variable is required/);
 });

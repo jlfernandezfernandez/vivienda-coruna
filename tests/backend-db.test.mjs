@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { DatabaseSync } from 'node:sqlite';
-import { createRepository, ensureSchema, createRun, getRunById, listRuns, getRunByIdempotencyKey, transitionRun, getRunningRun } from '../scripts/lib/db.mjs';
+import { createRepository, ensureSchema, createRun, getRunById, listRuns, getRunByIdempotencyKey, saveGestoraPromotion, transitionRun, getRunningRun } from '../scripts/lib/db.mjs';
 
 function tempDb() {
   const dir = mkdtempSync(join(tmpdir(), 'vivienda-backend-db-'));
@@ -21,6 +21,27 @@ test('ensureSchema creates pipeline_runs table', () => {
   try {
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pipeline_runs'").all();
     assert.equal(tables.length, 1, 'pipeline_runs table should exist');
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('saveGestoraPromotion preserves an unknown buscaSocios value as null', () => {
+  const { db, dir } = tempDb();
+  try {
+    db.prepare('INSERT INTO gestoras (id, name, logo, website, phone, email, address, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('gestora-demo', 'Gestora Demo', 'GD', '', '', '', '', '');
+    saveGestoraPromotion(db, {
+      id: 'promo:gestora-demo:sin-captacion-verificada',
+      gestoraId: 'gestora-demo',
+      name: 'Sin captación verificada',
+      location: 'A Coruña',
+      status: 'Sin confirmar',
+      buscaSocios: null,
+    });
+    assert.equal(db.prepare('SELECT buscaSocios FROM gestora_promotions WHERE id = ?')
+      .get('promo:gestora-demo:sin-captacion-verificada').buscaSocios, null);
   } finally {
     db.close();
     rmSync(dir, { recursive: true, force: true });
