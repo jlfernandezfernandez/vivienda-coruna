@@ -49,7 +49,7 @@ const sourceBadgeBg = isMarket
   ? 'bg-brand-orange-soft text-brand-orange border border-brand-orange/15'
   : 'bg-brand-green-soft text-brand-green border border-brand-green/15';
 
-const formatDate = (d: string | null, style: 'long' | 'medium' = 'long') =>
+const formatDate = (d: string | null, style: 'long' | 'short' = 'long') =>
   d
     ? new Date(d).toLocaleDateString('es-ES', { day: 'numeric', month: style, year: 'numeric', timeZone: 'Europe/Madrid' })
     : null;

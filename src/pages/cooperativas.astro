@@ -14,10 +14,10 @@ const { opportunities, gestoras } = dashboard;
 const coopOpportunities = (opportunities || []).filter((o: any) => o.type === 'Cooperativa');
 const base = siteBase(import.meta.env.BASE_URL);
 
-const captacion = gestoras.flatMap((g) =>
-  g.promotions
-    .filter((p) => p.buscaSocios === true)
-    .map((p) => ({ gestora: g, promo: p }))
+const captacion = (gestoras || []).flatMap((g: any) =>
+  (g.promotions || [])
+    .filter((p: any) => p.buscaSocios === true)
+    .map((p: any) => ({ gestora: g, promo: p }))
 );
 
 const formatDate = (d: string | null) =>
@@ -71,7 +71,7 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el Ã
           </span>
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {captacion.map(({ gestora, promo }) => (
+          {captacion.map(({ gestora, promo }: any) => (
             <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col justify-between hover:shadow-hover transition-all">
               <div>
                 <div class="flex items-center justify-between gap-2 mb-2">
@@ -111,7 +111,7 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el Ã
         </span>
       </h2>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {cooperatives.map((c) => (
+        {cooperatives.map((c: any) => (
           <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col justify-between">
             <div>
               <div class="flex items-start justify-between gap-3 mb-2">
@@ -157,7 +157,7 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el Ã
       ) : (
         <div class="border border-border-soft bg-surface rounded-2xl shadow-premium overflow-hidden">
           <ul class="divide-y divide-border-soft">
-            {coopOpportunities.map((o) => (
+            {coopOpportunities.map((o: any) => (
               <li>
                 <a href={`${base}oportunidad/${o.id}`} class="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-surface-hover transition-colors">
                   <div class="min-w-0">

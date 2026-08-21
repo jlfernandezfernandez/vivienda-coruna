@@ -52,25 +52,25 @@ const pageDescription = 'Mapa interactivo con todas las promociones de obra nuev
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
       <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
         <span class="text-2xl font-extrabold text-brand-green">
-          {markers.filter(m => m.type === 'Cooperativa' || (m.category && m.category.includes('Cooperativa'))).length}
+          {markers.filter((m: any) => m.type === 'Cooperativa' || (m.category && m.category.includes('Cooperativa'))).length}
         </span>
         <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Cooperativas</p>
       </div>
       <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
         <span class="text-2xl font-extrabold text-brand-blue">
-          {markers.filter(m => m.type === 'Promoción nueva' || m.type === 'Obra Nueva' || (m.category && m.category.includes('Obra Nueva'))).length}
+          {markers.filter((m: any) => m.type === 'Promoción nueva' || m.type === 'Obra Nueva' || (m.category && m.category.includes('Obra Nueva'))).length}
         </span>
         <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Obra Nueva</p>
       </div>
       <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
         <span class="text-2xl font-extrabold text-brand-rose">
-          {markers.filter(m => m.type === 'Vivienda protegida' || (m.category && m.category.includes('VPP'))).length}
+          {markers.filter((m: any) => m.type === 'Vivienda protegida' || (m.category && m.category.includes('VPP'))).length}
         </span>
         <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">VPP Protegida</p>
       </div>
       <div class="border border-border-soft bg-surface p-4 rounded-2xl shadow-premium">
         <span class="text-2xl font-extrabold text-brand-purple">
-          {markers.filter(m => m.type === 'Suelo' || (m.category && m.category.includes('Suelo'))).length}
+          {markers.filter((m: any) => m.type === 'Suelo' || (m.category && m.category.includes('Suelo'))).length}
         </span>
         <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Suelo / Proyecto</p>
       </div>
@@ -90,7 +90,7 @@ const pageDescription = 'Mapa interactivo con todas las promociones de obra nuev
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {MUNICIPALITIES.map((muni) => {
-          const muniMarkers = markers.filter((m) => m.municipality === muni);
+          const muniMarkers = markers.filter((m: any) => m.municipality === muni);
           if (muniMarkers.length === 0) return null;
           return (
             <div class="flex flex-col gap-2 p-4 rounded-xl bg-canvas border border-border-soft">
@@ -103,7 +103,7 @@ const pageDescription = 'Mapa interactivo con todas las promociones de obra nuev
                 </a>
               </div>
               <ul class="space-y-2 text-xs">
-                {muniMarkers.slice(0, 6).map((m) => (
+                {muniMarkers.slice(0, 6).map((m: any) => (
                   <li class="flex items-center justify-between gap-2 bg-surface p-2 rounded-lg border border-border-soft/60 hover:border-brand-green/30 transition-all">
                     <div class="min-w-0 flex-1">
                       <a href={m.url} class="font-semibold text-ink hover:text-brand-green transition-colors block truncate">

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "check": "astro check",
     "test": "LLM_API_KEY=test LLM_BASE_URL=http://llm.invalid LLM_MODEL=test-model node --test tests/*.test.mjs",
     "refresh": "node scripts/fetch-rss.mjs",
     "refresh:fast": "FAST_REFRESH=1 node scripts/fetch-rss.mjs",
@@ -28,7 +29,10 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.10",
     "@tailwindcss/vite": "^4.3.3",
-    "tailwindcss": "^4.3.3"
+    "@types/leaflet": "^1.9.22",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3"
   }
 }

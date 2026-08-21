@@ -35,7 +35,7 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
       </div>
     ) : (
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {gestoras.map((gestora) => (
+        {gestoras.map((gestora: any) => (
           <div class="border border-border-soft bg-surface p-6 rounded-2xl shadow-premium flex flex-col justify-between hover:shadow-hover transition-all duration-200">
             <div>
               <!-- Header -->
@@ -102,7 +102,7 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
                     Promociones activas ({gestora.promotions.length})
                   </span>
                   <div class="space-y-2">
-                    {gestora.promotions.slice(0, 3).map((promo) => (
+                    {gestora.promotions.slice(0, 3).map((promo: any) => (
                       <div class="bg-canvas border border-border-soft p-2.5 rounded-xl flex flex-col gap-1">
                         <div class="flex items-center justify-between gap-2">
                           <span class="text-xs font-bold text-ink truncate">{promo.name}</span>

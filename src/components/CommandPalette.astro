@@ -31,7 +31,7 @@ if (!items || items.length === 0) {
     coverage: { boundaries: [], markers: [] },
   });
 
-  const oppItems = (dashboard.opportunities || []).map(op => ({
+  const oppItems = (dashboard.opportunities || []).map((op: any) => ({
     id: op.id,
     title: op.nombrePromocion || op.title,
     category: op.type || 'Obra Nueva',
@@ -43,8 +43,8 @@ if (!items || items.length === 0) {
     url: `${base}oportunidad/${op.id}`,
   }));
 
-  const promoItems = (dashboard.gestoras || []).flatMap(g =>
-    (g.promotions || []).map(pr => ({
+  const promoItems = (dashboard.gestoras || []).flatMap((g: any) =>
+    (g.promotions || []).map((pr: any) => ({
       id: pr.id,
       title: pr.name,
       category: pr.buscaSocios === true ? 'Cooperativa' : 'Obra Nueva',
@@ -120,9 +120,24 @@ if (!items || items.length === 0) {
   const resultsContainer = document.getElementById('cmd-palette-results');
   let selectedIndex = 0;
   let currentResults = [];
+  let closeTimeout = null;
+
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
   function openPalette() {
     if (!backdrop || !modal || !input) return;
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      closeTimeout = null;
+    }
     backdrop.classList.remove('hidden');
     requestAnimationFrame(() => {
       backdrop.classList.remove('opacity-0');
@@ -137,13 +152,22 @@ if (!items || items.length === 0) {
 
   function closePalette() {
     if (!backdrop || !modal) return;
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      closeTimeout = null;
+    }
     backdrop.classList.add('opacity-0');
     modal.classList.remove('scale-100');
     modal.classList.add('scale-95');
-    setTimeout(() => {
+    closeTimeout = setTimeout(() => {
       backdrop.classList.add('hidden');
+      closeTimeout = null;
     }, 150);
   }
+
+  // Expose global methods on window for layout and external triggers
+  window.openCommandPalette = openPalette;
+  window.closeCommandPalette = closePalette;
 
   function renderResults(list) {
     currentResults = list;
@@ -164,28 +188,36 @@ if (!items || items.length === 0) {
         ? 'bg-brand-green-soft text-brand-green border-brand-green/20'
         : 'bg-brand-blue-soft text-brand-blue border-brand-blue/20';
 
+      const safeUrl = escapeHtml(item.url || '#');
+      const safeTitle = escapeHtml(item.title);
+      const safeCategory = escapeHtml(item.category || item.type || 'Promoción');
+      const safeLocation = [item.barrio, item.municipality || 'A Coruña'].filter(Boolean).map(escapeHtml).join(' · ');
+      const safeStatus = item.status ? ` · ${escapeHtml(item.status)}` : '';
+      const safePrice = item.precioMin != null
+        ? `<span class="text-xs font-bold text-ink">${item.precioMin.toLocaleString('es-ES')} €</span>`
+        : '<span class="text-[11px] text-ink-light">Consultar</span>';
+
       return `
         <a
-          href="${item.url || '#'}"
+          href="${safeUrl}"
           data-idx="${idx}"
           class="flex items-center justify-between p-2.5 rounded-xl transition-colors ${
-            isSelected ? 'bg-canvas-card border border-brand-green/30 shadow-subtle' : 'hover:bg-canvas'
+            isSelected ? 'bg-surface border border-brand-green/40 shadow-sm' : 'hover:bg-canvas'
           }"
         >
           <div class="min-w-0 pr-3">
             <div class="flex items-center gap-2 mb-0.5">
-              <span class="text-xs font-bold text-ink truncate">${item.title}</span>
-              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold border ${badgeClass}">
-                ${item.category || item.type || 'Promoción'}
+              <span class="text-xs font-bold text-ink truncate">${safeTitle}</span>
+              <span class="px-1.5 py-0.5 rounded-lg text-[10px] font-semibold border ${badgeClass}">
+                ${safeCategory}
               </span>
             </div>
             <p class="text-[11px] text-ink-light truncate">
-              📍 ${item.barrio ? item.barrio + ' · ' : ''}${item.municipality || 'A Coruña'}
-              ${item.status ? ' · ' + item.status : ''}
+              📍 ${safeLocation}${safeStatus}
             </p>
           </div>
           <div class="text-right flex-shrink-0">
-            ${item.precioMin ? `<span class="text-xs font-bold text-ink font-mono">${item.precioMin.toLocaleString('es-ES')} €</span>` : '<span class="text-[11px] text-ink-light">Consultar</span>'}
+            ${safePrice}
           </div>
         </a>
       `;

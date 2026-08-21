@@ -818,6 +818,12 @@ export function ensureSchema(db) {
     }
   }
 
+  const sourceCols = db.prepare(`PRAGMA table_info(sources)`).all().map((c) => c.name);
+  if (!sourceCols.includes('checkedAt')) {
+    db.exec(`ALTER TABLE sources ADD COLUMN checkedAt TEXT;`);
+  }
+  db.exec(`UPDATE sources SET checkedAt = datetime('now') WHERE checkedAt IS NULL;`);
+
   // Invalidate known placeholder screenshots
   const placeholderScreenshotSha256 = 'e878950f8091ec010cf5cc723bdea027a8539cf7147cfea199c2f666232dcd4e';
   db.prepare(`

@@ -80,7 +80,7 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
 ---
 
 <article
-  class="opportunity-card group relative flex flex-col justify-between rounded-2xl border border-border-soft bg-surface p-5 shadow-premium transition-all duration-200 hover:shadow-hover hover:border-border-medium hover:-translate-y-0.5"
+  class="opportunity-card group relative flex flex-col justify-between rounded-2xl border border-border-soft bg-surface p-4 shadow-premium transition-all duration-200 hover:shadow-hover hover:border-border-medium"
   data-location={displayMuni}
   data-barrio={barrio || ''}
   data-source-kind={sourceKind}
@@ -175,11 +175,11 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
           {(garaje || trastero || terraza || piscina || ascensor) && (
             <div class="flex flex-wrap items-center gap-1">
               {promotora && <span class="text-ink-light/40">·</span>}
-              {garaje && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded text-[11px]">🚗 Garaje</span>}
-              {trastero && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded text-[11px]">📦 Trastero</span>}
-              {terraza && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded text-[11px]">☀️ Terraza</span>}
-              {piscina && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded text-[11px]">🏊 Piscina</span>}
-              {ascensor && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded text-[11px]">🛗 Ascensor</span>}
+              {garaje && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">🚗 Garaje</span>}
+              {trastero && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">📦 Trastero</span>}
+              {terraza && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">☀️ Terraza</span>}
+              {piscina && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">🏊 Piscina</span>}
+              {ascensor && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">🛗 Ascensor</span>}
             </div>
           )}
         </div>

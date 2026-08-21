@@ -98,7 +98,13 @@ const defaultPrice = initialPrice && initialPrice > 50000 ? initialPrice : 22000
     </div>
 
     <!-- Results Card (Right) -->
-    <div class="flex flex-col justify-between rounded-xl bg-canvas p-4 sm:p-5 border border-border-soft">
+    <div
+      class="flex flex-col justify-between rounded-xl bg-canvas p-4 sm:p-5 border border-border-soft"
+      aria-live="polite"
+      aria-atomic="true"
+      role="region"
+      aria-label="Resultados de la simulación de hipoteca"
+    >
       <!-- Monthly Quote -->
       <div class="text-center pb-4 border-b border-border-soft">
         <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Cuota mensual estimada</span>

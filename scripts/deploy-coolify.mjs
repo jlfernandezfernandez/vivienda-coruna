@@ -2,7 +2,10 @@
 import { execSync } from 'node:child_process';
 
 const COOLIFY_URL = (process.env.COOLIFY_URL || 'http://192.168.0.73:8000').replace(/\/$/, '');
-const COOLIFY_TOKEN = process.env.COOLIFY_TOKEN || '5|rEJvw3thsItqWt668pAY5VJrWYHxIOR14W6YTN3sfd941c56';
+const COOLIFY_TOKEN = process.env.COOLIFY_TOKEN;
+if (!COOLIFY_TOKEN) {
+  throw new Error('COOLIFY_TOKEN environment variable is required. Please set COOLIFY_TOKEN before running deploy-coolify.mjs.');
+}
 const SERVICE_UUID = process.env.COOLIFY_SERVICE_UUID || 'o4m4tfd2zgjiq38qqug43p4p';
 
 function getGitCommitTag() {

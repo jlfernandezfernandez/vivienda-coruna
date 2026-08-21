@@ -5,6 +5,7 @@ import CoverageMap from '../../components/CoverageMap.astro';
 import { api } from '../../lib/api/client.mjs';
 import { apiSafe } from '../../lib/api/boundary.mjs';
 import { siteBase } from '../../lib/ui.mjs';
+import { slugify } from '../../lib/municipios.mjs';
 
 const [municipalityData, gestoras] = await apiSafe(
   Astro.response,
@@ -122,7 +123,7 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
               </span>
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {cooperatives.map((c) => (
+              {cooperatives.map((c: any) => (
                 <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
                   <h3 class="text-sm font-bold text-ink capitalize leading-snug mb-2">{c.name.toLowerCase()}</h3>
                   <div class="text-xs text-ink-muted space-y-1">
@@ -159,7 +160,7 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
             </h2>
             <div class="border border-border-soft bg-surface rounded-2xl shadow-premium overflow-hidden">
               <ul class="divide-y divide-border-soft">
-                {promotions.map(({ gestora, promo }) => (
+                {promotions.map(({ gestora, promo }: any) => (
                   <li>
                     <a href={`${base}gestora/${gestora.id}`} class="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-surface-hover transition-colors">
                       <div class="min-w-0">
@@ -195,7 +196,7 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
             </h2>
             <div class="border border-border-soft bg-surface rounded-2xl shadow-premium overflow-hidden">
               <ul class="divide-y divide-border-soft">
-                {opportunities.map((o) => (
+                {opportunities.map((o: any) => (
                   <li>
                     <a href={`${base}oportunidad/${o.id}`} class="group flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-surface-hover transition-colors">
                       <div class="min-w-0">

@@ -217,7 +217,7 @@ const base = webBase(import.meta.env.BASE_URL);
       ].filter(Boolean).join(' · ');
 
       const statusBadge = item.status
-        ? `<span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-[#eaf3ee] text-[#1f4d36] mb-1.5 border border-[#1f4d36]/15">${item.status}</span>`
+        ? `<span class="inline-block px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#eaf3ee] text-[#1f4d36] mb-1.5 border border-[#1f4d36]/15">${item.status}</span>`
         : '';
 
       return `
@@ -300,6 +300,40 @@ const base = webBase(import.meta.env.BASE_URL);
 
     renderPins(dispersedMarkers);
 
+    // Parse query parameter ?q=... (e.g. from MarketThermometer links)
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryParam = urlParams.get('q')?.toLowerCase().trim();
+    let queryMatchedBounds: L.LatLngBounds | null = null;
+    let querySingleMatch: (typeof dispersedMarkers)[0] | null = null;
+
+    if (queryParam) {
+      const matchingMarkers = dispersedMarkers.filter((m) => {
+        const barrio = (m.barrio || '').toLowerCase();
+        const muni = (m.municipality || '').toLowerCase();
+        const title = (m.title || '').toLowerCase();
+        const cat = (m.category || '').toLowerCase();
+        return barrio.includes(queryParam) || muni.includes(queryParam) || title.includes(queryParam) || cat.includes(queryParam);
+      });
+
+      if (matchingMarkers.length > 0) {
+        const matchLatLngs = matchingMarkers.map((m) => [m.displayLat, m.displayLng] as [number, number]);
+        queryMatchedBounds = L.latLngBounds(matchLatLngs);
+        if (matchingMarkers.length === 1) {
+          querySingleMatch = matchingMarkers[0];
+        }
+      } else {
+        // Check if query matches known municipality centroid
+        const normalizedKey = queryParam.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        for (const [key, coords] of Object.entries(MUNI_BOUNDS)) {
+          if (normalizedKey.includes(key) || key.includes(normalizedKey)) {
+            const [lat, lng] = coords;
+            queryMatchedBounds = L.latLngBounds([[lat - 0.02, lng - 0.02], [lat + 0.02, lng + 0.02]]);
+            break;
+          }
+        }
+      }
+    }
+
     // Global listener to focus marker from external list cards
     window.addEventListener('map:focus-marker', (event: any) => {
       const { id } = event.detail || {};
@@ -340,7 +374,19 @@ const base = webBase(import.meta.env.BASE_URL);
           },
         }).addTo(map);
 
-        if (allMarkersBounds && allMarkersBounds.isValid()) {
+        if (queryMatchedBounds && queryMatchedBounds.isValid()) {
+          if (querySingleMatch) {
+            const marker = markerMap.get(querySingleMatch.id);
+            if (marker) {
+              map.setView(marker.getLatLng(), 15);
+              marker.openPopup();
+            } else {
+              map.fitBounds(queryMatchedBounds.pad(0.2));
+            }
+          } else {
+            map.fitBounds(queryMatchedBounds.pad(0.2));
+          }
+        } else if (allMarkersBounds && allMarkersBounds.isValid()) {
           map.fitBounds(allMarkersBounds.pad(0.12));
         } else {
           map.fitBounds(boundaries.getBounds(), { padding: [20, 20] });
@@ -353,7 +399,19 @@ const base = webBase(import.meta.env.BASE_URL);
       })
       .catch(() => {
         if (loader) loader.remove();
-        if (allMarkersBounds && allMarkersBounds.isValid()) {
+        if (queryMatchedBounds && queryMatchedBounds.isValid()) {
+          if (querySingleMatch) {
+            const marker = markerMap.get(querySingleMatch.id);
+            if (marker) {
+              map.setView(marker.getLatLng(), 15);
+              marker.openPopup();
+            } else {
+              map.fitBounds(queryMatchedBounds.pad(0.2));
+            }
+          } else {
+            map.fitBounds(queryMatchedBounds.pad(0.2));
+          }
+        } else if (allMarkersBounds && allMarkersBounds.isValid()) {
           map.fitBounds(allMarkersBounds.pad(0.15));
         } else {
           map.setView([43.3623, -8.4115], 11);

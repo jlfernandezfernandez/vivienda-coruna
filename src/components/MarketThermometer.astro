@@ -130,7 +130,7 @@ if (!stats) {
         <div>
           <div class="flex items-center justify-between gap-2 mb-2">
             <span class="font-extrabold text-sm text-ink truncate">{item.name}</span>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-green-soft text-brand-green border border-brand-green/15">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/15">
               {item.count} {item.count === 1 ? 'proyecto' : 'proyectos'}
             </span>
           </div>
@@ -138,7 +138,7 @@ if (!stats) {
           <div class="space-y-1.5 my-2">
             <div class="flex items-baseline justify-between text-xs">
               <span class="text-ink-muted">Precio medio:</span>
-              <span class="font-mono font-bold text-ink">
+              <span class="font-bold text-ink">
                 {item.avgPrice ? `${item.avgPrice.toLocaleString('es-ES')} €` : 'Consultar'}
               </span>
             </div>
@@ -146,7 +146,7 @@ if (!stats) {
             {item.minPrice && (
               <div class="flex items-baseline justify-between text-[11px] text-ink-light">
                 <span>Desde:</span>
-                <span class="font-mono font-semibold text-brand-green">
+                <span class="font-semibold text-brand-green">
                   {item.minPrice.toLocaleString('es-ES')} €
                 </span>
               </div>
@@ -164,12 +164,12 @@ if (!stats) {
         <div class="pt-3 mt-2 border-t border-border-soft flex items-center justify-between text-[11px]">
           <div class="flex items-center gap-1.5">
             {item.coopCount > 0 && (
-              <span class="px-1.5 py-0.5 rounded bg-brand-green-soft text-brand-green font-semibold">
+              <span class="px-1.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/15 font-semibold">
                 {item.coopCount} coop
               </span>
             )}
             {item.vppCount > 0 && (
-              <span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
+              <span class="px-1.5 py-0.5 rounded-lg bg-brand-rose-soft text-brand-rose border border-brand-rose/15 font-semibold">
                 {item.vppCount} VPP
               </span>
             )}

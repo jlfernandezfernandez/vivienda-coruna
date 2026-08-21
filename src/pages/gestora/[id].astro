@@ -94,7 +94,7 @@ const pageDescription = gestora.description || `Promociones y cooperativas gesti
             Cooperativas y promociones en la zona
           </h2>
           <div class="space-y-3">
-            {gestora.promotions.map((promo) => (
+            {gestora.promotions.map((promo: any) => (
               <div class="bg-canvas border border-border-soft p-3 rounded-xl flex flex-col gap-1.5">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                   <span class="text-sm font-bold text-ink">{promo.name}</span>
@@ -143,7 +143,7 @@ const pageDescription = gestora.description || `Promociones y cooperativas gesti
         <div class="border-t border-border-soft pt-5 mt-6">
           <h2 class="text-xs font-bold text-ink uppercase tracking-wider mb-3">En prensa</h2>
           <ul class="divide-y divide-border-soft">
-            {prensa.map((o) => (
+            {prensa.map((o: any) => (
               <li class="py-2.5 first:pt-0 last:pb-0">
                 <a href={`${base}oportunidad/${o.id}`} class="group flex items-center justify-between gap-3">
                   <span class="text-xs font-bold text-ink group-hover:text-brand-green transition-colors truncate">{o.title}</span>

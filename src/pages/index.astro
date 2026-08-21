@@ -4,7 +4,7 @@ import Layout from '../layouts/Layout.astro';
 import CoverageMap from '../components/CoverageMap.astro';
 import OpportunityCard from '../components/OpportunityCard.astro';
 import MarketThermometer from '../components/MarketThermometer.astro';
-import { MUNICIPALITIES, webBase } from '../lib/municipios.mjs';
+import { MUNICIPALITIES } from '../lib/municipios.mjs';
 import { api } from '../lib/api/client.mjs';
 import { apiSafe } from '../lib/api/boundary.mjs';
 import { siteBase } from '../lib/ui.mjs';
@@ -53,11 +53,11 @@ const groupedItems = allItems.reduce((acc, item) => {
 const groupedEntries = Object.entries(groupedItems);
 
 // Cooperativas activas: oportunidades tipo Cooperativa + promociones de gestoras que buscan socios
-const coopOpportunities = items.filter((i) => i.type === 'Cooperativa');
-const coopPromotions = gestoras.flatMap((g) =>
-  g.promotions
-    .filter((p) => p.buscaSocios === true)
-    .map((p) => ({ ...p, gestoraId: g.id, gestoraName: g.name }))
+const coopOpportunities = (items || []).filter((i: any) => i.type === 'Cooperativa');
+const coopPromotions = (gestoras || []).flatMap((g: any) =>
+  (g.promotions || [])
+    .filter((p: any) => p.buscaSocios === true)
+    .map((p: any) => ({ ...p, gestoraId: g.id, gestoraName: g.name }))
 );
 const activeCoopCount = coopOpportunities.length + coopPromotions.length;
 
@@ -139,7 +139,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
         </div>
       ) : (
         <div class="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar">
-          {coopOpportunities.map((op) => (
+          {coopOpportunities.map((op: any) => (
             <a
               href={`${base}oportunidad/${op.id}`}
               class="flex min-w-[260px] max-w-[280px] flex-shrink-0 flex-col gap-2 rounded-2xl border border-border-soft bg-surface p-4 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
@@ -160,7 +160,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
               <span class="text-[11px] text-ink-light mt-auto">Detectado el {shortDate(op.firstSeenAt)}</span>
             </a>
           ))}
-          {coopPromotions.map((promo) => (
+          {coopPromotions.map((promo: any) => (
             <a
               href={`${base}gestora/${promo.gestoraId}`}
               class="flex min-w-[260px] max-w-[280px] flex-shrink-0 flex-col gap-2 rounded-2xl border border-border-soft bg-surface p-4 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
@@ -425,13 +425,13 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           </div>
         ) : (
           <div class="flex flex-col gap-8" id="opportunities-feed">
-            {groupedEntries.map(([dateKey, itemsGroup]) => (
+            {groupedEntries.map(([dateKey, itemsGroup]: [string, any]) => (
               <div class="date-group flex flex-col gap-3" data-date={dateKey}>
                 <h3 class="text-sm font-bold text-ink-muted border-b border-border-soft pb-2 mt-2">
                   {dateKey}
                 </h3>
                 <div class="grid grid-cols-1 gap-4">
-                  {itemsGroup.map((item) => <OpportunityCard {...item} />)}
+                  {(itemsGroup as any[]).map((item: any) => <OpportunityCard {...item} />)}
                 </div>
               </div>
             ))}
@@ -475,7 +475,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
             <p class="text-xs text-ink-light italic">Sin cambios detectados todavía.</p>
           ) : (
             <ul class="divide-y divide-border-soft">
-              {recentEvents.map((ev) => {
+              {(recentEvents || []).map((ev: any) => {
                 const meta = eventIcons[ev.kind] || eventIcons.new;
                 return (
                   <li class="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">
@@ -498,7 +498,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
         <section class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium" aria-labelledby="sources-title">
           <h2 id="sources-title" class="text-base font-bold text-ink mb-4">Fuentes de Datos</h2>
           <ul class="divide-y divide-border-soft">
-            {sources.map((source) => (
+            {(sources || []).map((source: any) => (
               <li class="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
                 <div class="flex items-center gap-2.5 min-w-0">
                   <span

@@ -2,41 +2,41 @@ export const STATUSES = [
   {
     id: 'agotada',
     label: 'Agotada/Vendida',
-    colors: 'bg-red-50 text-red-700 border border-red-100',
+    colors: 'bg-brand-rose-soft text-brand-rose border border-brand-rose/15',
   },
   {
     id: 'ultimas',
     label: 'Últimas unidades',
-    colors: 'bg-amber-50 text-amber-700 border border-amber-100',
+    colors: 'bg-brand-orange-soft text-brand-orange border border-brand-orange/15',
   },
   {
     id: 'construccion',
     label: 'En construcción',
-    colors: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+    colors: 'bg-brand-green-soft text-brand-green border border-brand-green/15',
   },
   {
     id: 'entregada',
     label: 'Entregada',
-    colors: 'bg-slate-100 text-slate-600 border border-slate-200',
+    colors: 'bg-canvas text-ink-muted border border-border-soft',
   },
   {
     id: 'comercializacion',
     label: 'Comercialización',
-    colors: 'bg-green-50 text-green-700 border border-green-100',
+    colors: 'bg-brand-green-soft text-brand-green border border-brand-green/15',
   },
   {
     id: 'suelo',
     label: 'Suelo/Proyecto',
-    colors: 'bg-stone-100 text-stone-600 border border-stone-200',
+    colors: 'bg-brand-purple-soft text-brand-purple border border-brand-purple/15',
   },
   {
     id: 'preventa',
     label: 'En preventa',
-    colors: 'bg-violet-50 text-violet-700 border border-violet-100',
+    colors: 'bg-brand-blue-soft text-brand-blue border border-brand-blue/15',
   },
 ];
 
-const DEFAULT_COLORS = 'bg-brand-blue-soft text-brand-blue border border-brand-blue/10';
+const DEFAULT_COLORS = 'bg-brand-blue-soft text-brand-blue border border-brand-blue/15';
 
 export function statusColors(label) {
   if (!label) return DEFAULT_COLORS;
