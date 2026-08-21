@@ -160,6 +160,8 @@ test('Tier 2: mapSite filters out cross-origin URLs and handles empty/error resp
         links: [
           'https://gestora-coruna.test/promociones',
           'https://gestora-coruna.test/contacto',
+          'https://gestora-coruna.test.evil.example/phishing',
+          'not a valid URL',
           'https://external-social-media.com/gestora',
           'https://another-domain.test/ad',
           'https://gestora-coruna.test/promociones/xuxan',
@@ -175,6 +177,7 @@ test('Tier 2: mapSite filters out cross-origin URLs and handles empty/error resp
     assert.equal(links.length, 3, 'Must retain only same-origin URLs');
     assert.ok(links.every((u) => u.startsWith('https://gestora-coruna.test')));
     assert.ok(!links.some((u) => u.includes('external-social-media.com')));
+    assert.ok(!links.some((u) => u.includes('evil.example')));
   } finally {
     config.firecrawl.baseUrl = originalBaseUrl;
     await mockServer.close();

@@ -58,7 +58,13 @@ export async function mapSite(url) {
   try {
     const json = await firecrawl('/v1/map', { url }, 45_000);
     const origin = new URL(url).origin;
-    return (json?.links || []).filter((u) => u.startsWith(origin));
+    return (json?.links || []).filter((candidate) => {
+      try {
+        return new URL(candidate).origin === origin;
+      } catch {
+        return false;
+      }
+    });
   } catch (error) {
     console.warn(`[firecrawl] Error al mapear ${url}: ${error.message}`);
     return [];

@@ -426,7 +426,7 @@ export function saveGestoraPromotion(db, p) {
     p.details || null,
     p.link || null,
     p.entregaEstimada || null,
-    p.buscaSocios ? 1 : 0,
+    p.buscaSocios === true ? 1 : (p.buscaSocios === false ? 0 : null),
     p.aportacionInicial || null,
     p.precioMin ?? null,
     p.precioMax ?? null,
