@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { config } from './config.mjs';
-import { listCurationCandidates, listCurationReviews, stageCurationReview } from './curation.mjs';
+import {
+  getCurationReview,
+  listCurationCandidates,
+  listCurationReviews,
+  listOpportunitiesWithoutPrice,
+  stageCurationReview,
+} from './curation.mjs';
 import { classifyPromotionLocation, municipalitySlug, MUNICIPALITIES, slugify, resolveMunicipality } from './municipios.mjs';
 import { resolveGeoLocation } from './geocoder.mjs';
 
@@ -1145,6 +1151,8 @@ export function createRepository(dbOrFactory, options = {}) {
     sources: () => withDb((db) => getAllSources(db)),
     curationCandidates: () => withDb((db) => listCurationCandidates(db)),
     curationReviews: () => withDb((db) => listCurationReviews(db)),
+    curationReviewById: (id) => withDb((db) => getCurationReview(db, id)),
+    opportunitiesWithoutPrice: () => withDb((db) => listOpportunitiesWithoutPrice(db)),
     stageCurationReview: (review) => withDb((db) => stageCurationReview(db, review)),
     hasStagedCurationReviews: () => withDb((db) => Boolean(db.prepare(
       "SELECT 1 FROM curation_reviews WHERE status = 'staged' LIMIT 1",
