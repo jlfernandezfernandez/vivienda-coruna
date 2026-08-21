@@ -127,13 +127,13 @@ export function saveOpportunity(db, op) {
       location, type, status, summary, precioMin, precioMax, habitacionesMin,
       banosMin, promotora, totalViviendas, garaje, trastero, terraza, piscina,
       ascensor, entregaEstimada, tipoPromocion, lat, lng, municipality, barrio,
-      geoPrecision, enriched, nombrePromocion, promotionId, evidenceText, extractionMethod
+      geoPrecision, enriched, nombrePromocion, promotionId, evidenceText, extractionMethod, extractorVersion
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?, ?
     )
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
@@ -168,7 +168,8 @@ export function saveOpportunity(db, op) {
       nombrePromocion = COALESCE(excluded.nombrePromocion, opportunities.nombrePromocion),
       promotionId = COALESCE(excluded.promotionId, opportunities.promotionId),
       evidenceText = COALESCE(excluded.evidenceText, opportunities.evidenceText),
-      extractionMethod = COALESCE(excluded.extractionMethod, opportunities.extractionMethod)
+      extractionMethod = COALESCE(excluded.extractionMethod, opportunities.extractionMethod),
+      extractorVersion = COALESCE(excluded.extractorVersion, opportunities.extractorVersion)
   `);
 
   stmt.run(
@@ -206,7 +207,8 @@ export function saveOpportunity(db, op) {
     op.nombrePromocion || null,
     op.promotionId || null,
     op.evidenceText || null,
-    op.extractionMethod || null
+    op.extractionMethod || null,
+    op.extractorVersion || null
   );
 
   if (existing) {
@@ -387,10 +389,10 @@ export function saveGestoraPromotion(db, p) {
   db.prepare(`
     INSERT INTO gestora_promotions (
       id, gestoraId, name, location, status, details, link,
-      entregaEstimada, buscaSocios, aportacionInicial, municipality,
+      entregaEstimada, buscaSocios, aportacionInicial, precioMin, precioMax, municipality,
       barrio, lat, lng, geoPrecision, scopeStatus
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       gestoraId = excluded.gestoraId,
       name = excluded.name,
@@ -401,6 +403,8 @@ export function saveGestoraPromotion(db, p) {
       entregaEstimada = COALESCE(excluded.entregaEstimada, gestora_promotions.entregaEstimada),
       buscaSocios = COALESCE(excluded.buscaSocios, gestora_promotions.buscaSocios),
       aportacionInicial = COALESCE(excluded.aportacionInicial, gestora_promotions.aportacionInicial),
+      precioMin = COALESCE(excluded.precioMin, gestora_promotions.precioMin),
+      precioMax = COALESCE(excluded.precioMax, gestora_promotions.precioMax),
       municipality = excluded.municipality,
       barrio = COALESCE(excluded.barrio, gestora_promotions.barrio),
       lat = COALESCE(excluded.lat, gestora_promotions.lat),
@@ -418,6 +422,8 @@ export function saveGestoraPromotion(db, p) {
     p.entregaEstimada || null,
     p.buscaSocios ? 1 : 0,
     p.aportacionInicial || null,
+    p.precioMin ?? null,
+    p.precioMax ?? null,
     municipality,
     barrio,
     lat,
@@ -617,7 +623,8 @@ export function ensureSchema(db) {
       nombrePromocion TEXT,
       promotionId TEXT,
       evidenceText TEXT,
-      extractionMethod TEXT
+      extractionMethod TEXT,
+      extractorVersion TEXT
     );
 
     CREATE TABLE IF NOT EXISTS sources (
@@ -651,6 +658,8 @@ export function ensureSchema(db) {
       entregaEstimada TEXT,
       buscaSocios INTEGER,
       aportacionInicial INTEGER,
+      precioMin INTEGER,
+      precioMax INTEGER,
       municipality TEXT,
       barrio TEXT,
       lat REAL,
@@ -781,7 +790,8 @@ export function ensureSchema(db) {
     'nombrePromocion TEXT',
     'promotionId TEXT',
     'evidenceText TEXT',
-    'extractionMethod TEXT'
+    'extractionMethod TEXT',
+    'extractorVersion TEXT'
   ]) {
     if (!oppCols.includes(col.split(' ')[0])) {
       db.exec(`ALTER TABLE opportunities ADD COLUMN ${col}`);
@@ -793,6 +803,8 @@ export function ensureSchema(db) {
     'entregaEstimada TEXT',
     'buscaSocios INTEGER',
     'aportacionInicial INTEGER',
+    'precioMin INTEGER',
+    'precioMax INTEGER',
     'municipality TEXT',
     'barrio TEXT',
     'lat REAL',

@@ -285,7 +285,7 @@ test('Tier 3: opportunities, gestora_promotions and cooperatives migrate missing
     for (const col of [
       'piscina', 'ascensor', 'entregaEstimada', 'tipoPromocion', 'lat', 'lng',
       'municipality', 'barrio', 'geoPrecision', 'enriched', 'nombrePromocion',
-      'promotionId', 'evidenceText', 'extractionMethod'
+      'promotionId', 'evidenceText', 'extractionMethod', 'extractorVersion'
     ]) {
       assert.ok(oppCols.includes(col), `opportunities table must include column '${col}'`);
     }
@@ -294,7 +294,7 @@ test('Tier 3: opportunities, gestora_promotions and cooperatives migrate missing
     const promoCols = db.prepare('PRAGMA table_info(gestora_promotions)').all().map((c) => c.name);
     for (const col of [
       'entregaEstimada', 'buscaSocios', 'aportacionInicial', 'municipality',
-      'barrio', 'lat', 'lng', 'geoPrecision', 'scopeStatus'
+      'barrio', 'lat', 'lng', 'geoPrecision', 'scopeStatus', 'precioMin', 'precioMax'
     ]) {
       assert.ok(promoCols.includes(col), `gestora_promotions table must include column '${col}'`);
     }

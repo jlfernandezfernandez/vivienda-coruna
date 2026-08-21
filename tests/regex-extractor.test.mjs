@@ -30,3 +30,19 @@ test('extractWithRegex marca _llmNeeded: true cuando el texto carece de datos es
   const result = extractWithRegex(text);
   assert.equal(result._llmNeeded, true);
 });
+
+test('extractWithRegex reconoce formulaciones contextualizadas de precio comercial', () => {
+  const cases = [
+    ['Los precios arrancan en 210.000 euros para las primeras viviendas.', 210000],
+    ['La promoción está a la venta desde 225.000 €.', 225000],
+    ['Cada vivienda se ofrece por 235.000 euros.', 235000],
+    ['El precio de venta es de 245.000 euros.', 245000],
+    ['Viviendas desde 255.000 euros más IVA.', 255000],
+    ['El coste estará alrededor de 265.000 euros.', 265000],
+    ['O prezo estará arredor de 275.000 euros.', 275000],
+  ];
+
+  for (const [text, expected] of cases) {
+    assert.equal(extractWithRegex(text).precioMin, expected, text);
+  }
+});

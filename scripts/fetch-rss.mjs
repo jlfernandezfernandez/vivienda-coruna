@@ -9,6 +9,7 @@ import {
 } from './lib/monitor.mjs';
 import { extractHousingData, extractGestoraContactFromText, pickOfficialWebsite, extractPromotionsFromText, discoverGestoraNames, validateExtractedHousingData } from './lib/llm.mjs';
 import { extractWithRegex } from './lib/regex-extractor.mjs';
+import { EXTRACTOR_VERSION, shouldReprocessOpportunity, shouldUseComplementaryExtraction } from './lib/extraction-policy.mjs';
 import { requirePipelineWriter } from './lib/writer-lock.mjs';
 import { scrapeUrl, searchWeb, mapSite, fetchText } from './lib/scraper.mjs';
 import {
@@ -189,8 +190,9 @@ async function main() {
   for (const item of candidates) {
     const old = getOpportunity(db, item.id);
 
-    if (old && old.enriched) {
-      // Ya procesado por el LLM (aunque no encontrara datos); no repetir la llamada.
+    if (old && old.enriched && !shouldReprocessOpportunity(old)) {
+      // Conserva las extracciones completas. Las filas enriquecidas sin precio se
+      // revisitan una sola vez por versión del extractor para aprovechar mejoras.
       saveOpportunity(db, {
         ...item,
         status: old.status || item.status,
@@ -231,8 +233,10 @@ async function main() {
       const regexData = extractWithRegex(item.title + '\n' + contentToAnalyze);
       const regexFields = regexData._regexFieldsFound || 0;
 
+      const useComplementaryExtraction = shouldUseComplementaryExtraction(regexData, item.sourceKind);
+
       let llmData;
-      if (regexData._llmNeeded) {
+      if (useComplementaryExtraction) {
         // Regex no pudo sacar suficiente → LLM
         const llmResult = await extractHousingData(item.title, contentToAnalyze);
         const regexValues = Object.fromEntries(Object.entries(regexData).filter(([key, value]) => !key.startsWith('_') && value !== null && value !== undefined));
@@ -282,9 +286,10 @@ async function main() {
         nombrePromocion: llmData.nombrePromocion,
         promotionId,
         evidenceText: contentToAnalyze.slice(0, 10000),
-        extractionMethod: regexData._llmNeeded
+        extractionMethod: useComplementaryExtraction
           ? (llmData.llmCallSkipped ? 'regex-no-llm' : 'regex+llm')
           : 'regex',
+        extractorVersion: EXTRACTOR_VERSION,
         // Si el LLM falló (cuota, red), no marcar enriched: reintentar en la próxima corrida.
         enriched: llmData.llmCallSkipped || !llmData.llmCallFailed,
       };
@@ -299,7 +304,9 @@ async function main() {
           location: enrichedItem.location || '',
           status: enrichedItem.status || 'Sin confirmar',
           details: enrichedItem.summary,
-          link: enrichedItem.url
+          link: enrichedItem.url,
+          precioMin: enrichedItem.precioMin,
+          precioMax: enrichedItem.precioMax,
         });
       }
       
@@ -434,6 +441,8 @@ async function main() {
           entregaEstimada: promo.entregaEstimada,
           buscaSocios: promo.buscaSocios,
           aportacionInicial: promo.aportacionInicial,
+          precioMin: promo.precioMin,
+          precioMax: promo.precioMax,
         });
       }
       console.log(`  [Catálogo] ${gestora.name}: ${added} promociones nuevas desde ${pagesToScrape.length} páginas de su web.`);

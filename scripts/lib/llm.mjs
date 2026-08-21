@@ -478,9 +478,11 @@ IMPORTANTE: esta empresa puede operar en toda España. Incluye SOLO promociones 
             totalViviendas: { type: ['number', 'null'], description: 'Total de viviendas si aparece en el texto. null si no aparece.' },
             entregaEstimada: { type: ['string', 'null'], description: 'Fecha o año estimado de entrega tal como aparece ("2027", "primer trimestre de 2026"). null si no aparece.' },
             buscaSocios: { type: ['boolean', 'null'], description: 'true si el texto indica captación abierta de socios/compradores, false si completa/adjudicada, null si no se dice.' },
-            aportacionInicial: { type: ['number', 'null'], description: 'Aportación inicial en euros si aparece en el texto. null si no aparece.' }
+            aportacionInicial: { type: ['number', 'null'], description: 'Aportación inicial en euros si aparece en el texto. null si no aparece.' },
+            precioMin: { type: ['number', 'null'], description: 'Precio de salida o venta mínimo en euros si aparece literalmente. null si no aparece.' },
+            precioMax: { type: ['number', 'null'], description: 'Precio máximo en euros si aparece literalmente como rango. null si no aparece.' }
           },
-          required: ['nombre', 'estado', 'location', 'barrio', 'totalViviendas', 'entregaEstimada', 'buscaSocios', 'aportacionInicial'],
+          required: ['nombre', 'estado', 'location', 'barrio', 'totalViviendas', 'entregaEstimada', 'buscaSocios', 'aportacionInicial', 'precioMin', 'precioMax'],
           additionalProperties: false
         }
       }
@@ -517,6 +519,7 @@ IMPORTANTE: esta empresa puede operar en toda España. Incluye SOLO promociones 
       const literal = (value) => value && block.includes(normalize(value)) ? value : null;
       const catalogTotalContext = (window) => /#\s*(?:nuevas?\s+)?(?:viviendas?|pisos?|unidades)\b/.test(window);
       const contributionContext = (window) => /(?:€|euros?\b)/.test(window) && /\b(?:aportacion|entrada|desembolso inicial)\b/.test(window);
+      const priceContext = (window) => /(?:€|euros?\b)/.test(window) && /\b(?:desde|a partir de|precio|venta|ofrece|arranca|alrededor|arredor)\b/.test(window);
       return [{
         ...promo,
         estado: promo.estado && hasStatusEvidence(promo.estado, block) ? promo.estado : null,
@@ -528,6 +531,8 @@ IMPORTANTE: esta empresa puede operar en toda España. Incluye SOLO promociones 
             ? (/\b(?:completa|adjudicada|cerrada|sin plazas)\b/i.test(block) ? false : null)
             : null,
         aportacionInicial: fieldNumber(promo.aportacionInicial, 1000, 2_000_000, projectBlock, contributionContext),
+        precioMin: fieldNumber(promo.precioMin, 100_000, 10_000_000, projectBlock, priceContext),
+        precioMax: fieldNumber(promo.precioMax, 100_000, 10_000_000, projectBlock, priceContext),
       }];
     });
   } catch (error) {
