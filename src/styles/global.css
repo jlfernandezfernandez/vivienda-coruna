@@ -12,7 +12,7 @@
   /* Typography: Ink & Slate */
   --color-ink: #161c19;
   --color-ink-muted: #536057;
-  --color-ink-light: #6b7a6f;
+  --color-ink-light: #68766c;
 
   /* Brand and Signal Colors */
   --color-brand-green: #1f4d36;
@@ -104,6 +104,12 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Minimum tap area for compact controls without enlarging inline text links. */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
 }
 
 /* Pulsing dot animation for crawler status */

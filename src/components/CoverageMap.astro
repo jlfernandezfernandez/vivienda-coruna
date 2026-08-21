@@ -40,33 +40,33 @@ const base = webBase(import.meta.env.BASE_URL);
 <div class="relative w-full overflow-hidden rounded-2xl border border-border-soft bg-surface shadow-premium flex flex-col">
   <!-- Top Map Bar: Category Filter Chips & Quick Municipality Zoom -->
   <div class="p-3.5 bg-surface border-b border-border-soft flex flex-col gap-2.5 z-20">
-    <div class="flex flex-wrap items-center justify-between gap-2.5">
+    <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
       <!-- Category Filter Chips -->
-      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" role="group" aria-label="Filtros del mapa">
+      <div class="flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" role="group" aria-label="Filtros del mapa">
         <button
           type="button"
-          class="map-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-brand-green text-surface transition-all cursor-pointer shadow-sm"
+          class="map-filter-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-3 rounded-lg text-xs font-bold bg-brand-green text-surface transition-all cursor-pointer shadow-sm"
           data-map-filter="all"
         >
           Todos ({markers.length})
         </button>
         <button
           type="button"
-          class="map-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-ink-muted bg-canvas border border-border-soft hover:border-border-medium hover:text-ink transition-all cursor-pointer"
+          class="map-filter-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-3 rounded-lg text-xs font-semibold text-ink-muted bg-canvas border border-border-soft hover:border-border-medium hover:text-ink transition-all cursor-pointer"
           data-map-filter="coop"
         >
           🟢 Cooperativas
         </button>
         <button
           type="button"
-          class="map-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-ink-muted bg-canvas border border-border-soft hover:border-border-medium hover:text-ink transition-all cursor-pointer"
+          class="map-filter-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-3 rounded-lg text-xs font-semibold text-ink-muted bg-canvas border border-border-soft hover:border-border-medium hover:text-ink transition-all cursor-pointer"
           data-map-filter="obra-nueva"
         >
           🔵 Obra Nueva
         </button>
         <button
           type="button"
-          class="map-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-ink-muted bg-canvas border border-border-soft hover:border-border-medium hover:text-ink transition-all cursor-pointer"
+          class="map-filter-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-3 rounded-lg text-xs font-semibold text-ink-muted bg-canvas border border-border-soft hover:border-border-medium hover:text-ink transition-all cursor-pointer"
           data-map-filter="vpp"
         >
           🔴 VPP Protegida
@@ -74,21 +74,21 @@ const base = webBase(import.meta.env.BASE_URL);
       </div>
 
       <!-- Quick Municipality Shortcuts -->
-      <div class="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 ml-auto">
+      <div class="flex flex-nowrap items-center gap-1 overflow-x-auto no-scrollbar py-0.5 sm:ml-auto">
         <span class="text-[11px] font-bold text-ink-light uppercase tracking-wider mr-1 hidden sm:inline">Zona:</span>
-        <button type="button" class="muni-zoom-btn px-2 py-1 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="coruna">
+        <button type="button" class="muni-zoom-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-2 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="coruna">
           A Coruña
         </button>
-        <button type="button" class="muni-zoom-btn px-2 py-1 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="oleiros">
+        <button type="button" class="muni-zoom-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-2 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="oleiros">
           Oleiros
         </button>
-        <button type="button" class="muni-zoom-btn px-2 py-1 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="culleredo">
+        <button type="button" class="muni-zoom-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-2 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="culleredo">
           Culleredo
         </button>
-        <button type="button" class="muni-zoom-btn px-2 py-1 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="arteixo">
+        <button type="button" class="muni-zoom-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-2 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="arteixo">
           Arteixo
         </button>
-        <button type="button" class="muni-zoom-btn px-2 py-1 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="reset" title="Ver todo el área metropolitana">
+        <button type="button" class="muni-zoom-btn inline-flex h-11 flex-shrink-0 items-center whitespace-nowrap px-2 rounded-md text-[11px] font-semibold bg-canvas border border-border-soft hover:border-brand-green hover:text-brand-green transition-all" data-zoom-muni="reset" title="Ver todo el área metropolitana">
           🔄 Ver todo
         </button>
       </div>
