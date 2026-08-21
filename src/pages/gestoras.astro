@@ -34,7 +34,7 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
         Sin gestoras detectadas todavía.
       </div>
     ) : (
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
         {gestoras.map((gestora: any) => (
           <div class="border border-border-soft bg-surface p-6 rounded-2xl shadow-premium flex flex-col justify-between hover:shadow-hover transition-all duration-200">
             <div>
@@ -81,13 +81,13 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
                 {gestora.phone && (
                   <div class="flex items-center gap-2">
                     <span>📞</span>
-                    <a href={`tel:${gestora.phone.replace(/\s+/g, '')}`} class="font-semibold hover:text-brand-green transition-colors">{gestora.phone}</a>
+                    <a href={`tel:${gestora.phone.replace(/\s+/g, '')}`} class="touch-target -my-1 inline-flex items-center font-semibold hover:text-brand-green transition-colors">{gestora.phone}</a>
                   </div>
                 )}
                 {gestora.email && (
                   <div class="flex items-center gap-2">
                     <span>✉️</span>
-                    <a href={`mailto:${gestora.email}`} class="font-semibold hover:text-brand-green transition-colors truncate">{gestora.email}</a>
+                    <a href={`mailto:${gestora.email}`} class="touch-target -my-1 inline-flex min-w-0 items-center font-semibold hover:text-brand-green transition-colors truncate">{gestora.email}</a>
                   </div>
                 )}
                 {!gestora.address && !gestora.phone && !gestora.email && (
@@ -130,7 +130,7 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
             <div class="mt-6 pt-4 border-t border-border-soft">
               <a
                 href={`${base}gestora/${gestora.id}`}
-                class="w-full bg-brand-green text-surface text-center font-bold py-2.5 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
+                class="touch-target w-full bg-brand-green text-surface text-center font-bold py-2.5 px-4 rounded-xl shadow-sm hover:bg-brand-green-hover transition-all flex items-center justify-center gap-2 text-xs sm:text-sm"
               >
                 <span>Ver ficha completa y proyectos</span>
                 <svg class="h-4 w-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24" aria-hidden="true">

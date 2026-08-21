@@ -5,7 +5,7 @@ export interface Props {
   jsonLd?: Record<string, unknown>;
 }
 import '../styles/global.css';
-import { webBase, MUNICIPALITIES, slugify } from '../lib/municipios.mjs';
+import { webBase } from '../lib/municipios.mjs';
 import CommandPalette from '../components/CommandPalette.astro';
 import Toast from '../components/Toast.astro';
 
@@ -93,7 +93,7 @@ const currentYear = new Date().getFullYear();
             type="button"
             data-open-cmd-palette
             onclick="window.openCommandPalette && window.openCommandPalette()"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-canvas border border-border-soft hover:border-brand-green/30 text-ink-muted hover:text-ink text-xs font-semibold transition-all cursor-pointer shadow-sm"
+            class="touch-target flex items-center gap-2 px-3 py-1.5 rounded-xl bg-canvas border border-border-soft hover:border-brand-green/30 text-ink-muted hover:text-ink text-xs font-semibold transition-all cursor-pointer shadow-sm"
             title="Búsqueda rápida (Atajo: ⌘K o /)"
           >
             <svg class="h-3.5 w-3.5 text-ink-light stroke-current fill-none stroke-2" viewBox="0 0 24 24" aria-hidden="true">
@@ -109,14 +109,14 @@ const currentYear = new Date().getFullYear();
                 <a
                   href={section.href}
                   aria-current="page"
-                  class="rounded-full bg-brand-green px-3.5 py-1.5 text-xs font-bold text-surface shadow-sm"
+                  class="touch-target inline-flex items-center whitespace-nowrap rounded-full bg-brand-green px-3.5 py-1.5 text-xs font-bold text-surface shadow-sm"
                 >
                   {section.label}
                 </a>
               ) : (
                 <a
                   href={section.href}
-                  class="rounded-full border border-border-soft bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
+                  class="touch-target inline-flex items-center whitespace-nowrap rounded-full border border-border-soft bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-muted hover:text-ink hover:border-border-medium transition-colors"
                 >
                   {section.label}
                 </a>
@@ -130,7 +130,7 @@ const currentYear = new Date().getFullYear();
             href="https://github.com/jlfernandezfernandez/vivienda-coruna"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-ink-muted hover:text-brand-green p-1.5 rounded-lg hover:bg-canvas transition-colors duration-200 flex items-center gap-1.5 text-xs font-semibold"
+            class="touch-target text-ink-muted hover:text-brand-green p-1.5 rounded-lg hover:bg-canvas transition-colors duration-200 flex items-center gap-1.5 text-xs font-semibold"
             aria-label="Código fuente en GitHub (se abre en una nueva ventana)"
             title="Ver código en GitHub"
           >
@@ -150,21 +150,21 @@ const currentYear = new Date().getFullYear();
       </div>
 
       <!-- Mobile Navigation Bar -->
-      <div class="md:hidden border-t border-border-soft px-4 py-2 bg-canvas overflow-x-auto no-scrollbar">
-        <nav class="flex gap-1.5 min-w-max" aria-label="Secciones móvil">
+      <div class="mobile-nav-scroll md:hidden border-t border-border-soft px-4 py-2 bg-canvas overflow-x-auto no-scrollbar scroll-px-4">
+        <nav class="flex w-max gap-1.5 pr-4" aria-label="Secciones móvil">
           {sections.map((section) =>
             section.id === activeSection ? (
               <a
                 href={section.href}
                 aria-current="page"
-                class="rounded-full bg-brand-green px-3 py-1 text-xs font-bold text-surface shadow-sm"
+                class="touch-target inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-brand-green px-3 py-1 text-xs font-bold text-surface shadow-sm"
               >
                 {section.label}
               </a>
             ) : (
               <a
                 href={section.href}
-                class="rounded-full border border-border-soft bg-surface px-3 py-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors"
+                class="touch-target inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-border-soft bg-surface px-3 py-1 text-xs font-semibold text-ink-muted hover:text-ink transition-colors"
               >
                 {section.label}
               </a>
@@ -178,73 +178,39 @@ const currentYear = new Date().getFullYear();
       <slot />
     </main>
 
-    <!-- Comprehensive Semantic Footer -->
-    <footer class="w-full border-t border-border-soft bg-surface mt-16 py-12 text-ink-muted" role="contentinfo">
+    <!-- Compact footer -->
+    <footer class="w-full border-t border-border-soft bg-surface mt-16 py-7 text-ink-muted" role="contentinfo">
       <div class="mx-auto max-w-6xl px-4 sm:px-6">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-          <!-- Col 1: Identity -->
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center gap-2.5">
-              <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-green text-surface shadow-sm">
-                <svg class="h-4 w-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                </svg>
-              </div>
-              <span class="font-extrabold text-ink text-sm">Vivienda Coruña</span>
-            </div>
-            <p class="text-xs text-ink-muted leading-relaxed">
-              Monitor de código abierto para detectar señales tempranas de cooperativas de vivienda, captación de socios, licencias y promociones de obra nueva en el área metropolitana de A Coruña.
-            </p>
-            <div class="flex items-center gap-2 text-xs font-semibold text-brand-green mt-1">
-              <span class="flex h-2 w-2 rounded-full bg-status-ok pulse-indicator-ok"></span>
-              Actualizado a diario de forma autónoma
-            </div>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between text-xs">
+          <div>
+            <p class="font-bold text-ink">Vivienda Coruña</p>
+            <p class="mt-1 text-ink-light">Datos públicos sobre cooperativas y obra nueva del área metropolitana.</p>
           </div>
-
-          <!-- Col 2: Navigation -->
-          <div class="flex flex-col gap-2.5">
-            <span class="text-xs font-bold text-ink uppercase tracking-wider">Secciones</span>
-            <ul class="space-y-1.5 text-xs">
-              <li><a href={base} class="hover:text-brand-green transition-colors">Novedades y Alertas</a></li>
-              <li><a href={`${base}mapa`} class="hover:text-brand-green transition-colors">Mapa de Promociones</a></li>
-              <li><a href={`${base}cooperativas`} class="hover:text-brand-green transition-colors">Cooperativas Constituidas</a></li>
-              <li><a href={`${base}gestoras`} class="hover:text-brand-green transition-colors">Directorio de Gestoras</a></li>
-            </ul>
-          </div>
-
-          <!-- Col 3: Monitored Municipalities -->
-          <div class="flex flex-col gap-2.5">
-            <span class="text-xs font-bold text-ink uppercase tracking-wider">Área Metropolitana</span>
-            <div class="grid grid-cols-2 gap-1 text-xs">
-              {MUNICIPALITIES.map((muni) => (
-                <a href={`${base}municipio/${slugify(muni)}`} class="hover:text-brand-green transition-colors truncate">
-                  {muni}
-                </a>
-              ))}
-            </div>
-          </div>
-
-          <!-- Col 4: Data Sources & Open Data -->
-          <div class="flex flex-col gap-2.5">
-            <span class="text-xs font-bold text-ink uppercase tracking-wider">Datos Abiertos & Fuentes</span>
-            <ul class="space-y-1.5 text-xs">
-              <li><a href={`${base}api/promociones.geojson`} target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors font-semibold flex items-center gap-1"><span>📥 GeoJSON Metropolitano</span></a></li>
-              <li><a href={`${base}api/promociones.json`} target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors font-semibold flex items-center gap-1"><span>📦 API JSON Abierta</span></a></li>
-              <li><a href="https://igvs.xunta.gal" target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors">IGVS (Xunta de Galicia)</a></li>
-              <li><a href="https://abertos.xunta.gal" target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors">Rexistro de Cooperativas</a></li>
-            </ul>
-          </div>
+          <nav class="flex flex-wrap items-center gap-x-4 gap-y-2 font-semibold" aria-label="Enlaces del pie">
+            <a href={base} class="hover:text-brand-green transition-colors">Novedades</a>
+            <a href={`${base}mapa`} class="hover:text-brand-green transition-colors">Mapa</a>
+            <a href={`${base}cooperativas`} class="hover:text-brand-green transition-colors">Cooperativas</a>
+            <a href="https://github.com/jlfernandezfernandez/vivienda-coruna" target="_blank" rel="noopener noreferrer" class="hover:text-brand-green transition-colors">Código</a>
+          </nav>
         </div>
-
-        <div class="border-t border-border-soft pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-light">
-          <p>© {currentYear} Vivienda Coruña. Proyecto de código abierto bajo licencia <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer" class="font-bold hover:text-brand-green transition-colors">MIT</a>.</p>
-          <p class="text-center sm:text-right">Los datos se recopilan de fuentes públicas para fines informativos.</p>
-        </div>
+        <p class="mt-5 border-t border-border-soft pt-4 text-[11px] text-ink-light">© {currentYear} Vivienda Coruña · Datos recopilados de fuentes públicas con fines informativos.</p>
       </div>
     </footer>
 
     <!-- Global Command Palette & Toast Notifications -->
     <CommandPalette />
     <Toast />
+    <script>
+      const scrollActiveMobileNav = () => {
+        const nav = document.querySelector<HTMLElement>('.mobile-nav-scroll');
+        const activeLink = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+        if (!nav || !activeLink) return;
+
+        activeLink.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
+      };
+
+      scrollActiveMobileNav();
+      window.addEventListener('resize', scrollActiveMobileNav, { passive: true });
+    </script>
   </body>
 </html>

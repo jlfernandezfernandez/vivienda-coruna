@@ -19,6 +19,7 @@ const captacion = (gestoras || []).flatMap((g: any) =>
     .filter((p: any) => p.buscaSocios === true)
     .map((p: any) => ({ gestora: g, promo: p }))
 );
+const activeCoopCount = coopOpportunities.length + captacion.length;
 
 const formatDate = (d: string | null) =>
   d
@@ -52,8 +53,8 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el �
         <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Cooperativas en el Rexistro</p>
       </div>
       <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
-        <span class="text-3xl font-extrabold text-brand-blue">{coopOpportunities.length}</span>
-        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Señales detectadas</p>
+        <span class="text-3xl font-extrabold text-brand-blue">{activeCoopCount}</span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Cooperativas con actividad</p>
       </div>
       <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
         <span class="text-3xl font-extrabold text-brand-orange">{captacion.length}</span>
@@ -61,15 +62,35 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el �
       </div>
     </div>
 
-    <!-- Captación Abierta Section (Priority) -->
-    {captacion.length > 0 && (
+    <!-- Active cooperatives (same count shown on the homepage) -->
+    {activeCoopCount > 0 && (
       <section class="mb-12" aria-labelledby="captacion-title">
         <h2 id="captacion-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
-          <span>Promociones en captación de socios</span>
+          <span>Cooperativas con actividad abierta</span>
           <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-status-ok/10 text-brand-green border border-status-ok/25 text-[11px] font-semibold">
-            {captacion.length} activas
+            {activeCoopCount} activas
           </span>
         </h2>
+        <p class="mb-4 text-sm text-ink-muted">Incluye cooperativas detectadas en fuentes públicas y promociones de gestoras que buscan socios.</p>
+        {coopOpportunities.length > 0 && (
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {coopOpportunities.map((op: any) => (
+              <a href={`${base}oportunidad/${op.id}`} class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium hover:shadow-hover transition-all">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                  <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">📍 {op.barrio || op.location || 'Área metropolitana'}</span>
+                  <span class="inline-flex items-center rounded-lg bg-status-ok/10 text-brand-green border border-status-ok/25 px-2.5 py-0.5 text-[10px] font-bold">
+                    {op.status || 'Actividad detectada'}
+                  </span>
+                </div>
+                <h3 class="text-base font-bold text-ink mb-2">{op.nombrePromocion || op.title}</h3>
+                <p class="text-xs text-ink-muted">{op.sourceKind === 'market-alert' ? 'Prensa local' : op.source || 'Fuente pública'}</p>
+              </a>
+            ))}
+          </div>
+        )}
+        {captacion.length > 0 && (
+          <>
+            {coopOpportunities.length > 0 && <h3 class="mb-3 mt-6 text-sm font-bold text-ink">Promociones que buscan socios</h3>}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           {captacion.map(({ gestora, promo }: any) => (
             <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col justify-between hover:shadow-hover transition-all">
@@ -99,6 +120,8 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el �
             </div>
           ))}
         </div>
+          </>
+        )}
       </section>
     )}
 
