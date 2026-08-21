@@ -42,9 +42,19 @@ export function extractWithRegex(text) {
   };
 
   // ── PRECIOS ──────────────────────────────────────────────────────────
-  // "desde 180.000 €", "a partir de 195.000 euros", "entre 220.000 y 350.000 €",
-  // "precios desde 165.000", "viviendas desde 180.000€"
-  const precioDesde = t.match(/(?:desde|a partir de|precios? desde|precios?\s+arrancan\s+en|a\s+la\s+venta\s+desde|se\s+ofrece\s+por|precio\s+de\s+venta(?:\s+es)?(?:\s+de)?|alrededor\s+de|arredor\s+de)\s*([\d.,]+)\s*(?:€|euros?)/i);
+  // "desde 180.000 €", "a partir de 195.000 euros", "venta desde 210.000",
+  // "precio orientativo de 205.000 €". En contextos inequívocamente comerciales
+  // admitimos que la fuente omita la moneda; para el "desde" genérico la exigimos.
+  const amount = '([\\d][\\d.,\\s]*[\\d]|[\\d])';
+  const commercialPrice = new RegExp(
+    `(?:a\\s+partir\\s+de|precios?\\s+desde|precios?\\s+arrancan\\s+en|(?:a\\s+la\\s+)?venta\\s+desde|venta\\s+a\\s+partir\\s+de|precio\\s+orientativo(?:\\s+de)?|precio\\s+de\\s+venta(?:\\s+es)?(?:\\s+de)?|se\\s+ofrece\\s+por)\\s*[:–—-]?\\s*${amount}\\s*(?:€|euros?)?`,
+    'i',
+  );
+  const genericPrice = new RegExp(
+    `(?:desde|alrededor\\s+de|arredor\\s+de)\\s*${amount}\\s*(?:€|euros?)`,
+    'i',
+  );
+  const precioDesde = t.match(commercialPrice) || t.match(genericPrice);
   if (precioDesde) {
     result.precioMin = parseNumber(precioDesde[1]);
   }

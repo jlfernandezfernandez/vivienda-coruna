@@ -1,6 +1,6 @@
 // Bump when a deterministic extractor improvement should revisit previously
 // enriched opportunities which still lack their market price.
-export const EXTRACTOR_VERSION = '2026-08-price-context-v1';
+export const EXTRACTOR_VERSION = '2026-08-price-context-v2';
 
 export function shouldUseComplementaryExtraction(regexData, sourceKind) {
   return Boolean(regexData?._llmNeeded)

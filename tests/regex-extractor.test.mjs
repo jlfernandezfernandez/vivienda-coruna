@@ -46,3 +46,17 @@ test('extractWithRegex reconoce formulaciones contextualizadas de precio comerci
     assert.equal(extractWithRegex(text).precioMin, expected, text);
   }
 });
+
+test('extractWithRegex captura variantes comerciales de precio orientativo y venta desde', () => {
+  const cases = [
+    ['Venta desde 198.500 euros más IVA.', 198500],
+    ['Precio orientativo: 205.000 € + IVA.', 205000],
+    ['Precio orientativo de 215.000 euros.', 215000],
+    ['A partir de 225.000 para viviendas de dos dormitorios.', 225000],
+    ['Viviendas desde 235 000 euros más IVA.', 235000],
+  ];
+
+  for (const [text, expected] of cases) {
+    assert.equal(extractWithRegex(text).precioMin, expected, text);
+  }
+});
