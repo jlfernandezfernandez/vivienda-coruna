@@ -125,9 +125,9 @@ if (!stats) {
     </span>
   </div>
 
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
     {stats.map((item) => (
-      <div class="flex flex-col justify-between p-4 rounded-xl bg-canvas border border-border-soft hover:border-brand-green/30 transition-all">
+      <div class="flex flex-col justify-between p-4 rounded-xl bg-canvas border border-border-soft hover:border-brand-green/30 hover:shadow-sm transition-all">
         <div>
           <div class="flex items-center justify-between gap-2 mb-2">
             <span class="font-extrabold text-sm text-ink truncate">{item.name}</span>
@@ -136,41 +136,36 @@ if (!stats) {
             </span>
           </div>
 
-          <div class="space-y-1.5 my-2">
-            <div class="flex items-baseline justify-between text-xs">
-              <span class="text-ink-muted">Precio medio:</span>
-              <span class="font-bold text-ink">
+          <!-- Highlighted Price Metric -->
+          <div class="my-2">
+            <div class="flex items-baseline gap-1">
+              <span class="text-xs text-ink-muted">Media:</span>
+              <span class="text-lg sm:text-xl font-extrabold text-ink tracking-tight">
                 {item.avgPrice ? `${item.avgPrice.toLocaleString('es-ES')} €` : 'Consultar'}
               </span>
             </div>
 
-            {item.minPrice && (
-              <div class="flex items-baseline justify-between text-[11px] text-ink-light">
-                <span>Desde:</span>
-                <span class="font-semibold text-brand-green">
-                  {item.minPrice.toLocaleString('es-ES')} €
-                </span>
-              </div>
-            )}
-
-            {item.totalUnits > 0 && (
-              <div class="flex items-baseline justify-between text-[11px] text-ink-light">
-                <span>Viviendas proyectadas:</span>
-                <span class="font-bold text-ink">{item.totalUnits} uds</span>
-              </div>
-            )}
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-light mt-0.5">
+              {item.minPrice && (
+                <span>Desde: <strong class="text-brand-green font-semibold">{item.minPrice.toLocaleString('es-ES')} €</strong></span>
+              )}
+              {item.minPrice && item.totalUnits > 0 && <span class="text-border-strong">·</span>}
+              {item.totalUnits > 0 && (
+                <span>{item.totalUnits} vivs.</span>
+              )}
+            </div>
           </div>
         </div>
 
-        <div class="pt-3 mt-2 border-t border-border-soft flex items-center justify-between text-[11px]">
+        <div class="pt-2.5 mt-2 border-t border-border-soft flex items-center justify-between text-[11px]">
           <div class="flex items-center gap-1.5">
             {item.coopCount > 0 && (
-              <span class="px-1.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/15 font-semibold">
+              <span class="px-1.5 py-0.5 rounded-md bg-brand-green-soft text-brand-green border border-brand-green/15 font-semibold">
                 {item.coopCount} coop
               </span>
             )}
             {item.vppCount > 0 && (
-              <span class="px-1.5 py-0.5 rounded-lg bg-brand-rose-soft text-brand-rose border border-brand-rose/15 font-semibold">
+              <span class="px-1.5 py-0.5 rounded-md bg-brand-rose-soft text-brand-rose border border-brand-rose/15 font-semibold">
                 {item.vppCount} VPP
               </span>
             )}
@@ -178,7 +173,7 @@ if (!stats) {
 
           <a
             href={item.kind === 'municipio' ? `${base}municipio/${slugify(item.name)}` : `${base}mapa?q=${encodeURIComponent(item.name)}`}
-            class="text-brand-green font-semibold hover:underline flex items-center gap-0.5"
+            class="text-brand-green font-bold hover:underline flex items-center gap-0.5"
           >
             Ver zona →
           </a>

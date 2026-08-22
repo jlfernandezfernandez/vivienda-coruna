@@ -399,7 +399,13 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
               {allItems.length}
             </span>
           </h2>
-          <span class="text-xs text-ink-muted">Publicación más reciente</span>
+          <button
+            type="button"
+            id="btn-reset-filters-header"
+            class="hidden text-xs font-bold text-brand-green hover:underline cursor-pointer items-center gap-1"
+          >
+            <span>Restablecer filtros</span>
+          </button>
         </div>
 
         <!-- Grouped Bulletin Feed -->
@@ -432,6 +438,13 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           </svg>
           <h3 class="mt-4 text-base font-bold text-ink">No hay resultados con estos filtros</h3>
           <p class="mt-1.5 text-sm text-ink-muted">Prueba a borrar o ajustar los términos de búsqueda.</p>
+          <button
+            type="button"
+            id="btn-reset-filters-empty"
+            class="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-green text-surface text-xs font-bold shadow-sm hover:bg-brand-green-hover transition-colors cursor-pointer"
+          >
+            <span>Restablecer todos los filtros</span>
+          </button>
         </div>
       </div>
 
@@ -689,6 +702,12 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
     if (emptyStateEl) {
       emptyStateEl.classList.toggle('hidden', visibleCount > 0);
     }
+
+    if (btnResetHeader) {
+      const active = isFilterActive();
+      btnResetHeader.classList.toggle('hidden', !active);
+      btnResetHeader.classList.toggle('inline-flex', active);
+    }
   }
 
   if (searchInput) {
@@ -806,4 +825,103 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
     needElevator = (e.target as HTMLInputElement).checked;
     updateFilters();
   });
+
+  const btnResetHeader = document.getElementById('btn-reset-filters-header');
+  const btnResetEmpty = document.getElementById('btn-reset-filters-empty');
+
+  function isFilterActive(): boolean {
+    return (
+      searchVal.trim().length > 0 ||
+      activeSource !== 'all' ||
+      activeCategory !== 'all' ||
+      activeLocation !== 'all' ||
+      maxPrice !== 600000 ||
+      minRooms !== 0 ||
+      minBaths !== 0 ||
+      needGarage ||
+      needStorage ||
+      needTerrace ||
+      needPool ||
+      needElevator
+    );
+  }
+
+  function resetAllFilters() {
+    searchVal = '';
+    if (searchInput) searchInput.value = '';
+
+    activeSource = 'all';
+    sourceFilters.forEach(b => {
+      const isAll = b.getAttribute('data-filter-source') === 'all';
+      b.classList.toggle('bg-brand-green', isAll);
+      b.classList.toggle('text-surface', isAll);
+      b.classList.toggle('text-ink-muted', !isAll);
+      b.classList.toggle('hover:bg-surface-hover', !isAll);
+      b.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+    });
+
+    activeCategory = 'all';
+    categoryFilters.forEach(b => {
+      const isAll = b.getAttribute('data-filter-category') === 'all';
+      b.classList.toggle('bg-brand-green-soft', isAll);
+      b.classList.toggle('text-brand-green', isAll);
+      b.classList.toggle('border-brand-green/20', isAll);
+      b.classList.toggle('bg-surface', !isAll);
+      b.classList.toggle('text-ink-muted', !isAll);
+      b.classList.toggle('border-border-soft', !isAll);
+      b.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+    });
+
+    activeLocation = 'all';
+    locationFilters.forEach(b => {
+      const isAll = b.getAttribute('data-filter-location') === 'all';
+      b.classList.toggle('bg-brand-green-soft', isAll);
+      b.classList.toggle('text-brand-green', isAll);
+      b.classList.toggle('border-brand-green/20', isAll);
+      b.classList.toggle('bg-surface', !isAll);
+      b.classList.toggle('text-ink-muted', !isAll);
+      b.classList.toggle('border-border-soft', !isAll);
+      b.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+    });
+
+    maxPrice = 600000;
+    if (priceRange) priceRange.value = '600000';
+    if (priceDisplay) priceDisplay.textContent = 'Sin límite';
+
+    minRooms = 0;
+    roomFilters.forEach(b => {
+      const isAll = b.getAttribute('data-filter-rooms') === '0';
+      b.classList.toggle('bg-brand-green', isAll);
+      b.classList.toggle('text-surface', isAll);
+      b.classList.toggle('text-ink-muted', !isAll);
+      b.classList.toggle('hover:bg-surface-hover', !isAll);
+      b.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+    });
+
+    minBaths = 0;
+    bathFilters.forEach(b => {
+      const isAll = b.getAttribute('data-filter-baths') === '0';
+      b.classList.toggle('bg-brand-green', isAll);
+      b.classList.toggle('text-surface', isAll);
+      b.classList.toggle('text-ink-muted', !isAll);
+      b.classList.toggle('hover:bg-surface-hover', !isAll);
+      b.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+    });
+
+    needGarage = false;
+    if (filterGarage) filterGarage.checked = false;
+    needStorage = false;
+    if (filterStorage) filterStorage.checked = false;
+    needTerrace = false;
+    if (filterTerrace) filterTerrace.checked = false;
+    needPool = false;
+    if (filterPool) filterPool.checked = false;
+    needElevator = false;
+    if (filterElevator) filterElevator.checked = false;
+
+    updateFilters();
+  }
+
+  btnResetHeader?.addEventListener('click', resetAllFilters);
+  btnResetEmpty?.addEventListener('click', resetAllFilters);
 </script>

@@ -133,12 +133,18 @@ const pageDescription = `Actividad detectada en ${municipality}: cooperativas de
                     {c.foundingPartners != null && <p>{c.foundingPartners} socios fundadores</p>}
                     {c.address && <p>📍 {c.address}</p>}
                     {(c.email || c.phone) && (
-                      <div class="flex flex-wrap gap-x-3 gap-y-1 pt-2 border-t border-border-soft mt-2">
-                        {c.email && (
-                          <a href={`mailto:${c.email}`} class="font-semibold text-brand-green hover:underline">✉️ {c.email}</a>
-                        )}
+                      <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-border-soft mt-2">
                         {c.phone && (
-                          <a href={`tel:${String(c.phone).replace(/\s+/g, '')}`} class="font-semibold text-brand-green hover:underline">📞 {c.phone}</a>
+                          <a href={`tel:${String(c.phone).replace(/\s+/g, '')}`} class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-canvas border border-border-soft font-semibold text-ink text-[11px] hover:text-brand-green transition-colors">
+                            <span>📞</span>
+                            <span>{c.phone}</span>
+                          </a>
+                        )}
+                        {c.email && (
+                          <a href={`mailto:${c.email}`} class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-canvas border border-border-soft font-semibold text-ink text-[11px] hover:text-brand-green transition-colors truncate max-w-[180px]">
+                            <span>✉️</span>
+                            <span class="truncate">{c.email}</span>
+                          </a>
                         )}
                       </div>
                     )}

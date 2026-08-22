@@ -112,11 +112,29 @@ const defaultPrice = initialPrice && initialPrice > 50000 ? initialPrice : 22000
           <span id="sim-result-monthly" class="text-3xl sm:text-4xl font-extrabold text-brand-green tracking-tight">--</span>
           <span class="text-sm font-bold text-ink-muted">/ mes</span>
         </div>
-        <p class="text-[11px] text-ink-light mt-1">Hipoteca fija a tipo de mercado actual</p>
+        <p class="text-[11px] text-ink-light mt-0.5">Hipoteca fija estándar a 30 años</p>
+      </div>
+
+      <!-- Visual Breakdown Bar -->
+      <div class="py-3 border-b border-border-soft">
+        <div class="flex justify-between items-center text-[11px] text-ink-muted font-bold mb-1.5">
+          <span>Desglose de inversión total</span>
+          <span id="sim-result-total-cost" class="text-ink">-- €</span>
+        </div>
+        <div class="h-3 w-full rounded-full bg-border-soft overflow-hidden flex gap-0.5" aria-hidden="true">
+          <div id="sim-bar-down" class="bg-brand-green h-full transition-all duration-150" style="width: 18%;" title="Entrada"></div>
+          <div id="sim-bar-loan" class="bg-brand-blue h-full transition-all duration-150" style="width: 71%;" title="Préstamo"></div>
+          <div id="sim-bar-taxes" class="bg-brand-orange h-full transition-all duration-150" style="width: 11%;" title="Impuestos y Gastos"></div>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-2 text-[10px] text-ink-light mt-1.5 font-semibold">
+          <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-brand-green"></span>Entrada</span>
+          <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-brand-blue"></span>Préstamo</span>
+          <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-brand-orange"></span>Gastos (12%)</span>
+        </div>
       </div>
 
       <!-- Breakdown Details -->
-      <div class="space-y-2 py-3 text-xs text-ink-muted border-b border-border-soft">
+      <div class="space-y-1.5 py-3 text-xs text-ink-muted border-b border-border-soft">
         <div class="flex justify-between">
           <span>Capital financiado:</span>
           <strong id="sim-result-loan" class="text-ink font-bold">--</strong>
@@ -130,17 +148,17 @@ const defaultPrice = initialPrice && initialPrice > 50000 ? initialPrice : 22000
           <strong id="sim-result-taxes" class="text-ink font-bold">--</strong>
         </div>
         <div class="flex justify-between pt-1 border-t border-border-soft/60 text-brand-orange">
-          <span class="font-bold">Ahorro previo total requerido:</span>
+          <span class="font-bold">Ahorro previo requerido (Entrada + Gastos):</span>
           <strong id="sim-result-total-upfront" class="font-extrabold">--</strong>
         </div>
       </div>
 
       <!-- Cooperative Advantage Note -->
       <div class="pt-3">
-        <div class="rounded-lg bg-brand-green-soft/80 p-2.5 border border-brand-green/10 flex items-center justify-between">
+        <div class="rounded-lg bg-brand-green-soft p-2.5 border border-brand-green/15 flex items-center justify-between">
           <div class="text-[11px] text-brand-green leading-tight">
             <strong>Ahorro estimado en cooperativa:</strong>
-            <span class="block text-ink-muted text-[10px]">Vivienda a estricto precio de coste (sin margen promotor ~15-20%)</span>
+            <span class="block text-ink-muted text-[10px]">Sin margen comercial promotor (~15-20%)</span>
           </div>
           <span id="sim-result-coop-savings" class="text-xs font-extrabold text-brand-green whitespace-nowrap pl-2">--</span>
         </div>
@@ -167,6 +185,11 @@ const defaultPrice = initialPrice && initialPrice > 50000 ? initialPrice : 22000
     const resultTaxes = document.getElementById('sim-result-taxes');
     const resultTotalUpfront = document.getElementById('sim-result-total-upfront');
     const resultCoopSavings = document.getElementById('sim-result-coop-savings');
+    const resultTotalCost = document.getElementById('sim-result-total-cost');
+
+    const barDown = document.getElementById('sim-bar-down');
+    const barLoan = document.getElementById('sim-bar-loan');
+    const barTaxes = document.getElementById('sim-bar-taxes');
 
     if (!priceInput || !downPaymentInput || !yearsInput || !interestInput) return;
 
@@ -192,6 +215,7 @@ const defaultPrice = initialPrice && initialPrice > 50000 ? initialPrice : 22000
       // Taxes: IVA 10% + AJD/Notaria/Registro 2% = ~12%
       const taxesAndFees = price * 0.12;
       const totalUpfront = downPayment + taxesAndFees;
+      const totalCost = price + taxesAndFees;
       const coopSavings = price * 0.18; // ~18% average developer margin saved
 
       // Update UI displays
@@ -206,6 +230,14 @@ const defaultPrice = initialPrice && initialPrice > 50000 ? initialPrice : 22000
       if (resultTaxes) resultTaxes.textContent = `${Math.round(taxesAndFees).toLocaleString('es-ES')} €`;
       if (resultTotalUpfront) resultTotalUpfront.textContent = `${Math.round(totalUpfront).toLocaleString('es-ES')} €`;
       if (resultCoopSavings) resultCoopSavings.textContent = `~${Math.round(coopSavings).toLocaleString('es-ES')} €`;
+      if (resultTotalCost) resultTotalCost.textContent = `${Math.round(totalCost).toLocaleString('es-ES')} €`;
+
+      // Update bar percentages
+      if (barDown && barLoan && barTaxes && totalCost > 0) {
+        barDown.style.width = `${((downPayment / totalCost) * 100).toFixed(1)}%`;
+        barLoan.style.width = `${((loanAmount / totalCost) * 100).toFixed(1)}%`;
+        barTaxes.style.width = `${((taxesAndFees / totalCost) * 100).toFixed(1)}%`;
+      }
     }
 
     priceInput.addEventListener('input', calculate);
