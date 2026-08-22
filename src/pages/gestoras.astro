@@ -71,27 +71,21 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
               </p>
 
               <!-- Contacts -->
-              <div class="space-y-1.5 mb-5 text-xs text-ink-muted bg-canvas p-3 rounded-xl border border-border-soft">
+              <div class="flex flex-wrap items-center gap-2 mb-4 text-xs text-ink-muted">
                 {gestora.address && (
-                  <div class="flex items-center gap-2">
-                    <span>📍</span>
-                    <span class="truncate">{gestora.address}</span>
-                  </div>
+                  <span class="w-full text-xs text-ink-light truncate mb-1">📍 {gestora.address}</span>
                 )}
                 {gestora.phone && (
-                  <div class="flex items-center gap-2">
+                  <a href={`tel:${gestora.phone.replace(/\s+/g, '')}`} class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-soft font-semibold text-ink hover:text-brand-green hover:border-brand-green/30 transition-colors">
                     <span>📞</span>
-                    <a href={`tel:${gestora.phone.replace(/\s+/g, '')}`} class="touch-target -my-1 inline-flex items-center font-semibold hover:text-brand-green transition-colors">{gestora.phone}</a>
-                  </div>
+                    <span>{gestora.phone}</span>
+                  </a>
                 )}
                 {gestora.email && (
-                  <div class="flex items-center gap-2">
+                  <a href={`mailto:${gestora.email}`} class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-canvas border border-border-soft font-semibold text-ink hover:text-brand-green hover:border-brand-green/30 transition-colors truncate max-w-[200px]">
                     <span>✉️</span>
-                    <a href={`mailto:${gestora.email}`} class="touch-target -my-1 inline-flex min-w-0 items-center font-semibold hover:text-brand-green transition-colors truncate">{gestora.email}</a>
-                  </div>
-                )}
-                {!gestora.address && !gestora.phone && !gestora.email && (
-                  <p class="text-ink-light italic">Contacto extraído automáticamente.</p>
+                    <span class="truncate">{gestora.email}</span>
+                  </a>
                 )}
               </div>
 
