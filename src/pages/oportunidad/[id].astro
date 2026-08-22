@@ -133,27 +133,29 @@ const pageDescription = item.summary || `${item.type || 'Oportunidad'} en ${item
 
       <!-- Location Highlight -->
       <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-muted mb-5 pb-4 border-b border-border-soft">
-        <div class="flex items-center gap-2">
-          <span class="text-base">📍</span>
-          <span class="font-bold text-ink">
-            {item.barrio ? `${item.barrio}, ` : ''}{displayMuni}
-          </span>
+        <div class="flex items-center gap-1.5 font-bold text-ink">
+          <svg class="h-4 w-4 text-brand-green fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+          </svg>
+          <span>{item.barrio ? `${item.barrio}, ` : ''}{displayMuni}</span>
         </div>
-        <div class="flex items-center gap-3 ml-auto">
-          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" class="touch-target text-brand-green font-bold hover:underline flex items-center gap-1">
+        <div class="flex items-center gap-2">
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" class="touch-target text-ink-muted hover:text-brand-green font-semibold flex items-center gap-1 transition-colors">
             <span>Google Maps</span>
-            <svg class="h-3.5 w-3.5 stroke-current fill-none stroke-2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" /></svg>
+            <svg class="h-3 w-3 stroke-current fill-none stroke-2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" /></svg>
           </a>
-          <a href={`${base}mapa`} class="touch-target text-ink font-bold hover:text-brand-green transition-colors inline-flex items-center">
-            Ver en Mapa Metropolitano →
+          <span class="text-border-strong">·</span>
+          <a href={`${base}mapa`} class="touch-target text-ink-muted hover:text-brand-green font-semibold transition-colors">
+            Mapa Metropolitano →
           </a>
         </div>
       </div>
 
       <!-- Spec sheet -->
       {(item.precioMin || item.habitacionesMin || item.banosMin || item.totalViviendas || item.garaje || item.trastero || item.terraza || item.piscina || item.ascensor || item.entregaEstimada) && (
-        <div class="border border-border-soft bg-canvas rounded-xl p-5 mb-6">
-          <div class="flex flex-wrap items-baseline gap-x-4 gap-y-2 mb-3">
+        <div class="border border-border-soft bg-canvas rounded-xl p-5 mb-6 flex flex-col gap-3">
+          <div class="flex flex-wrap items-baseline gap-x-4 gap-y-2">
             {item.precioMin && (
               <span class="text-2xl font-extrabold text-brand-green sm:text-3xl">
                 Desde {item.precioMin.toLocaleString('es-ES')} €
@@ -164,35 +166,38 @@ const pageDescription = item.summary || `${item.type || 'Oportunidad'} en ${item
                 hasta {item.precioMax.toLocaleString('es-ES')} €
               </span>
             )}
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 text-xs">
             {item.habitacionesMin && (
-              <span class="text-xs font-semibold text-ink-muted bg-surface px-2.5 py-1 rounded-lg border border-border-soft">
+              <span class="font-semibold text-ink-muted bg-surface px-2.5 py-1 rounded-lg border border-border-soft">
                 🛏️ {item.habitacionesMin} {item.habitacionesMin === 1 ? 'habitación' : 'habitaciones'}
               </span>
             )}
             {item.banosMin && (
-              <span class="text-xs font-semibold text-ink-muted bg-surface px-2.5 py-1 rounded-lg border border-border-soft">
+              <span class="font-semibold text-ink-muted bg-surface px-2.5 py-1 rounded-lg border border-border-soft">
                 🛁 {item.banosMin} {item.banosMin === 1 ? 'baño' : 'baños'}
               </span>
             )}
             {item.totalViviendas && (
-              <span class="text-xs font-semibold text-ink-muted bg-surface px-2.5 py-1 rounded-lg border border-border-soft">
+              <span class="font-semibold text-ink-muted bg-surface px-2.5 py-1 rounded-lg border border-border-soft">
                 🏢 {item.totalViviendas} viviendas
               </span>
             )}
             {item.entregaEstimada && (
-              <span class="text-xs font-semibold text-brand-blue bg-brand-blue-soft px-2.5 py-1 rounded-lg border border-brand-blue/15">
+              <span class="font-semibold text-brand-blue bg-brand-blue-soft px-2.5 py-1 rounded-lg border border-brand-blue/15">
                 📅 Entrega: {item.entregaEstimada}
               </span>
             )}
           </div>
 
           {(item.garaje || item.trastero || item.terraza || item.piscina || item.ascensor) && (
-            <div class="flex flex-wrap gap-1.5 pt-2 border-t border-border-soft">
-              {item.garaje && <span class="bg-surface border border-border-soft px-2 py-1 rounded-md text-xs font-semibold text-ink">🚗 Garaje</span>}
-              {item.trastero && <span class="bg-surface border border-border-soft px-2 py-1 rounded-md text-xs font-semibold text-ink">📦 Trastero</span>}
-              {item.terraza && <span class="bg-surface border border-border-soft px-2 py-1 rounded-md text-xs font-semibold text-ink">☀️ Terraza</span>}
-              {item.piscina && <span class="bg-surface border border-border-soft px-2 py-1 rounded-md text-xs font-semibold text-ink">🏊 Piscina</span>}
-              {item.ascensor && <span class="bg-surface border border-border-soft px-2 py-1 rounded-md text-xs font-semibold text-ink">🛗 Ascensor</span>}
+            <div class="flex flex-wrap items-center gap-3 pt-2.5 border-t border-border-soft text-xs text-ink-muted font-medium">
+              {item.garaje && <span>🚗 Garaje</span>}
+              {item.trastero && <span>📦 Trastero</span>}
+              {item.terraza && <span>☀️ Terraza</span>}
+              {item.piscina && <span>🏊 Piscina</span>}
+              {item.ascensor && <span>🛗 Ascensor</span>}
             </div>
           )}
         </div>

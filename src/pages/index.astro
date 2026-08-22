@@ -80,25 +80,30 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
   description={siteDescription}
 >
   <div class="mx-auto max-w-6xl px-4 sm:px-6">
-    <!-- Page Header and compact monitor status -->
-    <div class="mb-8 md:mb-10 border-b border-border-soft pb-6">
-      <div class="max-w-2xl">
-        <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
-          <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
-          Seguimiento en directo
+    <!-- Page Header -->
+    <div class="mb-6 md:mb-8 border-b border-border-soft pb-5">
+      <div class="flex flex-col gap-2.5 max-w-3xl">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10">
+            <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
+            Seguimiento en directo
+          </div>
+          <span class="text-xs text-ink-light">·</span>
+          <span class="text-xs text-ink-muted">
+            <strong class="font-semibold text-ink">{healthySources}/{sources.length}</strong> fuentes
+          </span>
+          <span class="text-xs text-ink-light">·</span>
+          <span class="text-xs text-ink-muted">
+            {checkedLabel}
+          </span>
         </div>
         <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
           {headerTitle}
         </h1>
-        <p class="text-sm md:text-base text-ink-muted mt-3 leading-relaxed">
+        <p class="text-sm md:text-base text-ink-muted leading-relaxed">
           {headerSubtitle}
         </p>
       </div>
-      <p class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
-        <span class="flex items-center gap-1.5 font-semibold text-ink"><span class="h-2 w-2 rounded-full bg-status-ok pulse-indicator-ok" aria-hidden="true"></span>Monitor activo</span>
-        <span aria-hidden="true">·</span><span>{checkedLabel}</span>
-        <span aria-hidden="true">·</span><span>{healthySources}/{sources.length} fuentes operativas</span>
-      </p>
     </div>
 
     <!-- Cooperativas activas ahora -->
@@ -235,37 +240,37 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           <!-- Filter 2: Categoría -->
           <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
             <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Categoría</span>
-            <div class="flex flex-wrap gap-1.5 items-center">
+            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
+                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all flex-shrink-0"
                 data-filter-category="all"
                 aria-pressed="true"
               >
                 Todas
               </button>
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer flex-shrink-0"
                 data-filter-category="Promoción nueva"
                 aria-pressed="false"
               >
                 Obra Nueva
               </button>
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer flex-shrink-0"
                 data-filter-category="Cooperativa"
                 aria-pressed="false"
               >
                 Cooperativas
               </button>
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer flex-shrink-0"
                 data-filter-category="Vivienda protegida"
                 aria-pressed="false"
               >
                 VPP / VPA Oficial
               </button>
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer flex-shrink-0"
                 data-filter-category="Suelo"
                 aria-pressed="false"
               >
@@ -277,9 +282,9 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           <!-- Filter 3: Municipio -->
           <div class="flex flex-col gap-2 pt-2 border-t border-border-soft">
             <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">Municipio</span>
-            <div class="flex flex-wrap gap-1.5 items-center">
+            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
               <button
-                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all"
+                class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-brand-green-soft text-brand-green border-brand-green/20 cursor-pointer transition-all flex-shrink-0"
                 data-filter-location="all"
                 aria-pressed="true"
               >
@@ -287,7 +292,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
               </button>
               {municipalities.map(loc => (
                 <button
-                  class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer"
+                  class="h-8 px-3 inline-flex items-center rounded-lg border text-xs sm:text-sm font-semibold bg-surface text-ink-muted border-border-soft hover:border-border-medium hover:bg-surface-hover transition-all cursor-pointer flex-shrink-0"
                   data-filter-location={loc}
                   aria-pressed="false"
                 >

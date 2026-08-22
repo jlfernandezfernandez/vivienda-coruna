@@ -178,13 +178,13 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
           )}
 
           {(garaje || trastero || terraza || piscina || ascensor) && (
-            <div class="flex flex-wrap items-center gap-1">
-              {promotora && <span class="text-ink-light/40">·</span>}
-              {garaje && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">🚗 Garaje</span>}
-              {trastero && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">📦 Trastero</span>}
-              {terraza && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">☀️ Terraza</span>}
-              {piscina && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">🏊 Piscina</span>}
-              {ascensor && <span class="bg-canvas border border-border-soft px-1.5 py-0.5 rounded-lg text-[11px]">🛗 Ascensor</span>}
+            <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-light">
+              {promotora && <span class="text-border-strong">·</span>}
+              {garaje && <span title="Garaje disponible">🚗 Garaje</span>}
+              {trastero && <span title="Trastero disponible">📦 Trastero</span>}
+              {terraza && <span title="Terraza disponible">☀️ Terraza</span>}
+              {piscina && <span title="Piscina disponible">🏊 Piscina</span>}
+              {ascensor && <span title="Ascensor disponible">🛗 Ascensor</span>}
             </div>
           )}
         </div>
@@ -192,7 +192,7 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
     )}
 
     {summary && summary.trim().length > 0 && summary !== title && (
-      <p class="text-sm text-ink-muted line-clamp-2 mb-4 leading-relaxed relative z-10 pointer-events-none">
+      <p class="text-sm text-ink-muted line-clamp-2 mb-3.5 leading-relaxed relative z-10 pointer-events-none">
         {summary}
       </p>
     )}
@@ -200,35 +200,38 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
 
   <!-- Card Footer: Unified Badges & CTA -->
   <div class="relative z-10">
-    <div class="flex flex-wrap items-center justify-between gap-2.5 mt-3 pt-3 border-t border-border-soft">
-      <div class="flex flex-wrap gap-1.5 items-center">
-        <!-- Housing Type Badge -->
-        <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-muted">
-          {type}
-        </span>
-
-        <!-- Status Badge -->
-        {status && (
+    <div class="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-border-soft">
+      <div class="flex flex-wrap gap-1.5 items-center min-w-0">
+        <!-- Status / Type Badge -->
+        {status ? (
           <span class={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap ${statusColors(status)}`}>
             {status}
+          </span>
+        ) : (
+          <span class="inline-flex items-center rounded-lg bg-canvas border border-border-soft px-2.5 py-0.5 text-[11px] font-semibold text-ink-muted">
+            {type}
           </span>
         )}
 
         <!-- Source Badge -->
-        <span class={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-[11px] font-semibold ${sourceBadgeBg}`}>
+        <span class={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-semibold ${sourceBadgeBg}`}>
           {sourceLabel}
         </span>
       </div>
 
-      <div class="flex items-center gap-2.5 ml-auto">
+      <div class="flex items-center gap-2 flex-shrink-0">
         <!-- Locate on Map Button -->
         <button
           type="button"
-          class="locate-on-map-btn relative z-20 inline-flex items-center gap-1 text-xs font-bold text-brand-green bg-brand-green-soft border border-brand-green/15 px-2.5 py-1 rounded-lg hover:bg-brand-green hover:text-white transition-all cursor-pointer"
+          class="locate-on-map-btn relative z-20 inline-flex items-center gap-1 text-xs font-semibold text-ink-muted hover:text-brand-green hover:bg-brand-green-soft px-2 py-1 rounded-lg transition-colors cursor-pointer"
           data-locate-id={id}
           title="Ver este proyecto en el mapa"
         >
-          <span>🗺️ Mapa</span>
+          <svg class="h-3.5 w-3.5 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true" width="14" height="14">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+          </svg>
+          <span class="hidden sm:inline">Mapa</span>
         </button>
 
         <!-- External Source Link -->
@@ -236,7 +239,7 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          class="relative z-20 inline-flex items-center gap-1 text-xs font-bold text-ink-muted hover:text-brand-green hover:underline"
+          class="relative z-20 inline-flex items-center gap-1 text-xs font-semibold text-ink-muted hover:text-brand-green px-1.5 py-1 rounded-lg transition-colors"
           title="Abrir fuente original en nueva pestaña"
         >
           <span>Fuente</span>
@@ -247,5 +250,8 @@ const date = new Date(publishedAt || firstSeenAt).toLocaleDateString('es-ES', {
       </div>
     </div>
 
+    {enriched && (
+      <p class="mt-1.5 text-[10px] text-ink-light">Datos extraídos con IA · verifica en la fuente original</p>
+    )}
   </div>
 </article>
