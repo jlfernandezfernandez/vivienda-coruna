@@ -156,3 +156,155 @@ test('repair-opportunity-grounding elimina eventos price/status que quedan contr
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('repair-opportunity-grounding elimina evento status que queda contradictorio al anular el estado', () => {
+  const { dir, path, db } = tempDb();
+  try {
+    insertOpportunity(db, {
+      id: 'opp-stale-status',
+      title: 'Promoción con estado no sustentado',
+      url: 'https://example.com/',
+      source: 'Firecrawl · A Coruña',
+      sourceKind: 'firecrawl-search',
+      publishedAt: '2026-07-28T06:41:24.098Z',
+      firstSeenAt: '2026-07-28T06:41:24.098Z',
+      lastSeenAt: '2026-08-21T15:13:30.905Z',
+      location: 'A Coruña',
+      type: 'Promoción nueva',
+      status: 'En construcción',
+      summary: null,
+      precioMin: null, precioMax: null, habitacionesMin: null, banosMin: null,
+      promotora: null, totalViviendas: null, garaje: null, trastero: null, terraza: null,
+      enriched: 1, nombrePromocion: null, promotionId: null,
+      evidenceText: 'Promoción residencial en A Coruña.',
+      extractionMethod: 'regex',
+    });
+    db.prepare(`INSERT INTO events (detectedAt, entityKind, entityId, kind, label, oldValue, newValue)
+      VALUES (?, 'opportunity', 'opp-stale-status', 'status', 'Estado: X → En construcción', 'X', 'En construcción')`)
+      .run('2026-08-21T15:13:30.905Z');
+    db.close();
+
+    const run = runRepair(path);
+    assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
+
+    const check = new DatabaseSync(path, { readOnly: true });
+    const row = check.prepare('SELECT status FROM opportunities WHERE id = ?').get('opp-stale-status');
+    const stale = check.prepare(`SELECT COUNT(*) n FROM events
+      WHERE entityKind='opportunity' AND entityId='opp-stale-status' AND kind='status'`).get().n;
+    check.close();
+    assert.equal(row.status, null, 'ungrounded status must be nullified');
+    assert.equal(stale, 0, 'contradictory status event must be removed');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('repair-opportunity-grounding conserva eventos price/status que coinciden con el estado actual', () => {
+  const { dir, path, db } = tempDb();
+  try {
+    insertOpportunity(db, {
+      id: 'opp-valid-event',
+      title: 'Promoción con precio sustentado',
+      url: 'https://example.com/',
+      source: 'Firecrawl · A Coruña',
+      sourceKind: 'firecrawl-search',
+      publishedAt: '2026-07-28T06:41:24.098Z',
+      firstSeenAt: '2026-07-28T06:41:24.098Z',
+      lastSeenAt: '2026-08-21T15:13:30.905Z',
+      location: 'A Coruña',
+      type: 'Promoción nueva',
+      status: 'En construcción',
+      summary: null,
+      precioMin: 163900, precioMax: null, habitacionesMin: null, banosMin: null,
+      promotora: null, totalViviendas: null, garaje: null, trastero: null, terraza: null,
+      enriched: 1, nombrePromocion: null, promotionId: null,
+      evidenceText: 'Promoción residencial en A Coruña con viviendas desde 163.900 euros.',
+      extractionMethod: 'regex',
+    });
+    // Event whose newValue matches the current precioMin — must NOT be deleted.
+    db.prepare(`INSERT INTO events (detectedAt, entityKind, entityId, kind, label, oldValue, newValue)
+      VALUES (?, 'opportunity', 'opp-valid-event', 'price', 'Precio: 0 € → 163.900 €', '0', '163900')`)
+      .run('2026-08-21T15:13:30.905Z');
+    db.close();
+
+    const run = runRepair(path);
+    assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
+
+    const check = new DatabaseSync(path, { readOnly: true });
+    const row = check.prepare('SELECT precioMin FROM opportunities WHERE id = ?').get('opp-valid-event');
+    const kept = check.prepare(`SELECT COUNT(*) n FROM events
+      WHERE entityKind='opportunity' AND entityId='opp-valid-event' AND kind='price'`).get().n;
+    check.close();
+    assert.equal(row.precioMin, 163900, 'grounded precioMin must be preserved');
+    assert.equal(kept, 1, 'valid price event matching current state must be kept');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('repair-opportunity-grounding no borra eventos de otras oportunidades', () => {
+  const { dir, path, db } = tempDb();
+  try {
+    insertOpportunity(db, {
+      id: 'opp-nullified',
+      title: 'Promoción con precio no sustentado',
+      url: 'https://example.com/',
+      source: 'Firecrawl · A Coruña',
+      sourceKind: 'firecrawl-search',
+      publishedAt: '2026-07-28T06:41:24.098Z',
+      firstSeenAt: '2026-07-28T06:41:24.098Z',
+      lastSeenAt: '2026-08-21T15:13:30.905Z',
+      location: 'A Coruña',
+      type: 'Promoción nueva',
+      status: null,
+      summary: null,
+      precioMin: 163900, precioMax: null, habitacionesMin: null, banosMin: null,
+      promotora: null, totalViviendas: null, garaje: null, trastero: null, terraza: null,
+      enriched: 1, nombrePromocion: null, promotionId: null,
+      evidenceText: 'Promoción residencial en A Coruña.',
+      extractionMethod: 'regex',
+    });
+    insertOpportunity(db, {
+      id: 'opp-other',
+      title: 'Otra promoción con precio sustentado',
+      url: 'https://example.com/other',
+      source: 'Firecrawl · A Coruña',
+      sourceKind: 'firecrawl-search',
+      publishedAt: '2026-07-28T06:41:24.098Z',
+      firstSeenAt: '2026-07-28T06:41:24.098Z',
+      lastSeenAt: '2026-08-21T15:13:30.905Z',
+      location: 'A Coruña',
+      type: 'Promoción nueva',
+      status: null,
+      summary: null,
+      precioMin: 210000, precioMax: null, habitacionesMin: null, banosMin: null,
+      promotora: null, totalViviendas: null, garaje: null, trastero: null, terraza: null,
+      enriched: 1, nombrePromocion: null, promotionId: null,
+      evidenceText: 'Otra promoción con viviendas desde 210.000 euros.',
+      extractionMethod: 'regex',
+    });
+    // opp-nullified has a stale price event (will be nullified + event deleted).
+    db.prepare(`INSERT INTO events (detectedAt, entityKind, entityId, kind, label, oldValue, newValue)
+      VALUES (?, 'opportunity', 'opp-nullified', 'price', 'Precio: 0 € → 163.900 €', '0', '163900')`)
+      .run('2026-08-21T15:13:30.905Z');
+    // opp-other has a valid price event matching its current state — must survive.
+    db.prepare(`INSERT INTO events (detectedAt, entityKind, entityId, kind, label, oldValue, newValue)
+      VALUES (?, 'opportunity', 'opp-other', 'price', 'Precio: 0 € → 210.000 €', '0', '210000')`)
+      .run('2026-08-21T15:13:30.905Z');
+    db.close();
+
+    const run = runRepair(path);
+    assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
+
+    const check = new DatabaseSync(path, { readOnly: true });
+    const nullified = check.prepare(`SELECT COUNT(*) n FROM events
+      WHERE entityKind='opportunity' AND entityId='opp-nullified' AND kind='price'`).get().n;
+    const other = check.prepare(`SELECT COUNT(*) n FROM events
+      WHERE entityKind='opportunity' AND entityId='opp-other' AND kind='price'`).get().n;
+    check.close();
+    assert.equal(nullified, 0, 'stale event of the nullified opportunity must be removed');
+    assert.equal(other, 1, 'valid event of another opportunity must be preserved');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

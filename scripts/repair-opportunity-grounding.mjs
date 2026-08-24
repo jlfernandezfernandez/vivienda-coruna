@@ -102,9 +102,12 @@ try {
       // If re-grounding nullified a price/status that a prior run logged as a
       // change event, drop the now-contradictory event so the quality gate
       // (which fails on events whose newValue differs from current state)
-      // does not block the pipeline.
-      if (next[0] !== current[0]) deleteStalePriceEvents.run(row.id, row.id);
-      if (next[9] !== current[9]) deleteStaleStatusEvents.run(row.id, row.id);
+      // does not block the pipeline. Only fire on nullification (the repair
+      // re-validates against evidence and nullifies unsupported values); a
+      // change to a new non-null value is not produced by this script, and
+      // deleting on any change would discard legitimate event history.
+      if (next[0] === null && current[0] !== null) deleteStalePriceEvents.run(row.id, row.id);
+      if (next[9] === null && current[9] !== null) deleteStaleStatusEvents.run(row.id, row.id);
       invalidated++;
     }
   }
