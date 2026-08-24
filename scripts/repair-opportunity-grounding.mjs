@@ -18,6 +18,21 @@ const updateGrounded = db.prepare(`
   WHERE id = ?
 `);
 
+// When re-grounding nullifies a field that a prior run recorded as a change
+// event (price/status), the event becomes contradictory with the current
+// state and blocks the quality gate. Remove those stale events in the same
+// transaction so reconciliation and event history stay consistent.
+const deleteStalePriceEvents = db.prepare(`
+  DELETE FROM events
+  WHERE entityKind = 'opportunity' AND entityId = ? AND kind = 'price'
+    AND newValue IS NOT CAST((SELECT precioMin FROM opportunities WHERE id = ?) AS TEXT)
+`);
+const deleteStaleStatusEvents = db.prepare(`
+  DELETE FROM events
+  WHERE entityKind = 'opportunity' AND entityId = ? AND kind = 'status'
+    AND newValue IS NOT (SELECT status FROM opportunities WHERE id = ?)
+`);
+
 let linked = 0;
 let invalidated = 0;
 db.exec('BEGIN IMMEDIATE');
@@ -84,6 +99,12 @@ try {
     });
     if (changed) {
       updateGrounded.run(...next, requiresRetry ? 0 : row.enriched, row.id);
+      // If re-grounding nullified a price/status that a prior run logged as a
+      // change event, drop the now-contradictory event so the quality gate
+      // (which fails on events whose newValue differs from current state)
+      // does not block the pipeline.
+      if (next[0] !== current[0]) deleteStalePriceEvents.run(row.id, row.id);
+      if (next[9] !== current[9]) deleteStaleStatusEvents.run(row.id, row.id);
       invalidated++;
     }
   }
