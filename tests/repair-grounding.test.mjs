@@ -111,3 +111,48 @@ test('repair-opportunity-grounding anula totalViviendas no sustentado en título
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('repair-opportunity-grounding elimina eventos price/status que quedan contradictorios al anular el campo', () => {
+  const { dir, path, db } = tempDb();
+  try {
+    insertOpportunity(db, {
+      id: 'opp-stale-event',
+      title: 'Mirador Cabancas | Obra Nueva | Arteixo',
+      url: 'https://www.miradorcabancas.com/',
+      source: 'Firecrawl · Arteixo',
+      sourceKind: 'firecrawl-search',
+      publishedAt: '2026-07-28T06:41:24.098Z',
+      firstSeenAt: '2026-07-28T06:41:24.098Z',
+      lastSeenAt: '2026-08-21T15:13:30.905Z',
+      location: 'Arteixo',
+      type: 'Promoción nueva',
+      status: 'En construcción',
+      summary: null,
+      precioMin: 163900, precioMax: null, habitacionesMin: null, banosMin: null,
+      promotora: null, totalViviendas: null, garaje: null, trastero: null, terraza: null,
+      enriched: 1, nombrePromocion: null, promotionId: null,
+      evidenceText: 'Promoción residencial en construcción en Arteixo. 38 viviendas de 1, 2 y 3 dormitorios, todas con garaje, trastero y terrazas.',
+      extractionMethod: 'regex',
+    });
+    // A prior run logged a price change event whose value is NOT grounded in
+    // the current evidence. Re-grounding will nullify precioMin, which would
+    // otherwise leave this event contradicting the current state.
+    db.prepare(`INSERT INTO events (detectedAt, entityKind, entityId, kind, label, oldValue, newValue)
+      VALUES (?, 'opportunity', 'opp-stale-event', 'price', 'Precio: 0 € → 163.900 €', '0', '163900')`)
+      .run('2026-08-21T15:13:30.905Z');
+    db.close();
+
+    const run = runRepair(path);
+    assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
+
+    const check = new DatabaseSync(path, { readOnly: true });
+    const row = check.prepare('SELECT precioMin FROM opportunities WHERE id = ?').get('opp-stale-event');
+    const stale = check.prepare(`SELECT COUNT(*) n FROM events
+      WHERE entityKind='opportunity' AND entityId='opp-stale-event' AND kind='price'`).get().n;
+    check.close();
+    assert.equal(row.precioMin, null, 'ungrounded precioMin must be nullified');
+    assert.equal(stale, 0, 'contradictory price event must be removed so the quality gate does not block');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
