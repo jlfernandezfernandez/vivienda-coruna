@@ -23,6 +23,7 @@ import {
   saveGestoraPromotion,
   saveCooperative,
   finalizeRegistryImport,
+  listBlockedHosts,
 } from './lib/db.mjs';
 
 // Rexistro de Cooperativas da Xunta (datos abertos, CC BY-SA, actualización ~bimestral).
@@ -128,6 +129,7 @@ async function main() {
   requirePipelineWriter();
   const checkedAt = new Date().toISOString();
   const db = getDatabase();
+  const blockedHosts = listBlockedHosts(db);
   
   const results = await Promise.allSettled(feeds.map(parseFeed));
   const sources = [];
@@ -155,7 +157,7 @@ async function main() {
       }
 
       const relevant = items
-        .map((item) => toOpportunity(item, feed.name, checkedAt))
+        .map((item) => toOpportunity(item, feed.name, checkedAt, blockedHosts))
         .filter(Boolean)
         .map((item) => ({ ...item, sourceKind: feed.kind || 'official' }))
         .filter((item) => feed.kind !== 'market-alert' || isActionableMarketAlert(item, new Date(checkedAt)));

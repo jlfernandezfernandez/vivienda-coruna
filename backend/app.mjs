@@ -111,6 +111,26 @@ export function buildBackend({
 
   app.get('/api/v1/operations/sources', async () => repository.sources());
 
+  app.get('/api/v1/operations/blocked-hosts', async () => ({
+    generatedAt: new Date().toISOString(),
+    domains: repository.listBlockedHosts(),
+  }));
+
+  app.post('/api/v1/operations/blocked-hosts', { bodyLimit: 8 * 1024 }, async (request, reply) => {
+    const { domain, reason, severity } = request.body || {};
+    try {
+      const result = repository.addBlockedHost(domain, reason, { severity });
+      return reply.code(201).send(result);
+    } catch (error) {
+      const code = String(error.message).split(':')[0];
+      if (['invalid_domain', 'reason_required'].includes(code)) {
+        return reply.code(400).send({ error: code });
+      }
+      request.log.error({ err: error }, 'unexpected blocked-host staging failure');
+      return reply.code(500).send({ error: 'internal_error' });
+    }
+  });
+
   app.get('/api/v1/operations/curation/candidates', async () => ({
     generatedAt: new Date().toISOString(),
     candidates: repository.curationCandidates(),

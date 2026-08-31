@@ -112,22 +112,37 @@ function parsePublicationDate(value = '') {
 
 const BLOCKED_OPPORTUNITY_HOSTS = /(?:^|\.)(?:estatenearme\.com|idealista\.com|fotocasa\.es|habitaclia\.com|yaencontre\.com|nestoria\.es|viviendasnuevas\.com|subastasdelboe\.com|tramitesayuntamiento\.com|mitula\.com|iberinform\.es|einforma\.com|easyoffer\.es|infojaen\.com)$/i;
 
-export function isTrustedOpportunityUrl(value = '') {
+function blockedHostSet(blockedHosts = []) {
+  return new Set(blockedHosts.map((entry) => typeof entry === 'string' ? entry : entry?.domain).filter(Boolean));
+}
+
+export function isTrustedOpportunityUrl(value = '', blockedHosts = []) {
+  // Nota: la columna blocked_hosts.severity admite 'block' | 'warn', pero la
+  // ingesta solo distingue bloquear/permite. 'warn' se almacena como campo
+  // reservado para futuro y NO altera la ingesta todavía.
   try {
     const host = new URL(value).hostname.toLowerCase();
-    return !BLOCKED_OPPORTUNITY_HOSTS.test(host);
+    if (BLOCKED_OPPORTUNITY_HOSTS.test(host)) return false;
+    const blocked = blockedHostSet(blockedHosts);
+    if (blocked.has(host)) return false;
+    const hostParts = host.split('.');
+    for (let i = 1; i < hostParts.length; i++) {
+      const suffix = hostParts.slice(i).join('.');
+      if (blocked.has(suffix)) return false;
+    }
+    return true;
   } catch {
     return false;
   }
 }
 
-export function toOpportunity(item, source, now = new Date().toISOString()) {
+export function toOpportunity(item, source, now = new Date().toISOString(), blockedHosts = []) {
   const title = cleanText(item.title);
   const details = cleanText(item.contentSnippet || item.content || item.description || '');
   const parsedDate = parsePublicationDate(item.isoDate || item.pubDate || '');
   const sourceKind = source && source.startsWith('Prensa') ? 'market-alert' : 'official';
   const url = normalizeUrl(item.link || '');
-  if (!isTrustedOpportunityUrl(url)) return null;
+  if (!isTrustedOpportunityUrl(url, blockedHosts)) return null;
 
   // Los anuncios oficiales (DOG, contratos) no siempre nombran el municipio en el
   // título, pero sí en el sumario: para ellos buscamos en título + descripción.

@@ -16,6 +16,7 @@ import {
   getAllOpportunities,
   saveSource,
   saveGestoraPromotion,
+  listBlockedHosts,
 } from './lib/db.mjs';
 import {
   cleanText,
@@ -49,9 +50,9 @@ const MUNICIPIO_PAUSE_MS = 5000; // 5s entre municipios
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function toOpportunityFromSearch(result, source, now) {
+function toOpportunityFromSearch(result, source, now, blockedHosts = []) {
   const title = cleanText(result.title);
-  if (!isRelevantTitle(title) || !isTrustedOpportunityUrl(result.url)) return null;
+  if (!isRelevantTitle(title) || !isTrustedOpportunityUrl(result.url, blockedHosts)) return null;
 
   const id = createHash('sha256').update(normalizeUrl(result.url)).digest('hex').slice(0, 16);
 
@@ -131,6 +132,7 @@ async function main() {
   requirePipelineWriter();
   const checkedAt = new Date().toISOString();
   const db = getDatabase();
+  const blockedHosts = listBlockedHosts(db);
 
   // Reintenta campos previamente rechazados o llamadas LLM transitorias. Sin esto,
   // las URLs conocidas se saltaban para siempre y un dato malo no podía recuperarse.
@@ -173,7 +175,7 @@ async function main() {
           if (seenUrls.has(r.url)) continue;
           seenUrls.add(r.url);
 
-          const opp = toOpportunityFromSearch(r, sourceName, checkedAt);
+          const opp = toOpportunityFromSearch(r, sourceName, checkedAt, blockedHosts);
           if (opp) {
             saveOpportunity(db, opp);
             newCount++;
