@@ -147,6 +147,7 @@ export function buildBackend({
         'invalid_patch', 'field_not_allowed', 'null_not_allowed', 'invalid_field_type',
         'invalid_field_value', 'invalid_format', 'invalid_range', 'invalid_enum', 'invalid_url', 'ungrounded_field',
         'invalid_price_range', 'empty_patch', 'confirm_patch_not_empty', 'required_field_missing', 'invalid_notes',
+        'reject_reason_required',
       ]);
       if (safeValidationErrors.has(code)) return reply.code(400).send({ error: code });
       request.log.error({ err: error }, 'unexpected curation staging failure');

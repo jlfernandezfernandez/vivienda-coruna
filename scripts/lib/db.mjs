@@ -708,7 +708,7 @@ export function ensureSchema(db) {
       id TEXT PRIMARY KEY,
       entityKind TEXT NOT NULL CHECK(entityKind IN ('opportunity','gestora','promotion','cooperative')),
       entityId TEXT NOT NULL,
-      action TEXT NOT NULL CHECK(action IN ('confirm','update','create')),
+      action TEXT NOT NULL CHECK(action IN ('confirm','update','create','reject')),
       contentHash TEXT,
       resultHash TEXT,
       patchJson TEXT NOT NULL,

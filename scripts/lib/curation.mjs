@@ -150,6 +150,16 @@ export function listCurationCandidates(db) {
     ['promotion', new Set(rejectedPromotions.map(([id]) => id))],
   ]);
 
+  // Tombstones __rejected__ creados vía API (o reconciliación) también deben
+  // excluirse para desbloquear `curate` inmediatamente.
+  const rejectedAliases = db.prepare(
+    "SELECT entityKind, aliasId FROM entity_aliases WHERE canonicalId = '__rejected__'"
+  ).all();
+  for (const { entityKind, aliasId } of rejectedAliases) {
+    if (!rejectedIds.has(entityKind)) rejectedIds.set(entityKind, new Set());
+    rejectedIds.get(entityKind).add(aliasId);
+  }
+
   const candidates = [];
   for (const [entityKind, config] of Object.entries(ENTITY_CONFIG)) {
     const rejected = rejectedIds.get(entityKind);
@@ -357,20 +367,29 @@ function normalizePatch(config, patch, fields = config.mutable) {
 
 function validateReviewInput(db, input) {
   const config = configFor(input?.entityKind);
-  if (!['confirm', 'update', 'create'].includes(input?.action)) throw new Error('invalid_action');
+  if (!['confirm', 'update', 'create', 'reject'].includes(input?.action)) throw new Error('invalid_action');
   if (typeof input.entityId !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,199}$/.test(input.entityId)) {
     throw new Error('entity_id_required');
   }
   const current = getEntity(db, input.entityKind, input.entityId);
   if (input.action === 'create' && input.entityKind === 'cooperative') throw new Error('registry_entity_create_forbidden');
   if (input.action === 'create' && current) throw new Error('entity_already_exists');
-  if (input.action !== 'create' && !current) throw new Error('entity_not_found');
+  if (input.action === 'reject' && !current) throw new Error('entity_not_found');
 
   const currentHash = current ? entityContentHash(input.entityKind, current) : null;
   if (input.action === 'create' && input.contentHash != null) throw new Error('stale_content');
-  if (input.action !== 'create' && input.contentHash !== currentHash) throw new Error('stale_content');
+  if (input.action === 'reject' && input.contentHash != null && input.contentHash !== currentHash) throw new Error('stale_content');
+  if (['confirm', 'update'].includes(input.action) && input.contentHash !== currentHash) throw new Error('stale_content');
 
   validateEvidence(input.evidence);
+
+  if (input.action === 'reject') {
+    if (typeof input.notes !== 'string' || !input.notes.trim() || input.notes.length > 4000) {
+      throw new Error('reject_reason_required');
+    }
+    return { config, current, currentHash, patch: {} };
+  }
+
   const patch = normalizePatch(
     config,
     input.patch || {},
@@ -420,6 +439,53 @@ export function stageCurationReview(db, input) {
     JSON.stringify(patch), JSON.stringify(input.evidence), input.notes || null, 'staged', createdAt,
   );
   return presentReview(db.prepare('SELECT * FROM curation_reviews WHERE id = ?').get(id));
+}
+
+function applyRejectCurationReview(db, row) {
+  const { config, current } = validateReviewInput(db, {
+    entityKind: row.entityKind,
+    entityId: row.entityId,
+    action: 'reject',
+    contentHash: row.contentHash,
+    patch: {},
+    evidence: parseJson(row.evidenceJson, []),
+    notes: row.notes,
+  });
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO entity_aliases (entityKind, aliasId, canonicalId, reason, createdAt)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(entityKind, aliasId) DO UPDATE SET
+      canonicalId = excluded.canonicalId, reason = excluded.reason
+  `).run(row.entityKind, row.entityId, '__rejected__', row.notes || '', now);
+  // Desvincular oportunidades que apuntaban a una promoción rechazada,
+  // replicando la simetría de reconcile-entities.mjs (updateOpportunity.run(null, id)).
+  if (row.entityKind === 'promotion') {
+    db.prepare('UPDATE opportunities SET promotionId = NULL WHERE promotionId = ?').run(row.entityId);
+  }
+  db.prepare(`DELETE FROM ${config.table} WHERE ${config.idField} = ?`).run(row.entityId);
+
+  // Invalidate orphan or contradicted events for this entity, mirroring
+  // the reconciliation pattern in scripts/reconcile-entities.mjs.
+  db.prepare(`DELETE FROM events WHERE
+    (entityKind = ? AND entityId = ? AND NOT EXISTS (
+      SELECT 1 FROM ${config.table} e WHERE e.${config.idField} = events.entityId
+    )) OR
+    (kind = 'status' AND entityKind = ? AND entityId = ? AND EXISTS (
+      SELECT 1 FROM ${config.table} e WHERE e.${config.idField} = events.entityId AND events.newValue IS NOT e.status
+    )) OR
+    (kind = 'price' AND entityKind = 'opportunity' AND entityId = ? AND EXISTS (
+      SELECT 1 FROM opportunities o WHERE o.id = events.entityId AND events.newValue IS NOT CAST(o.precioMin AS TEXT)
+    ))
+  `).run(row.entityKind, row.entityId, row.entityKind, row.entityId, row.entityId);
+  // resultHash estable del estado final (tombstone), no el contentHash previo.
+  const resultHash = curationContentHash({
+    rejected: true,
+    entityKind: row.entityKind,
+    entityId: row.entityId,
+    reason: row.notes || '',
+  });
+  return { current, resultHash };
 }
 
 function sqlValue(value) {
@@ -503,6 +569,11 @@ export function applyStagedCurationReviews(db) {
         const after = getEntity(db, row.entityKind, row.entityId);
         logChangeEvents(db, row.entityKind, row.entityId, before, after);
         const resultHash = entityContentHash(row.entityKind, after);
+        db.prepare("UPDATE curation_reviews SET status='applied',resultHash=?,appliedAt=? WHERE id=?")
+          .run(resultHash, new Date().toISOString(), row.id);
+        applied += 1;
+      } else if (row.action === 'reject') {
+        const { resultHash } = applyRejectCurationReview(db, row);
         db.prepare("UPDATE curation_reviews SET status='applied',resultHash=?,appliedAt=? WHERE id=?")
           .run(resultHash, new Date().toISOString(), row.id);
         applied += 1;
