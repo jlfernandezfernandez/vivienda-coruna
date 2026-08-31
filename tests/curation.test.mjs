@@ -504,3 +504,138 @@ test('curation rejects inverted promotion price ranges', () => {
     db.close();
   }
 });
+
+function rejectDatabase() {
+  const db = new DatabaseSync(':memory:');
+  db.exec('PRAGMA foreign_keys = ON');
+  ensureSchema(db);
+  db.prepare(`INSERT INTO opportunities (
+    id,title,url,source,sourceKind,publishedAt,firstSeenAt,lastSeenAt,location,type,
+    status,summary,enriched,extractionMethod
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    'opp-reject', 'Portal índice basura', 'https://viviendasnuevas.com/lacoruna/a-coruna-la-coruna',
+    'Firecrawl · A Coruña', 'firecrawl-search', null, '2026-08-17T07:04:16.237Z',
+    '2026-08-17T07:04:16.237Z', 'A Coruña', 'Promoción nueva', 'En construcción',
+    'Portal índice de promociones, no una oportunidad accionable.', 1, 'regex-no-llm',
+  );
+  db.prepare(`INSERT INTO gestoras (id,name,logo,website,phone,email,address,description)
+    VALUES (?,?,?,?,?,?,?,?)`).run('metrovacesa', 'Metrovacesa', '', 'https://metrovacesa.com/', '', '', '', '');
+  db.prepare(`INSERT INTO gestora_promotions
+    (id,gestoraId,name,location,status,details,link,municipality,scopeStatus)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(
+    'promo:metrovacesa:abelia-residencial', 'metrovacesa', 'Abelia Residencial',
+    'Alicante', 'Comercialización', null, null, 'Alicante', 'out_of_scope',
+  );
+  return db;
+}
+
+const rejectEvidence = proof(
+  'https://viviendasnuevas.com/lacoruna/a-coruna-la-coruna',
+  'Listado de promociones en A Coruña; no es una oportunidad accionable.',
+);
+
+test('stageCurationReview accepts reject with evidence and notes, rejects without notes', () => {
+  const db = rejectDatabase();
+  try {
+    const candidate = listCurationCandidates(db).find((item) => item.entityId === 'opp-reject');
+    const review = stageCurationReview(db, {
+      entityKind: 'opportunity', entityId: 'opp-reject', action: 'reject',
+      contentHash: candidate.contentHash, notes: 'Portal índice; no es fuente primaria.',
+      evidence: rejectEvidence,
+    });
+    assert.equal(review.status, 'staged');
+    assert.equal(review.action, 'reject');
+
+    assert.throws(() => stageCurationReview(db, {
+      entityKind: 'opportunity', entityId: 'opp-reject', action: 'reject',
+      contentHash: candidate.contentHash, notes: '',
+      evidence: rejectEvidence,
+    }), /reject_reason_required/);
+  } finally {
+    db.close();
+  }
+});
+
+test('applyStagedCurationReviews with reject deletes row, creates tombstone and cleans events', () => {
+  const db = rejectDatabase();
+  try {
+    db.prepare(`INSERT INTO events (detectedAt,entityKind,entityId,kind,label,oldValue,newValue)
+      VALUES (?,?,?,?,?,?,?)`).run(
+      '2026-08-17T07:04:16.237Z', 'opportunity', 'opp-reject', 'new',
+      'Portal índice basura', null, null,
+    );
+    db.prepare(`INSERT INTO events (detectedAt,entityKind,entityId,kind,label,oldValue,newValue)
+      VALUES (?,?,?,?,?,?,?)`).run(
+      '2026-08-17T07:05:00.000Z', 'opportunity', 'opp-reject', 'status',
+      'Portal índice basura', null, 'En construcción',
+    );
+
+    const candidate = listCurationCandidates(db).find((item) => item.entityId === 'opp-reject');
+    const review = stageCurationReview(db, {
+      entityKind: 'opportunity', entityId: 'opp-reject', action: 'reject',
+      contentHash: candidate.contentHash, notes: 'Portal índice; no es fuente primaria.',
+      evidence: rejectEvidence,
+    });
+
+    const result = applyStagedCurationReviews(db);
+    assert.equal(result.applied, 1);
+
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM opportunities WHERE id = ?').get('opp-reject').n, 0);
+
+    const tombstone = db.prepare('SELECT * FROM entity_aliases WHERE entityKind = ? AND aliasId = ? AND canonicalId = ?')
+      .get('opportunity', 'opp-reject', '__rejected__');
+    assert.ok(tombstone);
+    assert.equal(tombstone.reason, 'Portal índice; no es fuente primaria.');
+
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM events WHERE entityKind = ? AND entityId = ?')
+      .get('opportunity', 'opp-reject').n, 0);
+
+    const stored = db.prepare('SELECT status,resultHash FROM curation_reviews WHERE id = ?').get(review.id);
+    assert.equal(stored.status, 'applied');
+    assert.match(stored.resultHash, /^[a-f0-9]{64}$/);
+  } finally {
+    db.close();
+  }
+});
+
+test('listCurationCandidates excludes an API-rejected entity via tombstone', () => {
+  const db = rejectDatabase();
+  try {
+    const candidate = listCurationCandidates(db).find((item) => item.entityId === 'opp-reject');
+    assert.ok(candidate, 'candidate exists before reject');
+
+    stageCurationReview(db, {
+      entityKind: 'opportunity', entityId: 'opp-reject', action: 'reject',
+      contentHash: candidate.contentHash, notes: 'Portal índice; no es fuente primaria.',
+      evidence: rejectEvidence,
+    });
+    applyStagedCurationReviews(db);
+
+    assert.equal(listCurationCandidates(db).some((item) => item.entityId === 'opp-reject'), false);
+  } finally {
+    db.close();
+  }
+});
+
+test('rejecting a promotion unlinks opportunities that pointed to it', () => {
+  const db = rejectDatabase();
+  try {
+    // opp-reject apunta a la promoción promo:metrovacesa:abelia-residencial
+    db.prepare('UPDATE opportunities SET promotionId = ? WHERE id = ?')
+      .run('promo:metrovacesa:abelia-residencial', 'opp-reject');
+
+    stageCurationReview(db, {
+      entityKind: 'promotion', entityId: 'promo:metrovacesa:abelia-residencial', action: 'reject',
+      contentHash: null, notes: 'Promoción fuera de alcance; no es fuente primaria.',
+      evidence: rejectEvidence,
+    });
+    applyStagedCurationReviews(db);
+
+    // La promoción se borró y la oportunidad quedó desvinculada (promotionId = NULL)
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gestora_promotions WHERE id = ?')
+      .get('promo:metrovacesa:abelia-residencial').n, 0);
+    assert.equal(db.prepare('SELECT promotionId FROM opportunities WHERE id = ?').get('opp-reject').promotionId, null);
+  } finally {
+    db.close();
+  }
+});
