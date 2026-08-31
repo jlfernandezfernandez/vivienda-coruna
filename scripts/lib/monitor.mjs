@@ -110,7 +110,7 @@ function parsePublicationDate(value = '') {
   return new Date(value);
 }
 
-const BLOCKED_OPPORTUNITY_HOSTS = /(?:^|\.)(?:estatenearme\.com|idealista\.com|fotocasa\.es|habitaclia\.com|yaencontre\.com|nestoria\.es|viviendasnuevas\.com|subastasdelboe\.com|tramitesayuntamiento\.com)$/i;
+const BLOCKED_OPPORTUNITY_HOSTS = /(?:^|\.)(?:estatenearme\.com|idealista\.com|fotocasa\.es|habitaclia\.com|yaencontre\.com|nestoria\.es|viviendasnuevas\.com|subastasdelboe\.com|tramitesayuntamiento\.com|mitula\.com|iberinform\.es|einforma\.com|easyoffer\.es|infojaen\.com)$/i;
 
 export function isTrustedOpportunityUrl(value = '') {
   try {
