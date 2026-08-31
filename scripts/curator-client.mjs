@@ -94,6 +94,14 @@ if (command === 'candidates') {
   if (run.status !== 'succeeded') process.exitCode = 1;
 } else if (command === 'diagnostics') {
   output(await request('/api/v1/operations/diagnostics'));
+} else if (command === 'block-host') {
+  if (!argument) throw new Error('block-host requires a domain');
+  const [domain, ...reasonParts] = argument.split(' ');
+  const reason = reasonParts.join(' ') || 'Bloqueado por el curador';
+  output(await request('/api/v1/operations/blocked-hosts', {
+    method: 'POST',
+    body: JSON.stringify({ domain, reason }),
+  }));
 } else {
   throw new Error(`unknown command: ${command}`);
 }
