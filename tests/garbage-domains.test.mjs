@@ -9,6 +9,11 @@ test('bloquea portales/agregadores de ruido por dominio, no solo por título', (
     'https://tramitesayuntamiento.com/sada/vivienda-y-rehabilitacion',
     'https://www.idealista.com/pisos/a-coruna/',
     'https://www.fotocasa.es/es/comprar/viviendas/a-coruna/1',
+    'https://pisos.mitula.com/pisos/pisos-obra-nueva-cambre',
+    'https://www.iberinform.es/empresa/857330/promotores-de-viviendas-sada',
+    'https://www.einforma.com/informacion-empresa/promotores-viviendas-sada',
+    'https://www.easyoffer.es/abogados-reparcelacion.culleredo/',
+    'https://infojaen.com/residencial-casablanca-a-coruna-241-viviendas-en-obra-nueva-cerca-del-chuac/',
   ];
   for (const url of blocked) {
     assert.equal(isTrustedOpportunityUrl(url), false, url);
