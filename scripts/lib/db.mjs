@@ -744,6 +744,13 @@ export function ensureSchema(db) {
       completedAt TEXT,
       error TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS blocked_hosts (
+      domain TEXT PRIMARY KEY,
+      reason TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'block' CHECK(severity IN ('block','warn'))
+    );
   `);
 
   // SQLite cannot alter CHECK constraints. Upgrade databases created before
@@ -897,6 +904,47 @@ export function createRun(db, mode, idempotencyKey) {
     'INSERT INTO pipeline_runs (id, mode, status, idempotencyKey, createdAt) VALUES (?, ?, ?, ?, ?)'
   ).run(id, mode, 'queued', idempotencyKey, createdAt);
   return { id, mode, status: 'queued', idempotencyKey, createdAt };
+}
+
+function validateBlockedDomain(domain) {
+  if (typeof domain !== 'string' || !domain.trim()) return { ok: false };
+  const trimmed = domain.trim().toLowerCase();
+  if (trimmed.length > 253) return { ok: false };
+  if (/[/?#:@\s]/.test(trimmed)) return { ok: false };
+  if (trimmed.startsWith('.') || trimmed.endsWith('.')) return { ok: false };
+  const labels = trimmed.split('.');
+  if (labels.length < 2 || labels.some((label) => !label || label.length > 63)) return { ok: false };
+  if (!labels.every((label) => /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) return { ok: false };
+  // Rechazar direcciones IP literales (IPv4 e IPv6): no son dominios de host.
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(trimmed)) return { ok: false };
+  if (trimmed.includes(':')) return { ok: false };
+  return { ok: true, domain: trimmed };
+}
+
+export function listBlockedHosts(db) {
+  return db.prepare('SELECT domain, reason, severity, created_at FROM blocked_hosts ORDER BY created_at DESC').all();
+}
+
+export function addBlockedHost(db, domain, reason, { severity = 'block' } = {}) {
+  const validation = validateBlockedDomain(domain);
+  if (!validation.ok) {
+    throw new Error('invalid_domain');
+  }
+  const normalized = validation.domain;
+  if (typeof reason !== 'string' || !reason.trim()) {
+    throw new Error('reason_required');
+  }
+  const normalizedSeverity = severity === 'warn' ? 'warn' : 'block';
+  const createdAt = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO blocked_hosts (domain, reason, severity, created_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(domain) DO UPDATE SET
+       reason = excluded.reason,
+       severity = excluded.severity,
+       created_at = excluded.created_at`
+  ).run(normalized, reason.trim(), normalizedSeverity, createdAt);
+  return { domain: normalized, reason: reason.trim(), severity: normalizedSeverity, createdAt };
 }
 
 export function getRunById(db, id) {
@@ -1157,6 +1205,9 @@ export function createRepository(dbOrFactory, options = {}) {
     hasStagedCurationReviews: () => withDb((db) => Boolean(db.prepare(
       "SELECT 1 FROM curation_reviews WHERE status = 'staged' LIMIT 1",
     ).get())),
+
+    listBlockedHosts: () => withDb((db) => listBlockedHosts(db)),
+    addBlockedHost: (domain, reason) => withDb((db) => addBlockedHost(db, domain, reason)),
 
     diagnostics: () => withDb((db) => ({
       database: 'ok',

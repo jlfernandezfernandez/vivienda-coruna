@@ -29,6 +29,7 @@ test('Tier 1: ensureSchema on clean database creates all required tables and ind
       .sort();
 
     const expectedTables = [
+      'blocked_hosts',
       'cooperatives',
       'curation_reviews',
       'entity_aliases',

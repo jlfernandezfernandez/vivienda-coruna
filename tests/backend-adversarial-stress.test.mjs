@@ -87,7 +87,7 @@ test('Adversarial Migration: ensureSchema recovers from fragmented partial table
     ensureSchema(db);
 
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all().map((r) => r.name).sort();
-    assert.equal(tables.length, 9, 'All 9 tables must be present');
+    assert.equal(tables.length, 10, 'All 10 tables must be present');
 
     const source = db.prepare('SELECT * FROM sources WHERE name = ?').get('Fuente Parcial');
     assert.ok(source.checkedAt, 'checkedAt must be backfilled');
