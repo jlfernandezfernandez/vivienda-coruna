@@ -4,22 +4,28 @@ import Layout from '../layouts/Layout.astro';
 import { api } from '../lib/api/client.mjs';
 import { apiSafe } from '../lib/api/boundary.mjs';
 import { siteBase } from '../lib/ui.mjs';
+import DirectoryFilters from '../components/DirectoryFilters.astro';
+import { directoryFilters, matchesHousing, hasOpenRecruitment, searchGestoras } from '../lib/housing-search.mjs';
 
-const [cooperatives, dashboard] = await apiSafe(
+const [allCooperatives, dashboard] = await apiSafe(
   Astro.response,
   () => Promise.all([api.cooperatives(), api.dashboard()]),
   [[], { opportunities: [], gestoras: [] }]
 );
-const { opportunities, gestoras } = dashboard;
-const coopOpportunities = (opportunities || []).filter((o: any) => o.type === 'Cooperativa');
+const filters = directoryFilters(Astro.url.searchParams);
+const cooperatives = filters.recruiting ? [] : allCooperatives.filter((item: any) => matchesHousing(item, filters));
+const { opportunities } = dashboard;
+const gestoras = searchGestoras(dashboard.gestoras || [], filters);
+const coopOpportunities = (opportunities || []).filter((o: any) => o.type === 'Cooperativa' && matchesHousing(o, filters));
+const openOpportunities = coopOpportunities.filter(hasOpenRecruitment);
 const base = siteBase(import.meta.env.BASE_URL);
 
 const captacion = (gestoras || []).flatMap((g: any) =>
   (g.promotions || [])
-    .filter((p: any) => p.buscaSocios === true)
+    .filter(hasOpenRecruitment)
     .map((p: any) => ({ gestora: g, promo: p }))
 );
-const activeCoopCount = coopOpportunities.length + captacion.length;
+const activeCoopCount = openOpportunities.length + captacion.length;
 
 const formatDate = (d: string | null) =>
   d
@@ -46,6 +52,8 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el √
       </p>
     </div>
 
+    <DirectoryFilters {filters} action={`${base}cooperativas`} />
+
     <!-- Stats row -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
       <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
@@ -53,12 +61,12 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el √
         <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Cooperativas en el Rexistro</p>
       </div>
       <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
-        <span class="text-3xl font-extrabold text-brand-blue">{activeCoopCount}</span>
-        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Cooperativas con actividad</p>
+        <span class="text-3xl font-extrabold text-brand-blue">{coopOpportunities.length}</span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Se√±ales en fuentes p√∫blicas</p>
       </div>
       <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium">
-        <span class="text-3xl font-extrabold text-brand-orange">{captacion.length}</span>
-        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">En captaci√≥n abierta</p>
+        <span class="text-3xl font-extrabold text-brand-orange">{activeCoopCount}</span>
+        <p class="text-xs font-bold text-ink-muted uppercase tracking-wider mt-1">Proyectos con captaci√≥n confirmada</p>
       </div>
     </div>
 
@@ -66,15 +74,15 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el √
     {activeCoopCount > 0 && (
       <section class="mb-12" aria-labelledby="captacion-title">
         <h2 id="captacion-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
-          <span>Cooperativas con actividad abierta</span>
+          <span>Proyectos con captaci√≥n confirmada</span>
           <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-status-ok/10 text-brand-green border border-status-ok/25 text-[11px] font-semibold">
-            {activeCoopCount} activas
+            {activeCoopCount} proyectos
           </span>
         </h2>
-        <p class="mb-4 text-sm text-ink-muted">Incluye cooperativas detectadas en fuentes p√∫blicas y promociones de gestoras que buscan socios.</p>
-        {coopOpportunities.length > 0 && (
+        <p class="mb-4 text-sm text-ink-muted">Solo proyectos con b√∫squeda de socios indicada expresamente y sin estado de agotada o entregada. Confirma plazas y condiciones con la gestora.</p>
+        {openOpportunities.length > 0 && (
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {coopOpportunities.map((op: any) => (
+            {openOpportunities.map((op: any) => (
               <a href={`${base}oportunidad/${op.id}`} class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium hover:shadow-hover transition-all">
                 <div class="flex items-center justify-between gap-2 mb-2">
                   <span class="text-xs font-bold text-ink-muted uppercase tracking-wider">üìç {op.barrio || op.location || '√Årea metropolitana'}</span>
@@ -90,7 +98,7 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el √
         )}
         {captacion.length > 0 && (
           <>
-            {coopOpportunities.length > 0 && <h3 class="mb-3 mt-6 text-sm font-bold text-ink">Promociones que buscan socios</h3>}
+            {openOpportunities.length > 0 && <h3 class="mb-3 mt-6 text-sm font-bold text-ink">Promociones que buscan socios</h3>}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           {captacion.map(({ gestora, promo }: any) => (
             <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col justify-between hover:shadow-hover transition-all">
@@ -103,6 +111,7 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el √
                 </div>
                 <h3 class="text-base font-bold text-ink mb-1">{promo.name}</h3>
                 <p class="text-xs text-ink-muted mb-3">Gestora: <strong class="text-ink font-semibold">{gestora.name}</strong></p>
+                <p class="mb-3 text-sm font-bold text-brand-green">{promo.precioMin > 0 ? `Desde ${promo.precioMin.toLocaleString('es-ES')} ‚Ç¨` : 'Precio a consultar'}</p>
                 {promo.details && <p class="text-xs text-ink-light mb-3">{promo.details}</p>}
                 {(promo.entregaEstimada || promo.aportacionInicial) && (
                   <div class="flex flex-wrap gap-2 text-xs text-ink-muted mb-4 bg-canvas p-2.5 rounded-xl border border-border-soft">
@@ -112,7 +121,7 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el √
                 )}
               </div>
               <a
-                href={`${base}gestora/${gestora.id}`}
+                href={`${base}gestora/${gestora.id}#promocion-${promo.id}`}
                 class="w-full bg-brand-green text-surface text-center font-bold py-2 px-3 rounded-xl text-xs hover:bg-brand-green-hover transition-colors"
               >
                 Ver ficha de la gestora y contacto ‚Üí
@@ -125,6 +134,8 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el √
       </section>
     )}
 
+    {activeCoopCount === 0 && <p class="mb-8 rounded-xl border border-border-soft p-5 text-sm text-ink-muted">No consta captaci√≥n confirmada con estos filtros. Puedes consultar el registro o contactar con una gestora.</p>}
+
     <!-- Registry cooperatives -->
     <section class="mb-12" aria-labelledby="registro-title">
       <h2 id="registro-title" class="text-lg font-bold text-ink mb-4 flex items-center gap-2">
@@ -133,6 +144,8 @@ const pageDescription = 'Todas las cooperativas de vivienda constituidas en el √
           {cooperatives.length} inscritas
         </span>
       </h2>
+      <p class="mb-4 text-sm text-ink-muted">Estar inscrita en el registro no confirma que una cooperativa tenga viviendas disponibles ni admita nuevos socios.</p>
+      {filters.recruiting && <p class="mb-4 text-sm text-ink-muted">El filtro de captaci√≥n oculta las entidades del registro cuya disponibilidad no est√° confirmada.</p>}
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {cooperatives.map((c: any) => (
           <div class="border border-border-soft bg-surface p-5 rounded-2xl shadow-premium flex flex-col justify-between">

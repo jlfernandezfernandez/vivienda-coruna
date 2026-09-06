@@ -1,6 +1,6 @@
 # Vivienda Coruña — Monitor de Cooperativas y Obra Nueva
 
-Monitor de código abierto y sin servidores para detectar señales tempranas de **cooperativas de viviendas, promociones de obra nueva y vivienda protegida (VPA/VPP)** en el área metropolitana de A Coruña.
+Monitor de código abierto para detectar señales tempranas de **cooperativas de viviendas, promociones de obra nueva y vivienda protegida (VPA/VPP)** en el área metropolitana de A Coruña.
 
 ---
 
@@ -19,87 +19,62 @@ El monitor filtra geográficamente de forma explícita para evitar falsos positi
 
 ---
 
-## 🛠️ Arquitectura Híbrida y Datos (GitOps)
+## Encontrar vivienda
 
-El monitor utiliza un enfoque **Flat-File / GitOps** que permite archivar datos de forma ilimitada y servir el frontal de forma 100% gratuita y sin servidores dinámicos:
+- **Novedades y mapa:** oportunidades localizadas y búsqueda por barrio o municipio, también sin tildes.
+- **Gestoras:** filtra por nombre, zona, municipio del proyecto y precio máximo. Cada promoción enlaza con su ficha y el contacto de la gestora.
+- **Cooperativas:** distingue los proyectos con captación confirmada, las entidades del registro y las señales de prensa. La inscripción o una noticia no prueban que haya plazas.
+- Los filtros permiten mostrar solo captación confirmada y excluir promociones agotadas o entregadas. Las promociones sin precio siguen visibles como «precio a consultar»; la aportación inicial no se utiliza como precio total.
+
+## Arquitectura
+
+Astro renderiza las páginas en el servidor y consulta una API Fastify de solo lectura. El backend es el único escritor de SQLite, almacenado en un volumen persistente.
 
 ```text
-Fuentes RSS / DOG / IGVS / Prensa Local / Rexistro Xunta
+Fuentes públicas / IGVS / DOG / prensa / Rexistro / gestoras
                          ↓
-              scripts/fetch-rss.mjs
+              Backend y pipeline de datos
                          ↓
-  [Extractor Regex Gratis (80-90% de noticias sin coste LLM)]
+              SQLite en volumen persistente
                          ↓
-  [OpenRouter / OpenAI LLM (Structured Outputs para casos complejos)]
-                         ↓
-  [Geocodificador Metropolitano (scripts/lib/geocoder.mjs)]
-                         ↓
-        src/data/monitor.db  ← [Base de Datos SQLite (Histórico Completo)]
-                         ↓
-          Astro Build        ← [Compilación Estática en build time]
-                         ↓
-         GitHub Pages        ← [Hosting Gratuito y sin Servidores]
+              API Fastify → Astro SSR → navegador
 ```
 
-1. **Rastreador**: Consulta tablones oficiales de la Xunta (IGVS, DOG, Contratos Públicos) y canales de prensa local.
-2. **Descarga y Scrapeo**: Firecrawl (o descarga HTML directa para fuentes oficiales) para obtener artículos completos sin paywalls ni bloqueos.
-3. **Extracción Híbrida Zero-Token + IA**:
-   - **Fase 1 (Regex)**: Extrae de forma instantánea precios, dormitorios, baños, viviendas, garaje, trastero, terraza, piscina, ascensor, fecha de entrega y estado.
-   - **Fase 2 (LLM Structured Outputs)**: Extrae campos complejos o desestructurados con esquemas JSON estrictos.
-4. **Geocodificador Metropolitano (`geocoder.mjs`)**: Resuelve las ubicaciones detectadas a coordenadas WGS84 GPS precisas para alimentar el mapa interactivo.
-5. **Rexistro Oficial de Cooperativas**: Importa el CSV abierto de la Xunta de Galicia con diff por CIF para detectar cooperativas constituidas.
-6. **Directorio de Gestoras**: Descubre promotoras y gestoras activas, extrayendo su catálogo real y contacto.
-7. **Frontend Moderno (Astro + Leaflet + Tailwind v4)**:
-   - **Novedades y Alertas**: Feed con filtros avanzados por precio, habitaciones, baños, equipamiento y ubicación.
-   - **Mapa Interactivo (`/mapa`)**: Vista espacial completa con pines SVG y popups enriquecidos.
-   - **Cooperativas (`/cooperativas`)**: Proyectos en captación de socios y censo oficial.
-   - **Gestoras (`/gestoras`)**: Fichas de empresas y promociones asociadas.
-   - **100% Responsivo**: Switcher de vista Lista/Mapa para móviles y tablets.
+El pipeline combina extracción determinista, enriquecimiento opcional con LLM y geocodificación. Valida una base candidata antes de publicarla de forma atómica. Consulta [arquitectura](docs/architecture.md) para los contratos y la operación.
 
----
+## Desarrollo local
 
-## 🚀 Puesta en Marcha y Desarrollo Local
+Requiere Node.js 22.12 o posterior.
 
-### Requisitos
-* Node.js 22 o superior (soporte nativo de `node:sqlite`).
-
-### Instalación
 ```bash
-git clone https://github.com/tu-usuario/vivienda-coruna.git
+git clone https://github.com/jlfernandezfernandez/vivienda-coruna.git
 cd vivienda-coruna
 npm ci
-```
-
-### Configuración local (`.env`)
-```bash
 cp .env.example .env
 ```
-Rellena tus credenciales en `.env` (opcionales para desarrollo con datos en caché):
-* **`LLM_API_KEY`**: Tu API Key de OpenRouter o OpenAI.
-* **`FIRECRAWL_API_KEY`**: API Key de Firecrawl (opcional si usas instancia self-hosted).
-* **`FIRECRAWL_BASE_URL`**: URL base de Firecrawl (por defecto `https://api.firecrawl.dev`).
 
-### Comandos de desarrollo
+Configura `DB_PATH`, `BACKEND_INTERNAL_URL` y una `OPERATIONS_API_KEY` local de al menos 32 caracteres. En dos terminales:
+
 ```bash
-npm test          # Ejecuta los 21 tests unitarios (geocoder, regex, pipeline, LLM)
-npm run refresh   # Ejecuta el rastreador, enriquece datos y actualiza monitor.db
-npm run dev       # Inicia el servidor de desarrollo local (Astro)
-npm run build     # Compila el HTML estático en /dist
-npm run preview   # Previsualiza la compilación de producción localmente
+node --env-file=.env backend/server.mjs
 ```
 
----
+```bash
+npm run dev
+```
 
-## 🤖 Automatización en Producción (GitHub Actions)
+El enriquecimiento LLM es opcional: requiere configurar conjuntamente `LLM_BASE_URL`, `LLM_API_KEY` y `LLM_MODEL`. Firecrawl se configura con `FIRECRAWL_BASE_URL` y, si corresponde, `FIRECRAWL_API_KEY`.
 
-El flujo [.github/workflows/refresh-data.yml](.github/workflows/refresh-data.yml) se ejecuta automáticamente a diario:
-1. Consulta las fuentes y rastrea novedades.
-2. Enriquece los datos con regex y LLM.
-3. Geocodifica y guarda en SQLite `monitor.db`.
-4. Hace commit automático del archivo SQLite en Git.
-5. Despliega la versión estática en GitHub Pages.
+```bash
+npm test          # Pruebas de API, extracción, filtros y persistencia
+npm run check     # Comprobación de Astro y TypeScript
+npm run build     # Compilación del frontend SSR
+npm run quality   # Validación de la base de datos configurada
+```
 
----
+## Producción
+
+[GitHub Actions](.github/workflows/containers.yml) construye imágenes con etiquetas inmutables para Coolify. La adquisición de datos se ejecuta mediante operaciones autenticadas del backend. El pipeline no hace commits de SQLite ni reconstruye el frontend para publicar datos.
 
 ## ⚖️ Licencia
 

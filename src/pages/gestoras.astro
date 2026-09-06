@@ -5,8 +5,12 @@ import { api } from '../lib/api/client.mjs';
 import { apiSafe } from '../lib/api/boundary.mjs';
 import { siteBase } from '../lib/ui.mjs';
 import { statusColors } from '../lib/statuses.mjs';
+import DirectoryFilters from '../components/DirectoryFilters.astro';
+import { directoryFilters, searchGestoras, hasOpenRecruitment } from '../lib/housing-search.mjs';
 
-const gestoras = await apiSafe(Astro.response, () => api.gestoras(), []);
+const allGestoras = await apiSafe(Astro.response, () => api.gestoras(), []);
+const filters = directoryFilters(Astro.url.searchParams);
+const gestoras = searchGestoras(allGestoras, filters);
 const base = siteBase(import.meta.env.BASE_URL);
 
 const pageTitle = 'Directorio de Gestoras de Cooperativas y Promotoras en A Coruña | Vivienda Coruña';
@@ -19,7 +23,7 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
     <div class="mb-8 border-b border-border-soft pb-6">
       <div class="inline-flex items-center gap-1.5 rounded-lg bg-brand-green-soft px-2.5 py-0.5 text-[11px] font-semibold text-brand-green border border-brand-green/10 mb-3">
         <span class="flex h-1.5 w-1.5 rounded-full bg-brand-green pulse-indicator-ok"></span>
-        {gestoras.length} entidades registradas
+        {gestoras.length} de {allGestoras.length} entidades
       </div>
       <h1 class="text-3xl font-extrabold tracking-tight text-ink md:text-4xl leading-tight">
         Directorio de Gestoras y Promotoras
@@ -29,9 +33,11 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
       </p>
     </div>
 
+    <DirectoryFilters {filters} action={`${base}gestoras`} />
+
     {gestoras.length === 0 ? (
       <div class="p-10 text-center rounded-2xl border border-border-soft text-ink-muted bg-surface text-sm">
-        Sin gestoras detectadas todavía.
+        No hay gestoras con estos criterios. Prueba otro municipio o limpia los filtros.
       </div>
     ) : (
       <div class="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
@@ -93,21 +99,23 @@ const pageDescription = 'Directorio de gestoras de cooperativas de vivienda y pr
               {gestora.promotions.length > 0 && (
                 <div class="border-t border-border-soft pt-4 mt-2">
                   <span class="text-xs font-bold text-ink uppercase tracking-wider block mb-2.5">
-                    Promociones activas ({gestora.promotions.length})
+                    Promociones que coinciden ({gestora.promotions.length})
                   </span>
                   <div class="space-y-2">
                     {gestora.promotions.slice(0, 3).map((promo: any) => (
                       <div class="bg-canvas border border-border-soft p-2.5 rounded-xl flex flex-col gap-1">
                         <div class="flex items-center justify-between gap-2">
-                          <span class="text-xs font-bold text-ink truncate">{promo.name}</span>
+                          <a href={`${base}gestora/${gestora.id}#promocion-${promo.id}`} class="text-xs font-bold text-ink hover:text-brand-green">{promo.name}</a>
                           <span class={`text-[10px] font-bold px-2 py-0.5 rounded-md ${statusColors(promo.status)}`}>
-                            {promo.status}
+                            {promo.status || 'Disponibilidad por confirmar'}
                           </span>
                         </div>
                         <div class="flex justify-between items-center text-[11px] text-ink-muted">
                           <span>📍 {promo.barrio ? `${promo.barrio}, ` : ''}{promo.location || 'Área'}</span>
                           {promo.entregaEstimada && <span>📅 {promo.entregaEstimada}</span>}
                         </div>
+                        <p class="text-xs font-semibold text-brand-green">{promo.precioMin > 0 ? `Desde ${promo.precioMin.toLocaleString('es-ES')} €` : 'Precio a consultar'}</p>
+                        {hasOpenRecruitment(promo) && <span class="text-xs text-brand-green">Captación confirmada</span>}
                       </div>
                     ))}
                     {gestora.promotions.length > 3 && (
