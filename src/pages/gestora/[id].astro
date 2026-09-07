@@ -4,6 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import { api } from '../../lib/api/client.mjs';
 import { apiSafe } from '../../lib/api/boundary.mjs';
 import { siteBase, statusToneClass } from '../../lib/ui.mjs';
+import { hasOpenRecruitment } from '../../lib/housing-search.mjs';
 
 const base = siteBase(import.meta.env.BASE_URL);
 const gestora = await apiSafe(Astro.response, () => api.gestora(Astro.params.id), { id: '', name: 'Gestora no disponible', logo: '', website: '', phone: '', email: '', address: '', description: '', promotions: [], press: [] });
@@ -95,17 +96,17 @@ const pageDescription = gestora.description || `Promociones y cooperativas gesti
           </h2>
           <div class="space-y-3">
             {gestora.promotions.map((promo: any) => (
-              <div class="bg-canvas border border-border-soft p-3 rounded-xl flex flex-col gap-1.5">
+              <div id={`promocion-${promo.id}`} class="bg-canvas border border-border-soft p-3 rounded-xl flex flex-col gap-1.5 scroll-mt-24">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                   <span class="text-sm font-bold text-ink">{promo.name}</span>
                   <div class="flex gap-1.5 flex-wrap">
-                    {promo.buscaSocios === true && (
+                    {hasOpenRecruitment(promo) && (
                       <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg border bg-status-ok/10 text-brand-green border-status-ok/15">
                         Captación abierta
                       </span>
                     )}
                     <span class={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${statusToneClass(promo.statusTone)}`}>
-                      {promo.statusLabel || promo.status}
+                      {promo.statusLabel || promo.status || 'Disponibilidad por confirmar'}
                     </span>
                   </div>
                 </div>
@@ -113,6 +114,7 @@ const pageDescription = gestora.description || `Promociones y cooperativas gesti
                   <span>📍 {promo.location || '—'}</span>
                   {promo.details && <span class="text-right max-w-[60%] truncate">{promo.details}</span>}
                 </div>
+                <p class="text-sm font-bold text-brand-green">{promo.precioMin > 0 ? `Desde ${promo.precioMin.toLocaleString('es-ES')} €` : 'Precio a consultar'}</p>
                 {(promo.entregaEstimada || promo.aportacionInicial) && (
                   <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-muted mt-1">
                     {promo.entregaEstimada && <span>Entrega estimada: <strong class="text-ink">{promo.entregaEstimada}</strong></span>}

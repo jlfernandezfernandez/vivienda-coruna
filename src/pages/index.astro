@@ -8,6 +8,7 @@ import { MUNICIPALITIES } from '../lib/municipios.mjs';
 import { api } from '../lib/api/client.mjs';
 import { apiSafe } from '../lib/api/boundary.mjs';
 import { siteBase } from '../lib/ui.mjs';
+import { hasOpenRecruitment } from '../lib/housing-search.mjs';
 
 const base = siteBase(import.meta.env.BASE_URL);
 const dashboard = await apiSafe(Astro.response, () => api.dashboard(), {
@@ -52,11 +53,11 @@ const groupedItems = allItems.reduce((acc, item) => {
 
 const groupedEntries = Object.entries(groupedItems);
 
-// Cooperativas activas: oportunidades tipo Cooperativa + promociones de gestoras que buscan socios
-const coopOpportunities = (items || []).filter((i: any) => i.type === 'Cooperativa');
+// Captación solo cuando hay evidencia explícita; una noticia no confirma plazas.
+const coopOpportunities = (items || []).filter((i: any) => i.type === 'Cooperativa' && hasOpenRecruitment(i));
 const coopPromotions = (gestoras || []).flatMap((g: any) =>
   (g.promotions || [])
-    .filter((p: any) => p.buscaSocios === true)
+    .filter(hasOpenRecruitment)
     .map((p: any) => ({ ...p, gestoraId: g.id, gestoraName: g.name }))
 );
 const activeCoopCount = coopOpportunities.length + coopPromotions.length;
@@ -110,7 +111,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
     <section class="mb-10" aria-labelledby="coop-activas-title">
       <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 id="coop-activas-title" class="text-lg font-bold text-ink flex items-center gap-2">
-          Cooperativas con captación abierta
+          Proyectos con captación confirmada
           <span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg bg-brand-green-soft text-brand-green border border-brand-green/10 text-[11px] font-semibold">
             {activeCoopCount}
           </span>
@@ -150,7 +151,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
           ))}
           {coopPromotions.map((promo: any) => (
             <a
-              href={`${base}gestora/${promo.gestoraId}`}
+              href={`${base}gestora/${promo.gestoraId}#promocion-${promo.id}`}
               class="flex min-w-[260px] max-w-[280px] flex-shrink-0 flex-col gap-2 rounded-2xl border border-border-soft bg-surface p-4 shadow-premium hover:border-border-medium hover:shadow-hover transition-all"
             >
               <div class="flex items-center justify-between gap-2">
@@ -326,7 +327,8 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
                 <div class="flex items-center h-10">
                   <input 
                     type="range" 
-                    id="price-range" 
+                    id="price-range"
+                    aria-label="Precio máximo"
                     min="150000" 
                     max="600000" 
                     step="25000" 
@@ -536,6 +538,8 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
 
 <!-- Client Filtering & View Switcher Javascript -->
 <script>
+  import { searchText } from '../lib/housing-search.mjs';
+
   const searchInput = document.getElementById('search-input') as HTMLInputElement;
   const sourceFilters = document.querySelectorAll('[data-filter-source]');
   const categoryFilters = document.querySelectorAll('[data-filter-category]');
@@ -644,7 +648,7 @@ const eventIcons: Record<string, { icon: string; className: string }> = {
         const cardRooms = cardRoomsAttr ? parseInt(cardRoomsAttr, 10) : null;
         const cardBaths = cardBathsAttr ? parseInt(cardBathsAttr, 10) : null;
 
-        const matchesSearch = text.includes(searchVal.toLowerCase()) || barrio.toLowerCase().includes(searchVal.toLowerCase());
+        const matchesSearch = searchText(`${text} ${barrio}`).includes(searchText(searchVal));
         const matchesSource = activeSource === 'all' || sourceKind === activeSource;
         const matchesCategory = activeCategory === 'all' || type === activeCategory;
 
