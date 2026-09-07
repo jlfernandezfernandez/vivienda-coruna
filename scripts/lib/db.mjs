@@ -787,6 +787,40 @@ export function ensureSchema(db) {
     `);
   }
 
+  // SQLite cannot alter CHECK constraints. Upgrade databases created before
+  // the curation `reject` action while preserving review history.
+  const curationSchema = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'curation_reviews'",
+  ).get()?.sql || '';
+  if (curationSchema && !curationSchema.includes("'reject'")) {
+    db.exec(`
+      BEGIN IMMEDIATE;
+      ALTER TABLE curation_reviews RENAME TO curation_reviews_legacy;
+      CREATE TABLE curation_reviews (
+        id TEXT PRIMARY KEY,
+        entityKind TEXT NOT NULL CHECK(entityKind IN ('opportunity','gestora','promotion','cooperative')),
+        entityId TEXT NOT NULL,
+        action TEXT NOT NULL CHECK(action IN ('confirm','update','create','reject')),
+        contentHash TEXT,
+        resultHash TEXT,
+        patchJson TEXT NOT NULL,
+        evidenceJson TEXT NOT NULL,
+        notes TEXT,
+        status TEXT NOT NULL DEFAULT 'staged' CHECK(status IN ('staged','applied','conflict')),
+        createdAt TEXT NOT NULL,
+        appliedAt TEXT
+      );
+      INSERT INTO curation_reviews (id, entityKind, entityId, action, contentHash, resultHash, patchJson, evidenceJson, notes, status, createdAt, appliedAt)
+      SELECT id, entityKind, entityId, action, contentHash, resultHash, patchJson, evidenceJson, notes, status, createdAt, appliedAt FROM curation_reviews_legacy;
+      DROP TABLE curation_reviews_legacy;
+      CREATE INDEX IF NOT EXISTS idx_curation_reviews_entity
+        ON curation_reviews(entityKind, entityId, createdAt DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_curation_reviews_one_staged
+        ON curation_reviews(entityKind, entityId) WHERE status = 'staged';
+      COMMIT;
+    `);
+  }
+
   // Column migrations
   const oppCols = db.prepare(`PRAGMA table_info(opportunities)`).all().map((c) => c.name);
   for (const col of [

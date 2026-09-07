@@ -211,6 +211,58 @@ test('Tier 3: legacy pipeline_runs migration upgrades CHECK constraint to suppor
   }
 });
 
+test('Tier 3: legacy curation_reviews migration upgrades CHECK constraint to support reject action and preserves history', () => {
+  const { db, dir } = createTempDb();
+  try {
+    // Create legacy curation_reviews table with old check constraint (missing 'reject')
+    db.exec(`
+      CREATE TABLE curation_reviews (
+        id TEXT PRIMARY KEY,
+        entityKind TEXT NOT NULL CHECK(entityKind IN ('opportunity','gestora','promotion','cooperative')),
+        entityId TEXT NOT NULL,
+        action TEXT NOT NULL CHECK(action IN ('confirm','update','create')),
+        contentHash TEXT,
+        resultHash TEXT,
+        patchJson TEXT NOT NULL,
+        evidenceJson TEXT NOT NULL,
+        notes TEXT,
+        status TEXT NOT NULL DEFAULT 'staged' CHECK(status IN ('staged','applied','conflict')),
+        createdAt TEXT NOT NULL,
+        appliedAt TEXT
+      );
+    `);
+
+    // Insert legacy review history
+    db.prepare(`
+      INSERT INTO curation_reviews (id, entityKind, entityId, action, contentHash, resultHash, patchJson, evidenceJson, notes, status, createdAt, appliedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('review-legacy-1', 'opportunity', 'opp-1', 'confirm', 'hash1', 'hash1', '{}', '[]', 'ok', 'applied', '2026-07-01T10:00:00Z', '2026-07-01T10:00:05Z');
+
+    // Run migration
+    ensureSchema(db);
+
+    // Verify existing review is intact
+    const review = db.prepare('SELECT * FROM curation_reviews WHERE id = ?').get('review-legacy-1');
+    assert.equal(review.action, 'confirm');
+    assert.equal(review.entityId, 'opp-1');
+    assert.equal(review.status, 'applied');
+
+    // Verify new 'reject' action is now supported without constraint failure
+    assert.doesNotThrow(() => {
+      db.prepare(`
+        INSERT INTO curation_reviews (id, entityKind, entityId, action, contentHash, patchJson, evidenceJson, notes, status, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('review-reject-1', 'opportunity', 'opp-2', 'reject', 'hash2', '{}', '[]', 'basura', 'staged', '2026-08-21T12:00:00Z');
+    }, 'curation_reviews must allow action="reject" after migration');
+
+    const rejectReview = db.prepare('SELECT * FROM curation_reviews WHERE id = ?').get('review-reject-1');
+    assert.equal(rejectReview.action, 'reject');
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('Tier 3: opportunities, gestora_promotions and cooperatives migrate missing columns across versions', () => {
   const { db, dir } = createTempDb();
   try {
