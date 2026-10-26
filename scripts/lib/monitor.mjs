@@ -22,6 +22,17 @@ const NOISE_PATTERN = /\b(?:veh[ií]culo(?:s)?|h[ií]brido(?:s)?|vestiario|vestu
 const GARBAGE_PATTERN = /\b(?:yaencontre|nestoria|habitaclia|fotocasa|idealista|reformantia|subastasdelboe|tramitesayuntamiento|solicitud de licencias de obra para reforma|promociones de obra nueva en|inmuebles de obra nueva en|obra nueva en.*promociones en venta|obra nueva con entrega para)\b/i;
 const VPP_NOISE_PATTERN = /\b(?:informe del sorteo.*VPP|resoluci[oó]n de inicio.*VPP|fecha.*hora.*lugar.*sorteo.*VPP|modificaci[oó]n de la resoluci[oó]n.*VPP)\b/i;
 const MARKET_CONTEXT_NOISE_PATTERN = /\b(?:costes?|demanda|mercado|informe|an[aá]lisis|sin construir)\b/i;
+// El nombre del departamento emisor no acredita el contenido del anuncio: el DOG
+// publica decretos de carreteras bajo la "Consellería de Vivenda" y entraban como
+// oportunidades inmobiliarias solo porque la descripción nombraba el departamento.
+// Solo se elimina el nombre del órgano (con sus conjunciones "e"/"y"), nunca el
+// asunto ni el municipio que pueda seguirle ("Concellería de Vivenda de Oleiros").
+const ISSUING_DEPARTMENT_PATTERN = /\b(?:conseller[ií]a|conceller[ií]a|departamento|departament|ministerio|secretar[ií]a|secretaria)\s+(?:de|da|do|del)\s+(?:vivenda|vivienda|infraestruturas|infraestructuras|medio\s+ambiente|mobilidade|movilidad|fomento|urbanismo|cultura|sanidade|sanidad|educaci[oó]n|servizos\s+sociais|servicios\s+sociales|pol[ií]tica\s+social|econom[ií]a)(?:,?\s+(?:e|y)\s+[a-záéíóúüñ]{3,22}){0,3}/gi;
+
+export function stripIssuingDepartment(value = '') {
+  return String(value).replace(ISSUING_DEPARTMENT_PATTERN, ' ');
+}
+
 
 export function cleanText(value = '') {
   return String(value)
@@ -145,10 +156,13 @@ export function toOpportunity(item, source, now = new Date().toISOString(), bloc
   if (!isTrustedOpportunityUrl(url, blockedHosts)) return null;
 
   // Los anuncios oficiales (DOG, contratos) no siempre nombran el municipio en el
-  // título, pero sí en el sumario: para ellos buscamos en título + descripción.
-  const relevant =
-    isRelevantTitle(title) ||
-    (sourceKind === 'official' && isRelevantTitle(`${title} ${details}`));
+  // título, pero sí en el sumario: para ellos buscamos en título + descripción,
+  // sin contar el nombre del departamento emisor como señal de vivienda. El título
+  // sigue valiendo por sí solo, como antes de este cambio.
+  const cleanTitle = stripIssuingDepartment(title);
+  const relevant = sourceKind === 'official'
+    ? isRelevantTitle(cleanTitle) || isRelevantTitle(`${cleanTitle} ${stripIssuingDepartment(details)}`)
+    : isRelevantTitle(title);
   if (!relevant) return null;
 
   return {
