@@ -119,6 +119,120 @@ F33333333;3-PO;COOP VIGO, S.COOP;;COOPERATIVA;VIVIENDAS;2026-01-01T00:00:00+01:0
   assert.equal(rows[0].address, 'RÚA X, ARTEIXO');
 });
 
+test('el nombre del departamento emisor no acredita contenido de vivienda', () => {
+  // El DOG publica decretos de carreteras bajo la "Consellería de Vivenda": la
+  // descripción contenía "Vivenda" y el anuncio entraba como oportunidad.
+  const roadDecree = toOpportunity(
+    {
+      title: 'DECRETO 106/2026, do 5 de outubro, polo que se aproba o cambio de titularidade a prol do Concello de Oleiros de estradas e treitos delas titularidade da Deputación Provincial da Coruña.',
+      link: 'https://www.xunta.gal/dog/Publicados/2026/20261022/AnuncioG0765-131026-0001_gl.html',
+      pubDate: '2026-10-21T22:00:00Z',
+      contentSnippet: 'III. Outras disposicións Consellería de Vivenda e Planificación de Infraestruturas',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(roadDecree, null);
+
+  // Regresión: cuando el asunto del anuncio es de vivienda, el departamento no lo tapa.
+  const housingOrder = toOpportunity(
+    {
+      title: 'ORDE do 12 de outubro pola que se convoca a adxudicación',
+      link: 'https://www.xunta.gal/dog/anuncio-vivendas',
+      pubDate: '2026-10-12T00:00:00Z',
+      contentSnippet: 'Consellería de Vivenda ORDE do 12 de outubro pola que se convoca a adxudicación de 24 vivendas protexidas en Oleiros',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(housingOrder?.location, 'Oleiros');
+  assert.equal(housingOrder?.type, 'Vivienda protegida');
+
+  // Regresión: la resolución de VPP del IGVS (asunto en el título) sigue entrando.
+  const igvsResolution = toOpportunity(
+    {
+      title: 'A Coruña - Resolución por la que se aprueba la lista definitiva de adjudicatarias de viviendas de VPP en Xuxán',
+      link: 'https://igvs.xunta.gal/es/vivienda-protegida/adjudicaciones/xuxan-c2024010',
+      pubDate: '2026-10-21T00:00:00Z',
+      contentSnippet: 'Consellería de Vivenda e Planificación de Infraestruturas',
+    },
+    'IGVS · Adjudicaciones y sorteos',
+  );
+  assert.equal(igvsResolution?.location, 'A Coruña');
+
+  // Regresión: el asunto que sigue al nombre del departamento no se borra con él.
+  const afterHeader = toOpportunity(
+    {
+      title: 'Anuncio de licitación',
+      link: 'https://www.xunta.gal/dog/anuncio-3',
+      pubDate: '2026-10-12T00:00:00Z',
+      contentSnippet: 'Consellería de Vivenda anuncia vivendas protexidas en Oleiros.',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(afterHeader?.location, 'Oleiros');
+  assert.equal(afterHeader?.type, 'Vivienda protegida');
+
+  // El mismo decreto de carreteras con dos puntos tras el departamento sigue fuera.
+  const colonVariant = toOpportunity(
+    {
+      title: 'DECRETO 106/2026, do 5 de outubro, polo que se aproba o cambio de titularidade a prol do Concello de Oleiros',
+      link: 'https://www.xunta.gal/dog/Publicados/2026/20261022/AnuncioG0765-131026-0001_gl.html',
+      pubDate: '2026-10-21T22:00:00Z',
+      contentSnippet: 'Consellería de Vivenda e Planificación de Infraestruturas: DECRETO 106/2026 sobre estradas en Oleiros',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(colonVariant, null);
+
+  // Tampoco si el propio título nombra al departamento emisor y el asunto es viario.
+  const departmentInTitle = toOpportunity(
+    {
+      title: 'Consellería de Vivenda: decreto de estradas en Oleiros',
+      link: 'https://www.xunta.gal/dog/anuncio-4',
+      pubDate: '2026-10-21T22:00:00Z',
+      contentSnippet: 'III. Outras disposicións',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(departmentInTitle, null);
+
+  // El ministerio estatal ("Vivienda") tampoco acredita contenido de vivienda.
+  const ministry = toOpportunity(
+    {
+      title: 'Anuncio de cambio de titularidad de carreteras',
+      link: 'https://www.xunta.gal/dog/anuncio-5',
+      pubDate: '2026-10-21T22:00:00Z',
+      contentSnippet: 'Ministerio de Vivienda y Agenda Urbana: cambio de titularidad de carreteras en Oleiros',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(ministry, null);
+
+  // La concejalía municipal conserva el municipio que sigue a su nombre.
+  const concejalia = toOpportunity(
+    {
+      title: 'Anuncio de licitación',
+      link: 'https://www.xunta.gal/dog/anuncio-6',
+      pubDate: '2026-10-12T00:00:00Z',
+      contentSnippet: 'Concellería de Vivenda de Oleiros: adxudicación de 24 vivendas protexidas',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(concejalia?.location, 'Oleiros');
+
+  // El título válido sigue valiendo aunque la descripción mencione ruido (vehículos).
+  const titleWithNoisyDetails = toOpportunity(
+    {
+      title: 'Adxudicación de 24 vivendas protexidas en Oleiros',
+      link: 'https://www.xunta.gal/dog/anuncio-7',
+      pubDate: '2026-10-12T00:00:00Z',
+      contentSnippet: 'Consellería de Vivenda e Planificación de Infraestruturas. Inclúe prazas para vehículos',
+    },
+    'DOG · Sumario diario',
+  );
+  assert.equal(titleWithNoisyDetails?.location, 'Oleiros');
+  assert.equal(titleWithNoisyDetails?.type, 'Vivienda protegida');
+});
+
 test('detecta relevancia oficial por la descripción aunque el título no nombre el municipio', () => {
   const dogItem = toOpportunity(
     {
