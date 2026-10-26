@@ -2,13 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  dedupeAggregatorWrappers,
   detectLocation,
   detectStatus,
   extractPublishedAt,
   isActionableMarketAlert,
   isFreshMarketAlert,
+  isNewsAggregatorWrapperUrl,
   isRelevantTitle,
   normalizeGestoraId,
+  normalizeTitleForDedup,
   normalizeUrl,
   parseCooperativeRegistryCsv,
   toOpportunity,
@@ -306,4 +309,41 @@ test('últimos cambios oculta eventos huérfanos o contradichos', () => {
       ('2026-01-03','opportunity','eliminada','new','Obra nueva');
   `);
   assert.deepEqual(getRecentEvents(db).map((event) => event.id), [2]);
+});
+
+test('las filas de Google News que repiten la fuente primaria no crean una segunda oportunidad', () => {
+  const aggregatorUrl = 'https://news.google.com/rss/articles/CBMiwgFBVV95cUxNYkN2dzZkV3ZELTk3cTIxSTN5VVRQOXkxZFpvRjkt?oc=5';
+  const primaryUrl = 'https://www.laopinioncoruna.es/gran-coruna/2026/06/09/oleiros-reparcelacion-urbanizacion-icaria-177-viviendas-131211913.html';
+  const headline = 'Oleiros aprueba la reparcelación pendiente de la urbanización Icaria IV';
+
+  assert.equal(isNewsAggregatorWrapperUrl(aggregatorUrl), true);
+  assert.equal(isNewsAggregatorWrapperUrl(primaryUrl), false);
+  assert.equal(isNewsAggregatorWrapperUrl('https://news.google.com/search?q=oleiros'), false);
+  assert.equal(normalizeTitleForDedup('Urbanización As Medoñas, en Arteixo'), normalizeTitleForDedup('urbanizacion as medonas en arteixo'));
+
+  // El titular del agregador añade el nombre del medio al final: mismo día, mismo relato.
+  const items = [
+    { title: `${headline} - La Opinión A Coruña`, url: aggregatorUrl, publishedAt: '2026-06-09T07:00:00.000Z' },
+    { title: headline, url: primaryUrl, publishedAt: '2026-06-09T12:00:00.000Z' },
+  ];
+  assert.deepEqual(dedupeAggregatorWrappers(items, []).map((item) => item.url), [primaryUrl]);
+
+  // La fila primaria ya está en la base de datos: se descarta la del agregador.
+  const existing = [{ title: headline, url: primaryUrl, publishedAt: '2026-06-09T12:00:00.000Z' }];
+  assert.equal(dedupeAggregatorWrappers([items[0]], existing).length, 0);
+
+  // Cobertura única del agregador: se conserva, no se bloquea el dominio.
+  const unique = [{ title: 'Metrovacesa obtiene licencia para construir un residencial de 100 viviendas', url: aggregatorUrl, publishedAt: '2026-06-09T07:00:00.000Z' }];
+  assert.equal(dedupeAggregatorWrappers(unique, existing).length, 1);
+
+  // Mismo titular en otro día es otra noticia.
+  const otherDay = [{ title: headline, url: aggregatorUrl, publishedAt: '2026-08-09T07:00:00.000Z' }];
+  assert.equal(dedupeAggregatorWrappers(otherDay, existing).length, 1);
+
+  // Dos medios distintos con el mismo titular no se tocan: solo se descarta el agregador.
+  const twoPrimaries = [
+    { title: headline, url: primaryUrl, publishedAt: '2026-06-09T12:00:00.000Z' },
+    { title: headline, url: 'https://www.elidealgallego.com/oleiros-icaria-iv', publishedAt: '2026-06-09T12:00:00.000Z' },
+  ];
+  assert.equal(dedupeAggregatorWrappers(twoPrimaries, []).length, 2);
 });
