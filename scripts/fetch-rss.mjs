@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import { config, AREA_LABELS } from './lib/config.mjs';
 import {
+  dedupeAggregatorWrappers,
   isActionableMarketAlert,
   normalizeGestoraId,
   parseCooperativeRegistryCsv,
@@ -187,6 +188,16 @@ async function main() {
 
   if (!sources.some((source) => source.ok)) {
     throw new Error('No se pudo consultar ninguna fuente; se conservan los datos anteriores');
+  }
+
+  // Una fila de Google News que repite una noticia ya registrada con la URL del medio
+  // no aporta nada y deja la misma promoción dos veces en el listado.
+  const existingRows = db.prepare('SELECT id, title, publishedAt, url FROM opportunities').all();
+  const dedupedCandidates = dedupeAggregatorWrappers(candidates, existingRows);
+  if (dedupedCandidates.length !== candidates.length) {
+    console.log(`[dedupe] ${candidates.length - dedupedCandidates.length} fila(s) de agregador descartadas por duplicar la fuente primaria`);
+    candidates.length = 0;
+    candidates.push(...dedupedCandidates);
   }
 
   console.log('\n[IA/SQLite] Procesando novedades y enriqueciendo con LLM...');

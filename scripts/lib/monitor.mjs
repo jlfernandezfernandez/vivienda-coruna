@@ -57,6 +57,63 @@ export function detectLocation(title = '') {
   return PLACE_PATTERNS.find(({ pattern }) => pattern.test(text))?.label ?? null;
 }
 
+// El feed de Google News no es una fuente: envuelve artículos que ya entran por su
+// medio original. Cuando la fila primaria ya existe, la del agregador es un duplicado
+// con URL inestable (redirige a un muro de consentimiento). No se bloquea el dominio
+// porque 5 de cada 7 filas suyas son cobertura que no llega por otro feed.
+const NEWS_AGGREGATOR_HOSTS = new Set(['news.google.com']);
+
+export function isNewsAggregatorWrapperUrl(value = '') {
+  try {
+    const url = new URL(String(value));
+    return NEWS_AGGREGATOR_HOSTS.has(url.hostname.toLowerCase())
+      && /^\/rss\/articles\/?/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+export function normalizeTitleForDedup(title = '') {
+  return cleanText(title)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// El agregador a veces solo recorta el titular ("... - La Opinión A Coruña"), así que
+// además de la igualdad se acepta prefijo con 40 caracteres de solape: suficiente para
+// no confundir dos noticias distintas del mismo día.
+function titlesDescribeSameStory(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.length >= 40 && longer.startsWith(shorter);
+}
+
+function publishedDay(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+export function dedupeAggregatorWrappers(items = [], existing = []) {
+  const primaries = [...existing, ...items].filter(
+    (row) => row && row.url && !isNewsAggregatorWrapperUrl(row.url) && row.title,
+  ).map((row) => ({
+    title: normalizeTitleForDedup(row.title),
+    day: publishedDay(row.publishedAt),
+  }));
+
+  return items.filter((item) => {
+    if (!isNewsAggregatorWrapperUrl(item?.url)) return true;
+    const title = normalizeTitleForDedup(item.title);
+    const day = publishedDay(item.publishedAt);
+    if (!title || !day) return true;
+    return !primaries.some((primary) => primary.day === day && titlesDescribeSameStory(primary.title, title));
+  });
+}
+
 export function isRelevantTitle(title = '') {
   const text = cleanText(title);
   return Boolean(detectLocation(text)) && HOUSING_PATTERN.test(text) && !NOISE_PATTERN.test(text) && !GARBAGE_PATTERN.test(text) && !VPP_NOISE_PATTERN.test(text);
