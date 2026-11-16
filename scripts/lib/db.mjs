@@ -114,14 +114,17 @@ export function saveOpportunity(db, op) {
   let geoPrecision = op.geoPrecision ?? null;
 
   if (lat == null || lng == null) {
+    // El municipio que declara `location` manda: si lo conocemos, la geolocalización
+    // no puede salirse de él por un barrio mencionado de pasada en el texto.
+    const locationMunicipality = resolveMunicipality(op.location);
     const geo = resolveGeoLocation(
       `${op.title} ${op.summary || ''} ${op.location || ''} ${op.barrio || ''} ${op.direccion || ''}`,
-      resolveMunicipality(municipality || op.location)
+      locationMunicipality || resolveMunicipality(municipality || op.location)
     );
     if (geo) {
       lat = geo.lat;
       lng = geo.lng;
-      municipality = municipality || geo.municipality;
+      municipality = locationMunicipality || municipality || geo.municipality;
       barrio = barrio || geo.barrio;
       geoPrecision = geo.geoPrecision;
     }
@@ -1416,17 +1419,26 @@ export function backfillGeocoding(db) {
   let promoUpdated = 0;
   let coopUpdated = 0;
 
-  const ungeoOpp = db.prepare('SELECT id, title, location, summary, barrio, evidenceText FROM opportunities WHERE lat IS NULL OR municipality IS NULL').all();
+  // No basta con las filas vacías: `municipality` es derivada y no la toca nadie más,
+  // así que un valor equivocado se quedaba para siempre. También se revisan las filas
+  // cuyo municipio contradice al que declara `location`.
+  const geoOpp = db.prepare(
+    'SELECT id, title, location, summary, barrio, evidenceText, lat, municipality FROM opportunities'
+  ).all();
   const updateOppStmt = db.prepare('UPDATE opportunities SET lat = ?, lng = ?, municipality = ?, barrio = ?, geoPrecision = ? WHERE id = ?');
-  for (const op of ungeoOpp) {
+  for (const op of geoOpp) {
+    const expected = resolveMunicipality(op.location);
+    const contradicts = Boolean(expected && op.municipality && op.municipality !== expected);
+    const missing = op.lat == null || op.municipality == null;
+    if (!missing && !contradicts) continue;
     const geo = resolveGeoLocation(
       `${op.title} ${op.summary || ''} ${op.location || ''} ${op.barrio || ''} ${(op.evidenceText || '').slice(0, 1000)}`,
-      resolveMunicipality(op.location)
+      expected
     );
-    if (geo) {
-      updateOppStmt.run(geo.lat, geo.lng, geo.municipality, geo.barrio || null, geo.geoPrecision, op.id);
-      oppUpdated++;
-    }
+    if (!geo) continue;
+    if (!contradicts && !missing && geo.municipality === op.municipality) continue;
+    updateOppStmt.run(geo.lat, geo.lng, geo.municipality, geo.barrio || null, geo.geoPrecision, op.id);
+    oppUpdated++;
   }
 
   const ungeoPromo = db.prepare('SELECT id, name, location, details, barrio FROM gestora_promotions WHERE lat IS NULL OR municipality IS NULL').all();
