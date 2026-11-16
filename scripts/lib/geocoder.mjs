@@ -545,13 +545,15 @@ export const PRECISION_GEO_ENTRIES = [
  * @returns {object|null} Geocoding result
  */
 export function resolveGeoLocation(text, fallbackMunicipality = null) {
+  const expectedMunicipality = fallbackMunicipality || null;
+
   if (!text) {
-    if (fallbackMunicipality && MUNI_CENTROIDS[fallbackMunicipality]) {
-      const { lat, lng } = MUNI_CENTROIDS[fallbackMunicipality];
+    if (expectedMunicipality && MUNI_CENTROIDS[expectedMunicipality]) {
+      const { lat, lng } = MUNI_CENTROIDS[expectedMunicipality];
       return {
         lat,
         lng,
-        municipality: fallbackMunicipality,
+        municipality: expectedMunicipality,
         barrio: null,
         geoPrecision: 'fallback',
       };
@@ -561,52 +563,38 @@ export function resolveGeoLocation(text, fallbackMunicipality = null) {
 
   const raw = String(text);
 
-  // 1. Street and Micro-Sector precision
-  for (const entry of PRECISION_GEO_ENTRIES) {
-    if (entry.pattern.test(raw)) {
-      return {
-        lat: entry.lat,
-        lng: entry.lng,
-        municipality: entry.municipality,
-        barrio: entry.barrio,
-        geoPrecision: entry.geoPrecision,
-      };
-    }
-  }
+  // El texto que llega aquí mezcla titular, resumen, location y evidencia, así que
+  // una mención de pasada a un barrio ("Santa Cruz", "Mera", "Perillo") no puede
+  // decidir el municipio de la promoción. Cuando el llamante ya sabe el municipio
+  // (viene de `location`), las coincidencias de otro municipio se descartan y solo
+  // se acepta lo que cae dentro de ese municipio, sea a precision, barrio o municipio.
+  const niveles = [
+    [PRECISION_GEO_ENTRIES, (entry) => entry.geoPrecision],
+    [BARRIO_GEO_ENTRIES, () => 'barrio'],
+    [MUNICIPALITY_GEO_ENTRIES, () => 'municipio'],
+  ];
 
-  // 2. Barrio level match
-  for (const entry of BARRIO_GEO_ENTRIES) {
-    if (entry.pattern.test(raw)) {
+  for (const [entradas, precisionDe] of niveles) {
+    for (const entry of entradas) {
+      if (expectedMunicipality && entry.municipality !== expectedMunicipality) continue;
+      if (!entry.pattern.test(raw)) continue;
       return {
         lat: entry.lat,
         lng: entry.lng,
         municipality: entry.municipality,
-        barrio: entry.barrio,
-        geoPrecision: 'barrio',
-      };
-    }
-  }
-
-  // 3. Municipality level match
-  for (const entry of MUNICIPALITY_GEO_ENTRIES) {
-    if (entry.pattern.test(raw)) {
-      return {
-        lat: entry.lat,
-        lng: entry.lng,
-        municipality: entry.municipality,
-        barrio: null,
-        geoPrecision: 'municipio',
+        barrio: entry.barrio ?? null,
+        geoPrecision: precisionDe(entry),
       };
     }
   }
 
   // 4. Fallback
-  if (fallbackMunicipality && MUNI_CENTROIDS[fallbackMunicipality]) {
-    const { lat, lng } = MUNI_CENTROIDS[fallbackMunicipality];
+  if (expectedMunicipality && MUNI_CENTROIDS[expectedMunicipality]) {
+    const { lat, lng } = MUNI_CENTROIDS[expectedMunicipality];
     return {
       lat,
       lng,
-      municipality: fallbackMunicipality,
+      municipality: expectedMunicipality,
       barrio: null,
       geoPrecision: 'fallback',
     };
